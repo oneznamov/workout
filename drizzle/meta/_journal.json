@@ -22,6 +22,13 @@
       "when": 1794488305491,
       "tag": "0002_stiff_jazinda",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1794488922131,
+      "tag": "0003_smiling_roulette",
+      "breakpoints": true
     }
   ]
 }

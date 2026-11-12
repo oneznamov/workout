@@ -58,7 +58,7 @@ export async function requireUserId(): Promise<string> {
 export const getSessionUser = cache(async () => {
   const id = await getUserId();
   if (!id) return null;
-  const [u] = await db.select({ id: users.id, username: users.username, goals: users.goals, isAdmin: users.isAdmin }).from(users).where(eq(users.id, id));
+  const [u] = await db.select({ id: users.id, username: users.username, goals: users.goals, dashboard: users.dashboard, isAdmin: users.isAdmin }).from(users).where(eq(users.id, id));
   return u ?? null;
 });
 

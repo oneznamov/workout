@@ -22,6 +22,8 @@ export const users = pgTable("users", {
   passwordHash: text("password_hash").notNull(),
   /** Weekly targets for the dashboard rings; null = defaults. */
   goals: jsonb("goals").$type<{ workouts: number; cardioMin: number; muscles: number }>(),
+  /** Home-screen layout: widget order and hidden widgets; null = defaults. */
+  dashboard: jsonb("dashboard").$type<{ order: string[]; hidden: string[] }>(),
   /** Can manage users and invitations. The first account is the admin. */
   isAdmin: boolean("is_admin").notNull().default(false),
   createdAt: createdAt(),

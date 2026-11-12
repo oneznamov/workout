@@ -9,6 +9,7 @@ import { apiTokens, EQUIPMENT, MUSCLE_GROUPS, TRACKING, users, type WorkoutStatu
 import { createSession, destroySession, generateApiToken, getAdmin, requireUserId } from "./auth";
 import { dayOf } from "./format";
 import { addManualCardio, deleteManualCardio } from "./cardio";
+import { WIDGETS } from "./dashboard";
 import { normalizeGoals, type Goals } from "./goals";
 import { acceptInvite, createInvite, deleteUser, revokeInvite } from "./invites";
 import * as health from "./health";
@@ -301,4 +302,13 @@ export async function deleteUserAction(id: string) {
   const admin = await requireAdmin();
   if (id === admin.id) throw new Error("cannot delete yourself");
   await deleteUser(id);
+}
+
+// ───────────────────────── Home screen ─────────────────────────
+
+export async function saveDashboardAction(input: { order: string[]; hidden: string[] }) {
+  const userId = await requireUserId();
+  const known = new Set<string>(WIDGETS.map((w) => w.id));
+  const clean = (ids: string[]) => [...new Set(ids)].filter((id) => known.has(id));
+  await db.update(users).set({ dashboard: { order: clean(input.order), hidden: clean(input.hidden) } }).where(eq(users.id, userId));
 }
