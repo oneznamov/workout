@@ -1,5 +1,6 @@
 "use client";
 
+import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 import { Check, Plus, Trash2 } from "lucide-react";
 import { saveProfileAction } from "@/lib/ai-actions";
@@ -8,8 +9,10 @@ import { PROFILE_LIMITS, type Goal, type Profile } from "@/lib/profile";
 
 /** Private goals and notes: what Claude and the AI coach read before planning or judging anything. */
 export function ProfileEditor({ initial }: { initial: Profile }) {
+  const router = useRouter();
   const [profile, setProfile] = useState(initial);
   const [saved, setSaved] = useState(true);
+  const [error, setError] = useState(false);
   const [pending, start] = useTransition();
   const edit = (next: Profile) => {
     setProfile(next);
@@ -42,7 +45,10 @@ export function ProfileEditor({ initial }: { initial: Profile }) {
                 maxLength={PROFILE_LIMITS.title}
                 placeholder="Ціль: напр. жим лежачи 100 кг"
                 aria-label="Ціль"
-                className={cx("min-w-0 flex-1 bg-transparent text-[15px] font-semibold outline-none placeholder:font-normal placeholder:text-muted", g.done && "line-through")}
+                className={cx(
+                  "min-w-0 flex-1 rounded-lg border border-transparent bg-surface-3 px-3 py-2 text-[15px] font-semibold outline-none placeholder:font-normal placeholder:text-muted focus:border-accent",
+                  g.done && "line-through",
+                )}
               />
               <button type="button" onClick={() => edit({ ...profile, goals: profile.goals.filter((x) => x.id !== g.id) })} aria-label="Видалити ціль" className="icon-btn size-8 hover:text-critical">
                 <Trash2 size={15} />
@@ -53,16 +59,16 @@ export function ProfileEditor({ initial }: { initial: Profile }) {
                 value={g.details}
                 onChange={(e) => patchGoal(g.id, { details: e.target.value })}
                 maxLength={PROFILE_LIMITS.details}
-                placeholder="Деталі: зараз 80 кг × 5, тренуюсь 3 рази на тиждень"
+                placeholder="Деталі (необовʼязково): зараз 80 кг × 5"
                 aria-label="Деталі цілі"
-                className="rounded-lg bg-surface-3 px-3 py-2 text-sm outline-none placeholder:text-muted"
+                className="rounded-lg border border-transparent bg-surface-3 px-3 py-2 text-sm outline-none placeholder:text-muted focus:border-accent"
               />
               <input
                 type="date"
                 value={g.targetDate ?? ""}
                 onChange={(e) => patchGoal(g.id, { targetDate: e.target.value || null })}
                 aria-label="До якої дати"
-                className="rounded-lg bg-surface-3 px-3 py-2 text-sm text-ink outline-none"
+                className="rounded-lg border border-transparent bg-surface-3 px-3 py-2 text-sm text-ink outline-none focus:border-accent"
               />
             </div>
           </li>
@@ -88,18 +94,33 @@ export function ProfileEditor({ initial }: { initial: Profile }) {
           className="field resize-y text-[15px]"
         />
       </label>
-      <button
-        disabled={pending || saved}
-        onClick={() =>
-          start(async () => {
-            setProfile(await saveProfileAction(profile));
-            setSaved(true);
-          })
-        }
-        className="btn btn-primary"
-      >
-        {saved ? "Збережено" : pending ? "Зберігаю…" : "Зберегти цілі"}
-      </button>
+      <div className="flex flex-wrap items-center gap-3">
+        <button
+          disabled={pending || saved}
+          onClick={() =>
+            start(async () => {
+              setError(false);
+              try {
+                setProfile(await saveProfileAction(profile));
+                setSaved(true);
+                // Other screens (and this one, when you come back) must see the saved version.
+                router.refresh();
+              } catch {
+                setError(true);
+              }
+            })
+          }
+          className="btn btn-primary"
+        >
+          {saved ? "Збережено" : pending ? "Зберігаю…" : "Зберегти цілі"}
+        </button>
+        {!saved && !pending && !error && <span className="text-xs text-warning">Є незбережені зміни</span>}
+        {error && (
+          <span role="alert" className="text-xs text-critical">
+            Не вдалося зберегти — перевірте звʼязок і спробуйте ще раз.
+          </span>
+        )}
+      </div>
     </div>
   );
 }

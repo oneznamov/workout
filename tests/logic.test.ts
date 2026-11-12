@@ -129,6 +129,10 @@ describe("athlete profile", () => {
     expect(profileText(p)).toContain("Жим 100 кг (by 2027-03-01) — зараз 80×5");
     expect(normalizeProfile(null)).toEqual({ about: "", goals: [] });
   });
+  it("keeps a goal that was typed only into the details field", () => {
+    const p = normalizeProfile({ goals: [{ id: "x", title: "", details: "Схуднути до 80 кг", done: false }, { id: "y", title: "", details: "" }] });
+    expect(p.goals).toEqual([{ id: "x", title: "Схуднути до 80 кг", details: "", targetDate: null, done: false }]);
+  });
 });
 
 describe("AI plan", () => {

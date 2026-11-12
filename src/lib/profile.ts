@@ -16,8 +16,11 @@ export function normalizeProfile(input: unknown): Profile {
   for (const raw of Array.isArray(src.goals) ? src.goals : []) {
     if (!raw || typeof raw !== "object") continue;
     const g = raw as Record<string, unknown>;
-    const title = text(g.title, PROFILE_LIMITS.title);
+    // Whatever the person wrote counts: a goal typed only into "details" is still a goal.
+    const written = text(g.details, PROFILE_LIMITS.details);
+    const title = text(g.title, PROFILE_LIMITS.title) || written.slice(0, PROFILE_LIMITS.title);
     if (!title) continue;
+    const details = written === title ? "" : written;
     let id = text(g.id, 64);
     if (!id || seen.has(id)) id = crypto.randomUUID();
     seen.add(id);
@@ -25,7 +28,7 @@ export function normalizeProfile(input: unknown): Profile {
     goals.push({
       id,
       title,
-      details: text(g.details, PROFILE_LIMITS.details),
+      details,
       targetDate: /^\d{4}-\d{2}-\d{2}$/.test(date) ? date : null,
       done: g.done === true,
     });
