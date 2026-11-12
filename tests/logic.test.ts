@@ -200,9 +200,11 @@ describe("workout kind", () => {
     expect(workoutKind({ core: 3, chest: 1 }).label).toBe("Прес");
     expect(workoutKind({ cardio: 2 })).toMatchObject({ label: "Кардіо", cardio: true });
   });
-  it("lights only the zones that are trained", () => {
-    expect(workoutKind({ quads: 2 }).zones).toEqual({ shoulders: false, torso: false, arms: false, core: false, legs: true });
+  it("gives every kind one fixed picture", () => {
+    expect(workoutKind({ quads: 2, core: 1 }).zones).toEqual({ shoulders: false, torso: false, arms: false, core: false, legs: true });
     expect(workoutKind({ full_body: 1 }).zones).toEqual({ shoulders: true, torso: true, arms: true, core: true, legs: true });
-    expect(workoutKind({ back: 1, biceps: 1 }).zones).toMatchObject({ torso: true, arms: true, legs: false });
+    expect(workoutKind({ chest: 1, quads: 1 }).zones).toEqual(workoutKind({ full_body: 2 }).zones);
+    expect(workoutKind({ back: 3, biceps: 2 }).zones).toEqual({ shoulders: true, torso: true, arms: true, core: false, legs: false });
+    expect(workoutKind({ biceps: 2, triceps: 2 }).zones).toMatchObject({ arms: true, torso: false });
   });
 });
