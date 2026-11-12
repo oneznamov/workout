@@ -15,6 +15,7 @@ import { acceptInvite, createInvite, deleteUser, revokeInvite } from "./invites"
 import { clearFailedLogins, clientIp, loginBlockedFor, recordFailedLogin } from "./rate-limit";
 import { completePasswordReset, createPasswordReset } from "./resets";
 import * as health from "./health";
+import { isMeasure } from "./measurements";
 import * as team from "./team";
 import * as wk from "./workouts";
 import type { ExerciseInput, SetInput } from "./workouts";
@@ -248,6 +249,16 @@ export async function logMetricAction(metric: string, day: string, value: number
   const userId = await requireUserId();
   if (!/^\d{4}-\d{2}-\d{2}$/.test(day) || !Number.isFinite(value)) throw new Error("Некоректні дані");
   await health.upsertMetric(userId, metric, day, value, "manual");
+}
+
+/** Tape measurements for a day; empty fields are left as they were. */
+export async function saveMeasurementsAction(day: string, values: Record<string, number | null>) {
+  const userId = await requireUserId();
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(day)) throw new Error("Некоректна дата");
+  for (const [key, value] of Object.entries(values)) {
+    if (!isMeasure(key) || value == null || !Number.isFinite(value) || value < 10 || value > 300) continue;
+    await health.upsertMetric(userId, key, day, Math.round(value * 10) / 10, "manual");
+  }
 }
 
 export async function deleteMetricAction(metric: string, day: string) {

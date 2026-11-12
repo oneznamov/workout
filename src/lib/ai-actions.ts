@@ -94,10 +94,11 @@ export async function supplementWorkoutAction(workoutId: string) {
   return attempt("supplement", (userId) => supplementWorkout(userId, workoutId));
 }
 
-/** Private goals and notes about the athlete. */
-export async function saveProfileAction(input: Profile): Promise<Profile> {
+/** Private data about the athlete: who they are, their goals, their own notes. Only the given fields change. */
+export async function saveProfileAction(patch: Partial<Profile>): Promise<Profile> {
   const userId = await requireUserId();
-  const profile = normalizeProfile(input);
+  const [u] = await db.select({ profile: users.profile }).from(users).where(eq(users.id, userId));
+  const profile = normalizeProfile({ ...normalizeProfile(u?.profile), ...patch });
   await db.update(users).set({ profile }).where(eq(users.id, userId));
   return profile;
 }

@@ -127,7 +127,7 @@ describe("athlete profile", () => {
     expect(p.goals[1].id).not.toBe("a");
     expect(p.goals[1].targetDate).toBeNull();
     expect(profileText(p)).toContain("Жим 100 кг (by 2027-03-01) — зараз 80×5");
-    expect(normalizeProfile(null)).toEqual({ about: "", goals: [] });
+    expect(normalizeProfile(null)).toEqual({ about: "", goals: [], sex: null, birthDate: null, heightCm: null, experience: null });
   });
   it("keeps a goal that was typed only into the details field", () => {
     const p = normalizeProfile({ goals: [{ id: "x", title: "", details: "Схуднути до 80 кг", done: false }, { id: "y", title: "", details: "" }] });
@@ -236,6 +236,34 @@ describe("AI programme", () => {
     expect(program.workouts.map((w) => [w.date, w.exercises[0].exerciseId])).toEqual([
       ["2026-11-14", "1"],
       ["2026-11-16", "2"],
+    ]);
+  });
+});
+
+import { ageOn } from "@/lib/profile";
+import { notableVitals } from "@/lib/vitals";
+
+describe("person and vitals", () => {
+  it("keeps valid person fields and drops nonsense", () => {
+    expect(normalizeProfile({ sex: "female", birthDate: "1994-05-20", heightCm: 168.4, experience: "advanced" })).toMatchObject({ sex: "female", birthDate: "1994-05-20", heightCm: 168, experience: "advanced" });
+    expect(normalizeProfile({ sex: "x", birthDate: "94-05-20", heightCm: 20, experience: "pro" })).toMatchObject({ sex: null, birthDate: null, heightCm: null, experience: null });
+  });
+  it("computes full years", () => {
+    expect(ageOn("1994-05-20", "2026-05-19")).toBe(31);
+    expect(ageOn("1994-05-20", "2026-05-20")).toBe(32);
+    expect(ageOn(null, "2026-05-20")).toBeNull();
+  });
+  it("flags only what stands out", () => {
+    const day = (ago: number) => {
+      const d = new Date("2026-11-12T12:00:00Z");
+      d.setUTCDate(d.getUTCDate() - ago);
+      return d.toISOString().slice(0, 10);
+    };
+    const series = (metric: string, recent: number, base: number) => Array.from({ length: 24 }, (_, i) => ({ metric, day: day(i), value: i < 7 ? recent : base }));
+    const notes = notableVitals([...series("resting_heart_rate", 66, 58), ...series("sleep_analysis", 7.8, 7), ...series("heart_rate_variability", 50, 50), ...series("step_count", 7000, 7000)], "2026-11-12");
+    expect(notes.map((n) => [n.metric, n.status])).toEqual([
+      ["resting_heart_rate", "attention"],
+      ["sleep_analysis", "great"],
     ]);
   });
 });

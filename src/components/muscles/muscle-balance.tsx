@@ -16,6 +16,7 @@ import {
   TARGET_MIN,
   type MuscleBalance,
 } from "@/lib/muscles";
+import type { Sex } from "@/lib/profile";
 import { BodyMap } from "./body-map";
 
 const BAR_MAX = 25;
@@ -103,13 +104,13 @@ function CardioTile({ minutes, load, perWeek }: { minutes: number; load: number;
 }
 
 /** Compact dashboard card: this week's map plus what still needs work. */
-export function MuscleWeekCard({ data }: { data: MuscleBalance }) {
+export function MuscleWeekCard({ data, sex = null }: { data: MuscleBalance; sex?: Sex | null }) {
   const week = data.weeks.at(-1)!;
   const { totals, cardioMinutes, cardioLoad } = useValues(data, "week", week);
   const todo = needsWork(data, totals);
   return (
     <div className="grid items-center gap-4 sm:grid-cols-[minmax(0,13rem)_1fr]">
-      <BodyMap values={totals} />
+      <BodyMap values={totals} sex={sex} />
       <div className="space-y-3">
         <div>
           <div className="caps">Ще варто пропрацювати</div>
@@ -137,7 +138,7 @@ export function MuscleWeekCard({ data }: { data: MuscleBalance }) {
   );
 }
 
-export function MuscleBalanceView({ data }: { data: MuscleBalance }) {
+export function MuscleBalanceView({ data, sex = null }: { data: MuscleBalance; sex?: Sex | null }) {
   const [mode, setMode] = useState<"week" | "avg">("week");
   const [index, setIndex] = useState(data.weeks.length - 1);
   const [selected, setSelected] = useState<MuscleGroup | null>(null);
@@ -193,7 +194,7 @@ export function MuscleBalanceView({ data }: { data: MuscleBalance }) {
 
       <div className="grid gap-5 md:grid-cols-[minmax(0,17rem)_1fr]">
         <div className="space-y-3">
-          <BodyMap values={totals} selected={selected} onSelect={(m) => setSelected(selected === m ? null : m)} />
+          <BodyMap values={totals} sex={sex} selected={selected} onSelect={(m) => setSelected(selected === m ? null : m)} />
           <CardioTile minutes={cardioMinutes} load={cardioLoad} perWeek={mode === "avg"} />
           <Legend />
         </div>

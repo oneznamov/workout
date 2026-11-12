@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useState, type ReactNode } from "react";
-import { Activity, BarChart3, Bike, Dumbbell, HeartPulse, Home, Settings, Users } from "lucide-react";
+import { Activity, BarChart3, Bike, CircleUser, Dumbbell, Home, Settings, Users } from "lucide-react";
 import { cx } from "@/lib/format";
 import { ConnectionBadge } from "./connection";
 
@@ -13,7 +13,7 @@ const items = [
   { href: "/cardio", label: "Кардіо", icon: Bike },
   { href: "/exercises", label: "Вправи", icon: Dumbbell, desktopOnly: true },
   { href: "/analytics", label: "Аналітика", icon: BarChart3 },
-  { href: "/health", label: "Здоров'я", icon: HeartPulse },
+  { href: "/profile", label: "Профіль", icon: CircleUser },
   { href: "/team", label: "Команда", icon: Users, desktopOnly: true },
   { href: "/settings", label: "Налаштування", icon: Settings, desktopOnly: true },
 ];
@@ -25,8 +25,8 @@ const items = [
  */
 const TINTS: [string, string][] = [
   ["/cardio", "var(--c-run)"],
-  ["/health", "var(--c-heart)"],
-  ["/analytics", "var(--c-body)"],
+  ["/profile", "var(--c-body)"],
+  ["/analytics", "var(--c-sleep)"],
   ["/team", "var(--c-cycle)"],
   ["/settings", "var(--muted)"],
   ["/admin", "var(--muted)"],
@@ -104,8 +104,8 @@ export function Nav({ teamBadge }: { teamBadge?: ReactNode }) {
       <header
         data-chrome
         className={cx(
-          "fixed inset-x-0 top-0 z-30 border-b bg-plane pt-[calc(env(safe-area-inset-top)+0.5rem)] transition-colors duration-300 md:hidden",
-          scrolled ? "border-line" : "border-transparent",
+          "fixed inset-x-0 top-0 z-30 bg-plane pt-[calc(env(safe-area-inset-top)+1rem)] transition-shadow duration-300 md:hidden",
+          scrolled && "shadow-[0_1px_0_var(--line)]",
         )}
       >
         <div

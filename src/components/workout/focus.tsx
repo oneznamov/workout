@@ -72,7 +72,7 @@ export function FocusView({
   );
 
   return (
-    <div ref={top} className="scroll-mt-[calc(5rem+env(safe-area-inset-top))] space-y-4 md:scroll-mt-6">
+    <div ref={top} className="scroll-mt-[calc(5.5rem+env(safe-area-inset-top))] space-y-4 md:scroll-mt-6">
       {rest && (
         <RestScreen rest={rest} onAdjust={onRestAdjust} onDone={onRestDone}>
           {upNext}

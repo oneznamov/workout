@@ -5,14 +5,12 @@ import { headers } from "next/headers";
 import Link from "next/link";
 import { AiSettings } from "@/components/ai";
 import { InstallCard } from "@/components/install";
-import { ProfileEditor } from "@/components/profile";
 import { CopyField, DataAndSecurity, LogoutButton, PasswordForm, TokensManager } from "@/components/settings";
 import { Card, Disclosure, PageHeader } from "@/components/ui";
 import { db } from "@/db";
 import { apiTokens } from "@/db/schema";
 import { getAiState } from "@/lib/ai";
 import { getUser } from "@/lib/auth";
-import { normalizeProfile } from "@/lib/profile";
 
 export const metadata = { title: "Налаштування" };
 
@@ -44,9 +42,13 @@ async function Content() {
             </Link>
           )}
 
-          <Card title="Мої цілі">
-            <ProfileEditor initial={normalizeProfile(user.profile)} />
-          </Card>
+          <Link href="/profile" className="card flex items-center justify-between gap-3 p-4 hover:bg-surface-2">
+            <span>
+              <span className="block text-[15px] font-semibold">Профіль і цілі</span>
+              <span className="block text-xs text-muted">Дані про себе, заміри тіла, цілі — те, що читає ШІ</span>
+            </span>
+            <span className="text-accent">→</span>
+          </Link>
 
           <Card title="Токени доступу">
             <p className="mb-4 text-sm text-ink-2">
@@ -87,6 +89,12 @@ async function Content() {
             <div className="mt-3">
               <CopyField value={`${origin}/api/mcp`} label="Адреса MCP-сервера" />
             </div>
+            <p className="mt-3 text-xs text-muted">
+              Для будь-якого іншого ШІ чи скрипта: усе про вас і тренування одним документом —{" "}
+              <code className="font-mono text-ink">GET {origin}/api/context</code> із заголовком{" "}
+              <code className="font-mono text-ink">Authorization: Bearer ваш_токен</code>. Claude читає те саме через інструмент{" "}
+              <code className="font-mono text-ink">get_athlete_context</code>.
+            </p>
           </Disclosure>
 
           <Disclosure title="Підключити Apple Watch" hint="Синхронізація Apple Health">

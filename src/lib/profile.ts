@@ -1,16 +1,39 @@
 /** Private goals and notes about the athlete. Pure helpers — used on the server, in the browser and in tests. */
 
 export type Goal = { id: string; title: string; details: string; targetDate: string | null; done: boolean };
-export type Profile = { about: string; goals: Goal[] };
+export type Sex = "male" | "female";
+export type Experience = "beginner" | "intermediate" | "advanced";
+export type Profile = {
+  about: string;
+  goals: Goal[];
+  sex: Sex | null;
+  /** YYYY-MM-DD */
+  birthDate: string | null;
+  heightCm: number | null;
+  experience: Experience | null;
+};
 
-export const EMPTY_PROFILE: Profile = { about: "", goals: [] };
+export const EMPTY_PROFILE: Profile = { about: "", goals: [], sex: null, birthDate: null, heightCm: null, experience: null };
+export const SEX_LABEL: Record<Sex, string> = { male: "Чоловік", female: "Жінка" };
+export const EXPERIENCE_LABEL: Record<Experience, string> = {
+  beginner: "Новачок — до року",
+  intermediate: "Середній — 1–3 роки",
+  advanced: "Досвідчений — 3+ роки",
+};
+
+/** Full years between a birth date and a day (both YYYY-MM-DD). */
+export function ageOn(birthDate: string | null, day: string): number | null {
+  if (!birthDate) return null;
+  const years = Number(day.slice(0, 4)) - Number(birthDate.slice(0, 4)) - (day.slice(5) < birthDate.slice(5) ? 1 : 0);
+  return years >= 0 && years < 120 ? years : null;
+}
 export const PROFILE_LIMITS = { about: 2000, title: 140, details: 600, goals: 12 };
 
 const text = (v: unknown, max: number) => (typeof v === "string" ? v.trim().slice(0, max) : "");
 
 /** Cleans whatever came from a form, the database or an agent into a well-formed profile. */
 export function normalizeProfile(input: unknown): Profile {
-  const src = (input && typeof input === "object" ? input : {}) as { about?: unknown; goals?: unknown };
+  const src = (input && typeof input === "object" ? input : {}) as Record<string, unknown>;
   const seen = new Set<string>();
   const goals: Goal[] = [];
   for (const raw of Array.isArray(src.goals) ? src.goals : []) {
@@ -34,7 +57,16 @@ export function normalizeProfile(input: unknown): Profile {
     });
     if (goals.length >= PROFILE_LIMITS.goals) break;
   }
-  return { about: text(src.about, PROFILE_LIMITS.about), goals };
+  const birth = text(src.birthDate ?? src.birth_date, 10);
+  const height = Number(src.heightCm ?? src.height_cm);
+  return {
+    about: text(src.about, PROFILE_LIMITS.about),
+    goals,
+    sex: src.sex === "male" || src.sex === "female" ? src.sex : null,
+    birthDate: /^(19|20)\d{2}-\d{2}-\d{2}$/.test(birth) ? birth : null,
+    heightCm: Number.isFinite(height) && height >= 100 && height <= 250 ? Math.round(height) : null,
+    experience: src.experience === "beginner" || src.experience === "intermediate" || src.experience === "advanced" ? src.experience : null,
+  };
 }
 
 /** The profile as plain text for a prompt. */

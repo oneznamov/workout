@@ -5,6 +5,7 @@ import { eq } from "drizzle-orm";
 import { db } from "@/db";
 import { EQUIPMENT, MUSCLE_GROUPS, SET_TYPES, TRACKING, users } from "@/db/schema";
 import { getExerciseHistory, getMuscleSummary, getTrainingAnalytics } from "./analytics";
+import { getAthleteContext } from "./athlete-context";
 import { addManualCardio, listCardio } from "./cardio";
 import { CARDIO_LABEL, paceLabel } from "./cardio-kinds";
 import { addDays, dayOf } from "./format";
@@ -489,6 +490,17 @@ export function registerWorkoutTools(server: McpServer, userId: string) {
   );
 
   server.registerTool(
+    "get_athlete_context",
+    {
+      title: "Athlete context",
+      description:
+        "One document with everything the app knows about the athlete: who they are (sex, age, height, experience, their own notes), goals and weekly targets, body weight and tape measurements, recovery metrics from Apple Health and what stands out in them, muscle load, best sets, recent and planned workouts, and Apple Watch sessions. Start here before planning, reviewing or advising — the other tools are for details and for making changes.",
+      inputSchema: z.object({ history: z.number().int().min(1).max(40).default(15).describe("How many finished workouts to include.") }),
+    },
+    tool(async ({ history }) => getAthleteContext(userId, { history })),
+  );
+
+  server.registerTool(
     "get_profile",
     {
       title: "Athlete profile and goals",
@@ -510,6 +522,10 @@ export function registerWorkoutTools(server: McpServer, userId: string) {
         "Updates the athlete's private goals and notes. `goals` replaces the whole list: send every goal that should remain, keeping the `id` of existing ones (omit `id` for a new goal). Use it when the athlete states or changes a goal, reaches one (done=true), or when progress shows a goal needs a new target or date — say what you changed and why. Fields left out stay as they are.",
       inputSchema: z.object({
         about: z.string().max(2000).optional().describe("The athlete's notes about themselves: experience, limitations, schedule, equipment."),
+        sex: z.enum(["male", "female"]).optional(),
+        birth_date: day.optional(),
+        height_cm: z.number().min(100).max(250).optional(),
+        experience: z.enum(["beginner", "intermediate", "advanced"]).optional().describe("Training experience: under a year, 1–3 years, 3+ years."),
         goals: z
           .array(
             z.object({
@@ -527,7 +543,15 @@ export function registerWorkoutTools(server: McpServer, userId: string) {
     tool(async (a) => {
       const [u] = await db.select({ profile: users.profile }).from(users).where(eq(users.id, userId));
       const current = normalizeProfile(u?.profile);
-      const profile = normalizeProfile({ about: a.about ?? current.about, goals: a.goals ?? current.goals });
+      const profile = normalizeProfile({
+        ...current,
+        ...(a.about != null ? { about: a.about } : {}),
+        ...(a.goals ? { goals: a.goals } : {}),
+        ...(a.sex ? { sex: a.sex } : {}),
+        ...(a.birth_date ? { birthDate: a.birth_date } : {}),
+        ...(a.height_cm ? { heightCm: a.height_cm } : {}),
+        ...(a.experience ? { experience: a.experience } : {}),
+      });
       await db.update(users).set({ profile }).where(eq(users.id, userId));
       return profile;
     }),

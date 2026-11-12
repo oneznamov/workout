@@ -22,6 +22,7 @@ import { addDays, cx, dayOf, durationParts, EXERCISES_FORMS, fmtDate, fmtDateLon
 import { getLeaderboard, listMyTeamInvites } from "@/lib/team";
 import { normalizeGoals } from "@/lib/goals";
 import { getMetricSeries } from "@/lib/health";
+import { normalizeProfile } from "@/lib/profile";
 import { BODY_MUSCLES, TARGET_MIN } from "@/lib/muscles";
 import { listWorkouts } from "@/lib/workouts";
 
@@ -144,13 +145,13 @@ async function Content() {
       </div>
     ),
     weight: (
-      <Card title="Вага тіла" tone="text-body" icon={<Scale size={16} />} action={<Link href="/health" className="text-xs text-accent">Усі записи →</Link>}>
+      <Card title="Вага тіла" tone="text-body" icon={<Scale size={16} />} action={<Link href="/profile" className="text-xs text-accent">Профіль →</Link>}>
         <WeightQuick today={today} points={weights.map((w) => ({ day: w.day, value: w.value }))} />
       </Card>
     ),
     muscles: muscles ? (
       <Card title="Мʼязи цього тижня">
-        <MuscleWeekCard data={muscles} />
+        <MuscleWeekCard data={muscles} sex={normalizeProfile(user.profile).sex} />
       </Card>
     ) : null,
     plan: (

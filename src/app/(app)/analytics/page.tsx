@@ -7,7 +7,8 @@ import { MuscleBalanceView } from "@/components/muscles/muscle-balance";
 import { Badge, Card, PageHeader, PageSkeleton, SectionTitle, Segmented, Stat } from "@/components/ui";
 import { getAiState, getPeriodReport } from "@/lib/ai";
 import { getMuscleBalance, getRecords, getTrainingAnalytics } from "@/lib/analytics";
-import { requireUserId } from "@/lib/auth";
+import { getUser } from "@/lib/auth";
+import { normalizeProfile } from "@/lib/profile";
 import { getCardioAnalytics } from "@/lib/cardio";
 import { CARDIO_COLOR, CARDIO_LABEL } from "@/lib/cardio-kinds";
 import { addDays, dayOf, durationParts, fmtDate, fmtDuration, fmtNum, fmtWeight } from "@/lib/format";
@@ -26,7 +27,8 @@ const PERIODS = [
 async function Content({ searchParams }: PageProps<"/analytics">) {
   const sp = await searchParams;
   const weeks = PERIODS.some((p) => p.value === sp.w) ? Number(sp.w) : 12;
-  const userId = await requireUserId();
+  const user = await getUser();
+  const userId = user.id;
   const [a, muscles, cardio] = await Promise.all([getTrainingAnalytics(userId, weeks), getMuscleBalance(userId, weeks), getCardioAnalytics(userId, weeks)]);
   const [sessions, records, ai, report] = await Promise.all([
     listWorkouts(userId, { status: "completed", from: a.from, limit: 500 }),
@@ -100,7 +102,7 @@ async function Content({ searchParams }: PageProps<"/analytics">) {
         <section>
           <SectionTitle>Навантаження по мʼязах</SectionTitle>
           <div className="card p-4">
-            <MuscleBalanceView key={weeks} data={muscles} />
+            <MuscleBalanceView key={weeks} data={muscles} sex={normalizeProfile(user.profile).sex} />
           </div>
         </section>
 

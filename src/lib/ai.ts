@@ -6,12 +6,11 @@ import { db } from "@/db";
 import { aiNotes, users, workouts as workoutsTable } from "@/db/schema";
 import { extractJson, PLAN_SHAPE, planSchema, PROGRAM_SHAPE, programSchema, resolvePlan, resolveProgram } from "./ai-plan";
 import { AI_PROVIDERS, type AiNote, type AiProvider, type AiState } from "./ai-providers";
-import { getMuscleSummary, getRecords, getTrainingAnalytics } from "./analytics";
+import { getAthleteContext, setText } from "./athlete-context";
+import { getTrainingAnalytics } from "./analytics";
 import { seal, unseal } from "./crypto";
-import { addDays, dayOf, TZ } from "./format";
-import { normalizeGoals } from "./goals";
-import { getMetricSeries, linkHealthWorkouts, listHealthWorkouts } from "./health";
-import { normalizeProfile, profileText } from "./profile";
+import { addDays, dayOf } from "./format";
+import { linkHealthWorkouts } from "./health";
 import { toClientWorkout } from "./shape";
 import { buildTimeline } from "./timeline";
 import {
@@ -192,14 +191,6 @@ Write in Ukrainian and address the reader as «ви». Plain text only: short pa
 
 The athlete's private goals and notes are the frame for every judgement: say how the data moves them toward a goal or away from it, and respect any limitation they mention (injury, schedule, equipment). Use only what is in the context; when there is too little history to judge something, say so in a few words rather than guessing. You are not a doctor — for pain or injury suggest seeing a specialist instead of diagnosing.`;
 
-type FullSet = WorkoutFull["exercises"][number]["sets"][number];
-const setText = (s: Pick<FullSet, "weight" | "reps" | "durationSec" | "distanceM">) =>
-  s.durationSec != null && s.reps == null
-    ? `${s.durationSec}s`
-    : s.distanceM != null && s.reps == null
-      ? `${Math.round(s.distanceM)}m`
-      : `${s.weight != null && s.weight > 0 ? `${s.weight}kg×` : ""}${s.reps ?? "?"}`;
-
 function workoutText(w: WorkoutFull | Awaited<ReturnType<typeof listWorkoutsFull>>[number], completedOnly = true) {
   const minutes = w.startedAt && w.endedAt ? Math.round(Math.max(0, (w.endedAt.getTime() - w.startedAt.getTime()) / 1000 - w.pausedSec) / 60) : null;
   const head = `${w.startedAt ? dayOf(w.startedAt) : (w.scheduledFor ?? "no date")} · ${w.name}${minutes != null ? ` · ${minutes} min` : ""}`;
@@ -210,74 +201,13 @@ function workoutText(w: WorkoutFull | Awaited<ReturnType<typeof listWorkoutsFull
   return [head, ...lines].join("\n");
 }
 
-const VITALS: [string, string, string][] = [
-  ["body_fat_percentage", "Body fat", "%"],
-  ["resting_heart_rate", "Resting heart rate", "bpm"],
-  ["heart_rate_variability", "HRV", "ms"],
-  ["sleep_analysis", "Sleep", "h"],
-  ["vo2_max", "VO2 max", ""],
-  ["step_count", "Steps per day", ""],
-];
-const round1 = (n: number) => Math.round(n * 10) / 10;
-
-/** One line per Apple Watch session — the diary knows nothing else about yoga, climbing, runs and the like. */
-const watchLine = (h: Awaited<ReturnType<typeof listHealthWorkouts>>[number]) =>
-  `  ${dayOf(h.startAt)} ${h.activityType}, ${Math.round((h.durationSec ?? 0) / 60)} min` +
-  `${h.avgHr ? `, avg HR ${Math.round(h.avgHr)}` : ""}${h.maxHr ? `, max HR ${Math.round(h.maxHr)}` : ""}` +
-  `${h.activeKcal ? `, ${Math.round(h.activeKcal)} kcal` : ""}${h.distanceM ? `, ${round1(h.distanceM / 1000)} km` : ""}` +
-  `${h.workoutId ? " [attached to a diary workout]" : " [no diary entry]"}`;
-
 /**
- * Everything the coach should know about the athlete, as text: goals and notes, body and
- * recovery metrics, muscle load, records, recent diary workouts and Apple Watch sessions.
- * Every AI feature starts from this, so none of them can forget the goals or the history.
+ * Everything the coach should know about the athlete. Every AI feature starts from the same
+ * document (see athlete-context.ts), so none of them can forget the goals, the body or the history.
  */
 async function athleteContext(userId: string, historyLimit = 12) {
-  const today = dayOf();
-  const [[u], recent, planned, muscles, weight, vitals, watch, records] = await Promise.all([
-    db.select({ profile: users.profile, goals: users.goals }).from(users).where(eq(users.id, userId)),
-    listWorkoutsFull(userId, ["completed"], historyLimit),
-    listWorkoutsFull(userId, ["planned"], 10),
-    getMuscleSummary(userId, 6),
-    getMetricSeries(userId, ["body_mass"], addDays(today, -90)),
-    getMetricSeries(
-      userId,
-      VITALS.map(([m]) => m),
-      addDays(today, -28),
-    ),
-    listHealthWorkouts(userId, { from: addDays(today, -21), limit: 30 }),
-    getRecords(userId, addDays(today, -30), 8),
-  ]);
-  const targets = normalizeGoals(u?.goals);
-  const history = [...recent].sort((a, b) => (b.startedAt?.getTime() ?? 0) - (a.startedAt?.getTime() ?? 0));
-  const vitalLines = VITALS.flatMap(([metric, label, unit]) => {
-    const rows = vitals.filter((v) => v.metric === metric);
-    if (rows.length === 0) return [];
-    const avg = rows.reduce((a, r) => a + r.value, 0) / rows.length;
-    return [`  ${label}: latest ${round1(rows.at(-1)!.value)}${unit ? ` ${unit}` : ""} (${rows.at(-1)!.day}), 4-week average ${round1(avg)}`];
-  });
-  const parts = [
-    `Today: ${today} (${new Intl.DateTimeFormat("en-GB", { weekday: "long", timeZone: TZ }).format(new Date())}).`,
-    profileText(normalizeProfile(u?.profile)),
-    `Weekly targets set in the app: ${targets.workouts} strength workouts, ${targets.cardioMin} min of cardio, ${targets.muscles} muscle groups trained enough.`,
-    weight.length
-      ? `Body weight: ${weight.at(-1)!.value} kg on ${weight.at(-1)!.day}${weight.length > 1 ? `; ${weight[0].value} kg on ${weight[0].day} (${weight.length} entries in 90 days)` : ""}.`
-      : "Body weight: not recorded.",
-    vitalLines.length ? `Body and recovery metrics from Apple Health:\n${vitalLines.join("\n")}` : "Body and recovery metrics from Apple Health: none synced.",
-    `Muscle load this week vs the weekly average over 6 weeks (${muscles.counting})\n${muscles.muscles
-      .map((m) => `  ${m.muscle}: ${m.load_this_week} this week, avg ${m.avg_load_per_week}, last trained ${m.last_trained ?? "never"}`)
-      .join("\n")}`,
-    `Cardio minutes by week, oldest first: ${muscles.cardio_minutes_by_week.join(", ")}.`,
-    records.length
-      ? `Best sets by estimated 1RM:\n${records.map((r) => `  ${r.name}: ${r.weight}kg×${r.reps} on ${r.day}${r.isNew ? " (new record in the last 30 days)" : ""}`).join("\n")}`
-      : "Best sets: not enough data yet.",
-    history.length ? `Finished diary workouts, newest first:\n${history.map((w) => workoutText(w)).join("\n")}` : "Finished diary workouts: none yet.",
-    watch.length
-      ? `Apple Watch sessions in the last 3 weeks, newest first (every activity, including ones the diary does not track):\n${watch.map(watchLine).join("\n")}`
-      : "Apple Watch sessions in the last 3 weeks: none synced.",
-    planned.length ? `Already planned:\n${planned.map((w) => workoutText(w, false)).join("\n")}` : "Already planned: nothing.",
-  ];
-  return parts.join("\n\n");
+  const context = await getAthleteContext(userId, { history: historyLimit });
+  return `Everything the app knows about the athlete, as JSON (${context.units}):\n${JSON.stringify(context, null, 1)}`;
 }
 
 /** What happened minute by minute, as text: rest before each set, peak heart rate, time in zones. */
