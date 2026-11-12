@@ -8,6 +8,7 @@ export const WIDGETS = [
   { id: "muscles", label: "Мʼязи цього тижня", shown: true, wide: false },
   { id: "plan", label: "За планом", shown: true, wide: true },
   { id: "recent", label: "Останні тренування", shown: true, wide: true },
+  { id: "friends", label: "Друзі: рейтинг тижня", shown: true, wide: false },
   { id: "cardio", label: "Останнє кардіо", shown: false, wide: true },
   { id: "vitals", label: "Пульс спокою, HRV, сон, кроки", shown: false, wide: true },
 ] as const;

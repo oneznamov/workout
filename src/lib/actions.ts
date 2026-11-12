@@ -10,6 +10,7 @@ import { bumpSessionVersion, createSession, destroySession, generateApiToken, ge
 import { dayOf } from "./format";
 import { addManualCardio, deleteManualCardio } from "./cardio";
 import { WIDGETS } from "./dashboard";
+import { addFriendship, createFriendLink, findFriendLink, removeFriendship, revokeFriendLink } from "./friends";
 import { normalizeGoals, type Goals } from "./goals";
 import { acceptInvite, createInvite, deleteUser, revokeInvite } from "./invites";
 import { clearFailedLogins, clientIp, loginBlockedFor, recordFailedLogin } from "./rate-limit";
@@ -51,7 +52,9 @@ export async function loginAction(_prev: AuthState, formData: FormData): Promise
   }
   await clearFailedLogins(username);
   await createSession(user.id, user.sessionVersion);
-  redirect("/");
+  // Come back to where the visitor was heading (e.g. a friend link), local paths only.
+  const next = String(formData.get("next") ?? "");
+  redirect(/^\/(?!\/)[\w\-./#?=&%]*$/.test(next) ? next : "/");
 }
 
 /** First-run only: creates the single owner account. Closed once any user exists. */
@@ -350,4 +353,29 @@ export async function createResetLinkAction(userId: string) {
 export async function clearErrorsAction() {
   await requireAdmin();
   await db.delete(errorLog);
+}
+
+// ───────────────────────── Friends ─────────────────────────
+
+export async function createFriendLinkAction() {
+  const userId = await requireUserId();
+  return createFriendLink(userId);
+}
+
+export async function revokeFriendLinkAction() {
+  const userId = await requireUserId();
+  await revokeFriendLink(userId);
+}
+
+export async function acceptFriendLinkAction(token: string) {
+  const userId = await requireUserId();
+  const owner = await findFriendLink(token);
+  if (!owner) throw new Error("invalid link");
+  await addFriendship(userId, owner.userId);
+  redirect("/friends");
+}
+
+export async function removeFriendAction(friendId: string) {
+  const userId = await requireUserId();
+  await removeFriendship(userId, friendId);
 }

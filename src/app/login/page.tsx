@@ -6,19 +6,20 @@ import { LoginForm } from "./login-form";
 
 export const metadata = { title: "Вхід" };
 
-async function Content() {
+async function Content({ searchParams }: PageProps<"/login">) {
+  const next = String((await searchParams).next ?? "");
   if (await getSessionUser()) redirect("/");
   const setup = !(await hasAnyUser());
-  return <LoginForm setup={setup} />;
+  return <LoginForm setup={setup} next={next} />;
 }
 
-export default function LoginPage() {
+export default function LoginPage(props: PageProps<"/login">) {
   return (
     <main className="flex min-h-dvh items-center justify-center p-4">
       <div className="w-full max-w-sm">
         <h1 className="mb-1 text-[2rem] font-bold tracking-tight">Workout</h1>
         <Suspense fallback={<p className="text-muted">Завантаження…</p>}>
-          <Content />
+          <Content {...props} />
         </Suspense>
       </div>
     </main>

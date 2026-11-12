@@ -136,7 +136,7 @@ input[type="date"]::-webkit-calendar-picker-indicator {
 }
 
 @utility btn {
-  @apply inline-flex h-11 cursor-pointer items-center justify-center gap-2 rounded-full px-5 text-[15px] font-semibold whitespace-nowrap transition active:scale-[0.97] disabled:cursor-not-allowed disabled:opacity-40 disabled:active:scale-100;
+  @apply inline-flex h-11 md:h-10 cursor-pointer items-center justify-center gap-2 rounded-full px-5 text-[15px] font-semibold whitespace-nowrap transition active:scale-[0.97] disabled:cursor-not-allowed disabled:opacity-40 disabled:active:scale-100;
 }
 @utility btn-sm {
   @apply h-9 px-3.5 text-[13px];

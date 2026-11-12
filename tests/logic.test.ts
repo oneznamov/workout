@@ -83,3 +83,25 @@ describe("workout time", () => {
     expect(describeSet("distance", s)).toBe("2.5 км · 2 хв");
   });
 });
+
+import { rank, weekStreak, type BoardRow } from "@/lib/friends-logic";
+
+describe("friends", () => {
+  it("counts weeks in a row, keeping the streak alive before this week's first workout", () => {
+    // Thursday 12 Nov 2026; weeks start on Monday.
+    expect(weekStreak(["2026-11-10", "2026-11-03", "2026-10-28"], "2026-11-12")).toBe(3);
+    expect(weekStreak(["2026-11-03", "2026-10-28"], "2026-11-12")).toBe(2);
+    expect(weekStreak(["2026-10-20"], "2026-11-12")).toBe(0);
+    expect(weekStreak([], "2026-11-12")).toBe(0);
+  });
+  it("ranks by a metric and lets ties share a place", () => {
+    const row = (name: string, workouts: number): BoardRow => ({ userId: name, name, me: false, workouts, activeMin: 0, volume: 0, sets: 0, cardioKm: 0, streak: 0 });
+    const ranked = rank([row("b", 2), row("a", 3), row("c", 2), row("d", 0)], "workouts");
+    expect(ranked.map((r) => [r.name, r.place])).toEqual([
+      ["a", 1],
+      ["b", 2],
+      ["c", 2],
+      ["d", 4],
+    ]);
+  });
+});

@@ -31,6 +31,27 @@ export const users = pgTable("users", {
   createdAt: createdAt(),
 });
 
+/** A friendship is stored once, with the smaller id first. Friends see each other's training totals. */
+export const friendships = pgTable(
+  "friendships",
+  {
+    id: id(),
+    userA: uuid("user_a").notNull().references(() => users.id, { onDelete: "cascade" }),
+    userB: uuid("user_b").notNull().references(() => users.id, { onDelete: "cascade" }),
+    createdAt: createdAt(),
+  },
+  (t) => [uniqueIndex("friendships_pair").on(t.userA, t.userB), index("friendships_b").on(t.userB)],
+);
+
+/** A shareable "add me as a friend" link. One per user; reusable until it expires. */
+export const friendLinks = pgTable("friend_links", {
+  id: id(),
+  tokenHash: text("token_hash").notNull().unique(),
+  userId: uuid("user_id").notNull().unique().references(() => users.id, { onDelete: "cascade" }),
+  createdAt: createdAt(),
+  expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+});
+
 /** One-time links an admin hands out so a user can set a new password. */
 export const passwordResets = pgTable("password_resets", {
   id: id(),

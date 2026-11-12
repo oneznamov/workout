@@ -400,8 +400,17 @@ export function WorkoutEditor({
     0,
   );
 
+  // Desktop: summary on the left, exercises on the right. One-set-at-a-time mode stays a single centred column.
+  const split = !(live && view === "focus");
+
   return (
-    <div className="mx-auto max-w-2xl space-y-4">
+    <div
+      className={cx(
+        "mx-auto max-w-2xl space-y-4",
+        split && "lg:grid lg:max-w-none lg:grid-cols-2 lg:items-start lg:gap-6 lg:space-y-0 xl:gap-8",
+      )}
+    >
+      <div className={cx("space-y-4", split && !done && "lg:sticky lg:top-8")}>
       {/* ── Header ── */}
       <header className="space-y-3">
         <div className="flex items-center gap-2">
@@ -462,7 +471,7 @@ export function WorkoutEditor({
         )}
 
         {done && (
-          <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 lg:grid-cols-2 2xl:grid-cols-4">
             <Mini
               label="Дата"
               value={fmtDate(w.startedAt, { day: "numeric", month: "short" })}
@@ -546,6 +555,9 @@ export function WorkoutEditor({
         </section>
       )}
 
+      </div>
+
+      <div className="space-y-4">
       {/* ── Exercises ── */}
       {paused && view === "focus" ? null : live && view === "focus" ? (
         <FocusView
@@ -595,6 +607,7 @@ export function WorkoutEditor({
           <Flag size={18} /> Завершити тренування
         </button>
       )}
+      </div>
 
       {picker && (
         <ExercisePicker

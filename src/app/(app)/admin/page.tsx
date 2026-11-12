@@ -30,7 +30,7 @@ async function Content() {
           </Link>
         }
       />
-      <div className="max-w-3xl space-y-5">
+      <div className="grid grid-cols-1 gap-5 xl:grid-cols-2 xl:items-start">
         <Card title="Запросити">
           <p className="mb-4 text-sm text-ink-2">
             Реєстрація закрита. Новий користувач може зайти вперше лише за посиланням-запрошенням: там він сам задає логін і
@@ -56,7 +56,7 @@ async function Content() {
             Кожен бачить лише власні тренування, показники й токени. Ключ біля акаунта створює посилання для нового пароля.
           </p>
         </Card>
-        <Card title={`Помилки · ${errors.length}`}>
+        <Card title={`Помилки · ${errors.length}`} className="xl:col-span-2">
           <ErrorList
             errors={errors.map((e) => ({
               id: e.id,

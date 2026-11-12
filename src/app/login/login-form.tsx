@@ -3,7 +3,7 @@
 import { useActionState } from "react";
 import { loginAction, setupAction } from "@/lib/actions";
 
-export function LoginForm({ setup }: { setup: boolean }) {
+export function LoginForm({ setup, next }: { setup: boolean; next?: string }) {
   const [state, action, pending] = useActionState(setup ? setupAction : loginAction, undefined);
   return (
     <>
@@ -11,6 +11,7 @@ export function LoginForm({ setup }: { setup: boolean }) {
         {setup ? "Перший запуск — створіть свій акаунт." : "Увійдіть, щоб продовжити."}
       </p>
       <form action={action} className="card space-y-4 p-5">
+        {next && <input type="hidden" name="next" value={next} />}
         <label className="block space-y-1.5">
           <span className="text-sm text-ink-2">Логін</span>
           <input name="username" autoComplete="username" autoCapitalize="none" required className="field" />

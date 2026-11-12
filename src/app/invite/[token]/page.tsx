@@ -21,7 +21,10 @@ async function Content({ params }: PageProps<"/invite/[token]">) {
   }
   return (
     <>
-      <p className="mb-6 text-sm text-muted">Вас запросили. Придумайте логін і пароль — далі входитимете з ними.</p>
+      <p className="mb-6 text-sm text-muted">
+        {invite.inviter ? `${invite.inviter.split("@")[0]} запрошує вас.` : "Вас запросили."} Придумайте логін і пароль — далі входитимете з ними.
+        {invite.inviter && " Ви одразу станете друзями в застосунку: бачитимете підсумки тренувань одне одного в рейтингу."}
+      </p>
       <InviteForm token={token} />
     </>
   );

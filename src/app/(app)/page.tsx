@@ -4,6 +4,7 @@ import { Check, Dumbbell, Flame, Footprints, Heart, Moon, Play, Scale, Timer, We
 import { CardioRow } from "@/components/cardio/cardio-row";
 import { StackedBars } from "@/components/charts";
 import { DashboardCustomizer } from "@/components/dashboard-customizer";
+import { Leaderboard } from "@/components/friends";
 import { GoalsCard } from "@/components/goals-card";
 import { MuscleWeekCard } from "@/components/muscles/muscle-balance";
 import { Card, Empty, PageSkeleton, SectionTitle, Stat } from "@/components/ui";
@@ -16,6 +17,7 @@ import { listCardio } from "@/lib/cardio";
 import { CARDIO_COLOR } from "@/lib/cardio-kinds";
 import { resolveDashboard, type WidgetId } from "@/lib/dashboard";
 import { addDays, cx, dayOf, EXERCISES_FORMS, fmtDate, fmtDateLong, fmtDuration, fmtNum, fmtTime, plural, weekStart } from "@/lib/format";
+import { getLeaderboard } from "@/lib/friends";
 import { normalizeGoals } from "@/lib/goals";
 import { getMetricSeries } from "@/lib/health";
 import { BODY_MUSCLES, TARGET_MIN } from "@/lib/muscles";
@@ -30,7 +32,7 @@ async function Content() {
   const widgets = resolveDashboard(user.dashboard);
   const on = (id: WidgetId) => widgets.some((w) => w.id === id && w.visible);
 
-  const [active, planned, recent, week, weights, muscles, cardio, vitals] = await Promise.all([
+  const [active, planned, recent, week, weights, muscles, cardio, vitals, board] = await Promise.all([
     listWorkouts(user.id, { status: "in_progress", limit: 1 }),
     listWorkouts(user.id, { status: "planned", limit: 50 }),
     listWorkouts(user.id, { status: "completed", limit: 20 }),
@@ -41,6 +43,7 @@ async function Content() {
     on("vitals")
       ? getMetricSeries(user.id, ["resting_heart_rate", "heart_rate_variability", "sleep_analysis", "step_count"], addDays(today, -14))
       : [],
+    on("friends") ? getLeaderboard(user.id, "week") : [],
   ]);
 
   const upcoming = planned
@@ -161,6 +164,20 @@ async function Content() {
         </div>
       </section>
     ),
+    friends:
+      board.length > 1 ? (
+        <Card title="Друзі цього тижня" action={<Link href="/friends" className="text-xs text-accent">Рейтинг →</Link>}>
+          <Leaderboard rows={board} compact />
+        </Card>
+      ) : (
+        <Link href="/friends" className="card flex h-full items-center justify-between gap-3 p-4 hover:bg-surface-2">
+          <span>
+            <span className="block text-[15px] font-semibold">Змагайтесь із друзями</span>
+            <span className="block text-xs text-muted">Додайте друга за посиланням — зʼявиться рейтинг тижня</span>
+          </span>
+          <span className="text-accent">→</span>
+        </Link>
+      ),
     cardio: (
       <section>
         <SectionTitle action={<Link href="/cardio" className="text-sm text-accent">Усе</Link>}>Останнє кардіо</SectionTitle>

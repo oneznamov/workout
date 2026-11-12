@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Activity, BarChart3, Bike, Dumbbell, HeartPulse, Home, Settings } from "lucide-react";
+import { Activity, BarChart3, Bike, Dumbbell, HeartPulse, Home, Settings, Users } from "lucide-react";
 import { cx } from "@/lib/format";
 import { ConnectionBadge } from "./connection";
 
@@ -13,6 +13,7 @@ const items = [
   { href: "/exercises", label: "Вправи", icon: Dumbbell, desktopOnly: true },
   { href: "/analytics", label: "Аналітика", icon: BarChart3 },
   { href: "/health", label: "Здоров'я", icon: HeartPulse },
+  { href: "/friends", label: "Друзі", icon: Users, desktopOnly: true },
   { href: "/settings", label: "Налаштування", icon: Settings, desktopOnly: true },
 ];
 
@@ -70,6 +71,9 @@ export function Nav() {
           <Brand />
           <div className="flex items-center gap-1">
             <ConnectionBadge compact />
+            <Link href="/friends" aria-label="Друзі" className={cx("icon-btn size-9", pathname.startsWith("/friends") && "text-accent")}>
+              <Users size={19} />
+            </Link>
             <Link href="/settings" aria-label="Налаштування" className="icon-btn size-9">
               <Settings size={19} />
             </Link>

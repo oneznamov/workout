@@ -5,6 +5,7 @@ import { and, desc, eq, gt, isNull, sql } from "drizzle-orm";
 import { db } from "@/db";
 import { invites, users, workouts } from "@/db/schema";
 import { hashToken } from "./auth";
+import { addFriendship } from "./friends";
 
 const INVITE_DAYS = 7;
 
@@ -44,8 +45,9 @@ export async function revokeInvite(id: string) {
 export async function findValidInvite(token: string) {
   if (!token.startsWith("inv_")) return null;
   const [row] = await db
-    .select({ id: invites.id, note: invites.note, expiresAt: invites.expiresAt })
+    .select({ id: invites.id, note: invites.note, expiresAt: invites.expiresAt, inviter: users.username })
     .from(invites)
+    .leftJoin(users, eq(users.id, invites.createdBy))
     .where(and(eq(invites.tokenHash, hashToken(token)), isNull(invites.usedAt), gt(invites.expiresAt, new Date())));
   return row ?? null;
 }
@@ -55,6 +57,7 @@ export type AcceptResult = { userId: string } | { error: string };
 export async function acceptInvite(token: string, username: string, password: string): Promise<AcceptResult> {
   const invite = await findValidInvite(token);
   if (!invite) return { error: "Запрошення недійсне або вже використане" };
+  const [origin] = await db.select({ createdBy: invites.createdBy }).from(invites).where(eq(invites.id, invite.id));
   const [taken] = await db.select({ id: users.id }).from(users).where(eq(users.username, username));
   if (taken) return { error: "Такий логін уже зайнятий" };
   const passwordHash = await bcrypt.hash(password, 12);
@@ -68,6 +71,8 @@ export async function acceptInvite(token: string, username: string, password: st
   try {
     const [user] = await db.insert(users).values({ username, passwordHash }).returning({ id: users.id });
     await db.update(invites).set({ usedBy: user.id }).where(eq(invites.id, invite.id));
+    // Whoever invited you is your first friend — no second step needed.
+    if (origin?.createdBy) await addFriendship(origin.createdBy, user.id);
     return { userId: user.id };
   } catch {
     await db.update(invites).set({ usedAt: null }).where(eq(invites.id, invite.id));

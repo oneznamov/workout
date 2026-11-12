@@ -1,6 +1,6 @@
 import { Suspense } from "react";
 import { CardioForm } from "@/components/cardio/cardio-form";
-import { CardioRow } from "@/components/cardio/cardio-row";
+import { CardioRow, CardioTable } from "@/components/cardio/cardio-row";
 import { StackedBars, TrendChart } from "@/components/charts";
 import { Card, Empty, PageHeader, PageSkeleton, SectionTitle, Segmented, Stat } from "@/components/ui";
 import { requireUserId } from "@/lib/auth";
@@ -102,7 +102,8 @@ async function Content({ searchParams }: PageProps<"/cardio">) {
           <div className="mb-3">
             <CardioForm today={dayOf()} />
           </div>
-          <div className="grid gap-3 lg:grid-cols-2">
+          {sessions.length > 0 && <CardioTable rows={sessions} className="hidden lg:block" />}
+          <div className={sessions.length ? "grid gap-3 lg:hidden" : "grid gap-3"}>
             {sessions.length ? (
               sessions.map((s) => <CardioRow key={s.id} s={s} />)
             ) : (

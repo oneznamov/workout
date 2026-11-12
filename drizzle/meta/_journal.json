@@ -43,6 +43,13 @@
       "when": 1794490641699,
       "tag": "0005_complex_jamie_braddock",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1794491537490,
+      "tag": "0006_chemical_kingpin",
+      "breakpoints": true
     }
   ]
 }
