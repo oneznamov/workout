@@ -30,7 +30,7 @@ export const users = pgTable("users", {
   isAdmin: boolean("is_admin").notNull().default(false),
   /** Bumped to sign the account out everywhere (password change, reset, "sign out all"). */
   sessionVersion: integer("session_version").notNull().default(0),
-  /** Private training goals and notes about the athlete — read by Claude and the built-in AI coach, never shown to friends. */
+  /** Private training goals and notes about the athlete — read by Claude and the built-in AI coach, never shown to teammates. */
   profile: jsonb("profile").$type<Profile>(),
   /** Optional AI provider for automatic analysis and planning. `key` is the API key encrypted with the server secret. */
   ai: jsonb("ai").$type<{ provider: AiProvider; model: string; key: string; hint: string; auto: boolean }>(),
@@ -52,27 +52,6 @@ export const aiNotes = pgTable(
   },
   (t) => [uniqueIndex("ai_notes_ref").on(t.userId, t.kind, t.ref)],
 );
-
-/** A friendship is stored once, with the smaller id first. Friends see each other's training totals. */
-export const friendships = pgTable(
-  "friendships",
-  {
-    id: id(),
-    userA: uuid("user_a").notNull().references(() => users.id, { onDelete: "cascade" }),
-    userB: uuid("user_b").notNull().references(() => users.id, { onDelete: "cascade" }),
-    createdAt: createdAt(),
-  },
-  (t) => [uniqueIndex("friendships_pair").on(t.userA, t.userB), index("friendships_b").on(t.userB)],
-);
-
-/** A shareable "add me as a friend" link. One per user; reusable until it expires. */
-export const friendLinks = pgTable("friend_links", {
-  id: id(),
-  tokenHash: text("token_hash").notNull().unique(),
-  userId: uuid("user_id").notNull().unique().references(() => users.id, { onDelete: "cascade" }),
-  createdAt: createdAt(),
-  expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
-});
 
 /** A small circle that trains "together": everyone in a team sees everyone else's training totals. */
 export const teams = pgTable("teams", {
