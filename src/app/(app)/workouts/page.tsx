@@ -7,7 +7,6 @@ import Link from "next/link";
 import { Empty, PageHeader, PageSkeleton, SectionTitle } from "@/components/ui";
 import { getAiState } from "@/lib/ai";
 import { getUser } from "@/lib/auth";
-import { normalizeGoals } from "@/lib/goals";
 import { listWorkouts } from "@/lib/workouts";
 
 export const metadata = { title: "Тренування" };
@@ -35,7 +34,7 @@ async function Content() {
         actions={
           <>
             <NewWorkoutButtons />
-            {ai && <PlanWithAi weeklyTarget={normalizeGoals(user.goals).workouts} />}
+            {ai && <PlanWithAi />}
           </>
         }
       />

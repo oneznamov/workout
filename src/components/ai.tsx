@@ -2,21 +2,21 @@
 
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useRef, useState, useTransition } from "react";
-import { Check, ChevronDown, Loader2, Minus, Plus, RefreshCw, Sparkles, X } from "lucide-react";
+import { Check, ChevronDown, Loader2, Mic, RefreshCw, Sparkles, X } from "lucide-react";
 import Link from "next/link";
 import {
   analyzeWorkoutAction,
   coachNoteAction,
   periodReportAction,
   planProgramAction,
-  planWorkoutAction,
   removeAiSettingsAction,
   saveAiSettingsAction,
   testAiAction,
   unreviewedWorkoutsAction,
 } from "@/lib/ai-actions";
 import { AI_PROVIDER_IDS, AI_PROVIDERS, type AiNote, type AiProvider, type AiResult, type AiState } from "@/lib/ai-providers";
-import { addDays, cx, dayOf, fmtDate, fmtTime } from "@/lib/format";
+import { useLockScroll } from "@/lib/client/lock-scroll";
+import { addDays, cx, dayOf, fmtDate, fmtTime, weekStart } from "@/lib/format";
 
 // ───────────────────────── Settings ─────────────────────────
 
@@ -270,35 +270,98 @@ export function CoachCard({ initial, auto }: { initial: AiNote | null; auto: boo
 
 const DIALOG = "w-full max-w-md space-y-4 rounded-t-[28px] bg-surface p-5 pb-[calc(1.25rem+env(safe-area-inset-bottom))] md:rounded-[28px] md:pb-5";
 
+type Recognition = {
+  lang: string;
+  interimResults: boolean;
+  continuous: boolean;
+  start(): void;
+  stop(): void;
+  onresult: ((e: { results: ArrayLike<ArrayLike<{ transcript: string }>> }) => void) | null;
+  onend: (() => void) | null;
+  onerror: (() => void) | null;
+};
+type RecognitionCtor = new () => Recognition;
+const recognitionCtor = () => {
+  const w = window as unknown as { SpeechRecognition?: RecognitionCtor; webkitSpeechRecognition?: RecognitionCtor };
+  return w.SpeechRecognition ?? w.webkitSpeechRecognition ?? null;
+};
+
+/** A text field you can also talk into, where the browser can listen (elsewhere the keyboard's own dictation does the same). */
+function SpokenText({ value, onChange, placeholder, rows = 4 }: { value: string; onChange: (v: string) => void; placeholder: string; rows?: number }) {
+  const [canListen, setCanListen] = useState(false);
+  const [listening, setListening] = useState(false);
+  const session = useRef<Recognition | null>(null);
+  useEffect(() => {
+    void Promise.resolve().then(() => setCanListen(Boolean(recognitionCtor())));
+    return () => session.current?.stop();
+  }, []);
+  const toggle = () => {
+    if (listening) return session.current?.stop();
+    const Ctor = recognitionCtor();
+    if (!Ctor) return;
+    const rec = new Ctor();
+    const before = value.trim();
+    rec.lang = "uk-UA";
+    rec.interimResults = true;
+    rec.continuous = true;
+    rec.onresult = (e) => {
+      const heard = Array.from(e.results, (r) => r[0].transcript).join(" ");
+      onChange([before, heard.trim()].filter(Boolean).join(" "));
+    };
+    rec.onend = () => setListening(false);
+    rec.onerror = () => setListening(false);
+    session.current = rec;
+    setListening(true);
+    rec.start();
+  };
+  return (
+    <div className="relative">
+      <textarea value={value} onChange={(e) => onChange(e.target.value)} rows={rows} maxLength={800} placeholder={placeholder} aria-label="Ваш запит" className={cx("field resize-none", canListen && "pr-14")} />
+      {canListen && (
+        <button
+          type="button"
+          onClick={toggle}
+          aria-pressed={listening}
+          aria-label={listening ? "Зупинити диктування" : "Продиктувати голосом"}
+          title={listening ? "Зупинити" : "Продиктувати голосом"}
+          className={cx("absolute right-2 bottom-2 grid size-10 place-items-center rounded-full transition", listening ? "animate-pulse bg-critical text-white" : "bg-surface-3 text-ink")}
+        >
+          <Mic size={18} />
+        </button>
+      )}
+    </div>
+  );
+}
+
+const WEEKDAYS = ["Пн", "Вт", "Ср", "Чт", "Пт", "Сб", "Нд"];
+
 /**
- * "Plan with AI": one workout for a date, or a programme — on the days you tick, or a number
- * of sessions the model spreads over the coming week itself.
+ * "Plan with AI": say (or type) what you want in your own words — one workout or a whole
+ * programme. Days can be ticked on a three-week calendar, but do not have to be: without them
+ * the model reads the days from the request, and plans today when it says nothing.
  */
-export function PlanWithAi({ weeklyTarget = 3 }: { weeklyTarget?: number }) {
+export function PlanWithAi() {
   const router = useRouter();
   const [open, setOpen] = useState(false);
-  const [mode, setMode] = useState<"one" | "program">("one");
   const [wish, setWish] = useState("");
   const [today, setToday] = useState("");
-  const [date, setDate] = useState("");
   const [days, setDays] = useState<string[]>([]);
-  const [count, setCount] = useState(Math.min(6, Math.max(2, weeklyTarget)));
   const [error, setError] = useState<string | null>(null);
   const [done, setDone] = useState<{ created: { id: string; name: string; date: string }[]; why: string } | null>(null);
   const [pending, start] = useTransition();
+  useLockScroll(open);
   const close = () => {
     if (pending) return;
     setOpen(false);
     if (done) router.refresh();
   };
+  const first = today ? weekStart(today) : "";
 
   return (
     <>
       <button
         onClick={() => {
-          const t = dayOf();
-          setToday(t);
-          setDate(t);
+          setToday(dayOf());
           setDays([]);
           setError(null);
           setDone(null);
@@ -309,7 +372,7 @@ export function PlanWithAi({ weeklyTarget = 3 }: { weeklyTarget?: number }) {
         <Sparkles size={17} className="text-body" /> Скласти з ШІ
       </button>
       {open && (
-        <div className="fixed inset-0 z-50 flex items-end justify-center overflow-y-auto bg-black/70 md:items-center md:p-6" onClick={close}>
+        <div className="fixed inset-0 z-50 flex items-end justify-center overflow-y-auto overscroll-contain bg-black/70 md:items-center md:p-6" onClick={close}>
           {done ? (
             <div role="dialog" aria-modal="true" aria-label="Програму складено" className={DIALOG} onClick={(e) => e.stopPropagation()}>
               <h2 className="text-xl font-bold">Готово: {done.created.length} у плані</h2>
@@ -339,15 +402,10 @@ export function PlanWithAi({ weeklyTarget = 3 }: { weeklyTarget?: number }) {
                 e.preventDefault();
                 setError(null);
                 start(async () => {
-                  if (mode === "one") {
-                    const r = await planWorkoutAction({ wish, date });
-                    if (r.ok) router.push(`/workouts/${r.id}`);
-                    else setError(r.error);
-                  } else {
-                    const r = await planProgramAction({ wish, days, count, from: today });
-                    if (r.ok) setDone({ created: r.created, why: r.why });
-                    else setError(r.error);
-                  }
+                  const r = await planProgramAction({ wish, days });
+                  if (!r.ok) return setError(r.error);
+                  if (r.created.length === 1) router.push(`/workouts/${r.created[0].id}`);
+                  else setDone({ created: r.created, why: r.why });
                 });
               }}
             >
@@ -357,95 +415,61 @@ export function PlanWithAi({ weeklyTarget = 3 }: { weeklyTarget?: number }) {
                   <X size={20} />
                 </button>
               </div>
-              <div className="flex rounded-full bg-surface-2 p-1" role="group" aria-label="Що скласти">
-                {(
-                  [
-                    ["one", "Одне тренування"],
-                    ["program", "Програма"],
-                  ] as const
-                ).map(([value, label]) => (
-                  <button
-                    key={value}
-                    type="button"
-                    onClick={() => setMode(value)}
-                    aria-pressed={mode === value}
-                    className={cx("flex-1 rounded-full px-3 py-1.5 text-[13px] font-medium", mode === value ? "bg-surface-3 text-ink" : "text-muted")}
-                  >
-                    {label}
-                  </button>
-                ))}
-              </div>
               <p className="text-sm text-ink-2">
-                ШІ врахує ваші цілі, вагу й показники, минулі тренування, дані з Apple Watch і те, які мʼязи відстають, та збереже результат у
-                запланованих.
+                Скажіть своїми словами, що потрібно — одне тренування чи програму. ШІ врахує ваші цілі, показники, минулі тренування й дані з
+                Apple Watch.
               </p>
-              {mode === "one" ? (
-                <label className="block space-y-1.5">
-                  <span className="text-sm text-ink-2">На коли</span>
-                  <input type="date" value={date} onChange={(e) => setDate(e.target.value)} required className="field" />
-                </label>
-              ) : (
-                <div className="space-y-2">
-                  <span className="block text-sm text-ink-2">Дні тренувань — найближчі два тижні</span>
-                  <div className="grid grid-cols-7 gap-1.5">
-                    {Array.from({ length: 14 }, (_, i) => addDays(today, i)).map((d) => {
-                      const on = days.includes(d);
-                      return (
-                        <button
-                          key={d}
-                          type="button"
-                          aria-pressed={on}
-                          disabled={!on && days.length >= 7}
-                          onClick={() => setDays(on ? days.filter((x) => x !== d) : [...days, d])}
-                          className={cx(
-                            "flex flex-col items-center rounded-xl py-1.5 text-[11px] leading-tight transition disabled:opacity-30",
-                            on ? "bg-accent font-semibold text-accent-ink" : "bg-surface-2 text-muted hover:bg-surface-3",
-                          )}
-                        >
-                          <span className="first-letter:uppercase">{fmtDate(d, { weekday: "short" })}</span>
-                          <span className={cx("num text-[15px] font-semibold", !on && "text-ink")}>{fmtDate(d, { day: "numeric" })}</span>
-                        </button>
-                      );
-                    })}
-                  </div>
-                  {days.length === 0 ? (
-                    <div className="flex items-center justify-between gap-3 rounded-2xl bg-surface-2 px-3.5 py-2.5">
-                      <span className="text-sm text-ink-2">
-                        Дні не вибрано — ШІ сам розподілить
-                        <span className="block text-xs text-muted">тренування на найближчі 7 днів</span>
-                      </span>
-                      <span className="flex shrink-0 items-center gap-1">
-                        <button type="button" onClick={() => setCount(Math.max(2, count - 1))} aria-label="Менше тренувань" className="icon-btn size-8 bg-surface-3 text-ink">
-                          <Minus size={15} />
-                        </button>
-                        <span className="num w-6 text-center text-lg font-semibold" aria-label="Кількість тренувань">
-                          {count}
-                        </span>
-                        <button type="button" onClick={() => setCount(Math.min(6, count + 1))} aria-label="Більше тренувань" className="icon-btn size-8 bg-surface-3 text-ink">
-                          <Plus size={15} />
-                        </button>
-                      </span>
-                    </div>
-                  ) : (
-                    <p className="text-xs text-muted">Вибрано днів: {days.length}. По одному тренуванню на кожен.</p>
+              <SpokenText
+                value={wish}
+                onChange={setWish}
+                placeholder="Напр.: три тренування цього тижня, у середу йога — не перевантажуй руки. Або: сьогодні ноги на 40 хвилин"
+              />
+              <div className="space-y-2">
+                <div className="flex items-baseline justify-between gap-3">
+                  <span className="text-sm text-ink-2">Дні — якщо хочете вказати точно</span>
+                  {days.length > 0 && (
+                    <button type="button" onClick={() => setDays([])} className="text-xs text-accent">
+                      Скинути
+                    </button>
                   )}
                 </div>
-              )}
-              <label className="block space-y-1.5">
-                <span className="text-sm text-ink-2">Побажання (необовʼязково)</span>
-                <textarea
-                  value={wish}
-                  onChange={(e) => setWish(e.target.value)}
-                  rows={3}
-                  maxLength={800}
-                  placeholder={
-                    mode === "one"
-                      ? "Напр.: ноги й прес, до 45 хвилин, без присідань зі штангою"
-                      : "Напр.: у середу йога, у суботу болдеринг — не перевантажуй руки; акцент на спину"
-                  }
-                  className="field resize-none"
-                />
-              </label>
+                <div className="grid grid-cols-7 gap-1.5 text-center">
+                  {WEEKDAYS.map((d, i) => (
+                    <span key={d} className={cx("text-[11px] font-semibold", i >= 5 ? "text-ink-2" : "text-muted")}>
+                      {d}
+                    </span>
+                  ))}
+                  {Array.from({ length: 21 }, (_, i) => addDays(first, i)).map((d) => {
+                    const on = days.includes(d);
+                    const past = d < today;
+                    const isToday = d === today;
+                    return (
+                      <button
+                        key={d}
+                        type="button"
+                        aria-pressed={on}
+                        aria-label={`${fmtDate(d, { weekday: "long", day: "numeric", month: "long" })}${isToday ? ", сьогодні" : ""}`}
+                        disabled={past || (!on && days.length >= 7)}
+                        onClick={() => setDays(on ? days.filter((x) => x !== d) : [...days, d])}
+                        className={cx(
+                          "num relative grid h-10 place-items-center rounded-xl text-[15px] font-semibold transition",
+                          on ? "bg-accent text-accent-ink" : past ? "text-muted/40" : "bg-surface-2 text-ink hover:bg-surface-3",
+                          isToday && !on && "ring-2 ring-accent",
+                          !on && !past && days.length >= 7 && "opacity-40",
+                        )}
+                      >
+                        {fmtDate(d, { day: "numeric" })}
+                        {isToday && <span className={cx("absolute bottom-0.5 size-1 rounded-full", on ? "bg-accent-ink" : "bg-accent")} />}
+                      </button>
+                    );
+                  })}
+                </div>
+                <p className="text-xs text-muted">
+                  {days.length
+                    ? `Вибрано днів: ${days.length} — по одному тренуванню на кожен.`
+                    : "Днів не вибрано — ШІ візьме їх із вашого опису, а без опису складе одне тренування на сьогодні (обведено)."}
+                </p>
+              </div>
               {error && (
                 <p role="alert" className="text-sm text-critical">
                   {error}
@@ -454,11 +478,11 @@ export function PlanWithAi({ weeklyTarget = 3 }: { weeklyTarget?: number }) {
               <button type="submit" disabled={pending} className="btn btn-primary w-full">
                 {pending ? (
                   <>
-                    <Loader2 size={17} className="animate-spin" /> {mode === "one" ? "Складаю план…" : "Складаю програму…"}
+                    <Loader2 size={17} className="animate-spin" /> Складаю…
                   </>
                 ) : (
                   <>
-                    <Sparkles size={17} /> {mode === "one" ? "Скласти тренування" : "Скласти програму"}
+                    <Sparkles size={17} /> Скласти
                   </>
                 )}
               </button>
@@ -492,8 +516,9 @@ export function AiPromptDialog({
   const [text, setText] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [pending, start] = useTransition();
+  useLockScroll();
   return (
-    <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/70 md:items-center md:p-6" onClick={() => !pending && onClose()}>
+    <div className="fixed inset-0 z-50 flex items-end justify-center overscroll-contain bg-black/70 md:items-center md:p-6" onClick={() => !pending && onClose()}>
       <form
         role="dialog"
         aria-modal="true"
@@ -517,7 +542,7 @@ export function AiPromptDialog({
           </button>
         </div>
         <p className="text-sm text-ink-2">{hint}</p>
-        <textarea value={text} onChange={(e) => setText(e.target.value)} rows={4} maxLength={800} placeholder={placeholder} aria-label="Що змінилось" autoFocus className="field resize-none" />
+        <SpokenText value={text} onChange={setText} placeholder={placeholder} />
         {error && (
           <p role="alert" className="text-sm text-critical">
             {error}

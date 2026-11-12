@@ -5,6 +5,7 @@ import Link from "next/link";
 import { Check, CirclePlay, StickyNote, X } from "lucide-react";
 import type { MuscleGroup, Tracking } from "@/db/schema";
 import { exerciseFrames } from "@/lib/exercise-media";
+import { useLockScroll } from "@/lib/client/lock-scroll";
 import { cx, fmtClock } from "@/lib/format";
 import type { CSet } from "@/lib/shape";
 import { workoutKind } from "@/lib/workout-kind";
@@ -126,13 +127,14 @@ export type SheetAction = {
 
 /** A menu that slides up from the bottom on a phone — keeps rarely used actions off the screen. */
 export function ActionSheet({ title, actions, onClose }: { title?: string; actions: SheetAction[]; onClose: () => void }) {
+  useLockScroll();
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => e.key === "Escape" && onClose();
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, [onClose]);
   return (
-    <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/70 md:items-center" onClick={onClose}>
+    <div className="fixed inset-0 z-50 flex items-end justify-center overscroll-contain bg-black/70 md:items-center" onClick={onClose}>
       <div
         role="menu"
         aria-label={title ?? "Дії"}
@@ -173,21 +175,6 @@ export function ActionSheet({ title, actions, onClose }: { title?: string; actio
 }
 
 // ───────────────────────── Rest ring ─────────────────────────
-
-/** While a full-screen workout view is up, the page behind it must not scroll. */
-export function useLockScroll(active = true) {
-  useEffect(() => {
-    if (!active) return;
-    const root = document.documentElement;
-    const before = { root: root.style.overflow, body: document.body.style.overflow };
-    root.style.overflow = "hidden";
-    document.body.style.overflow = "hidden";
-    return () => {
-      root.style.overflow = before.root;
-      document.body.style.overflow = before.body;
-    };
-  }, [active]);
-}
 
 /**
  * Rest between sets, as large as the screen allows: the time left in huge digits that can be
@@ -314,6 +301,7 @@ export function ExerciseName({ name, exerciseId, className }: { name: string; ex
 }
 
 function ExerciseAnimation({ name, frames, exerciseId, onClose }: { name: string; frames: [string, string]; exerciseId?: string; onClose: () => void }) {
+  useLockScroll();
   const [frame, setFrame] = useState(0);
   const [playing, setPlaying] = useState(true);
   useEffect(() => {
@@ -420,3 +408,5 @@ export function NotesField({
     />
   );
 }
+
+export { useLockScroll };

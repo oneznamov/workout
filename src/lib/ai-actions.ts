@@ -11,7 +11,6 @@ import {
   listUnreviewed,
   periodReport,
   planProgram,
-  planWorkout,
   removeAiSettings,
   reviseWorkout,
   saveAiSettings,
@@ -68,12 +67,8 @@ export async function coachNoteAction(force = false): Promise<AiResult<{ note: A
   return attempt("coach note", async (userId) => ({ note: await coachNote(userId, force) }));
 }
 
-export async function planWorkoutAction(input: { wish?: string; date?: string }) {
-  return attempt("plan", (userId) => planWorkout(userId, input));
-}
-
-/** Several planned workouts at once: on the chosen days, or `count` sessions spread over a week by the model. */
-export async function planProgramAction(input: { wish?: string; days?: string[]; count?: number; from?: string }) {
+/** One or several planned workouts from a free-form request; days are optional. */
+export async function planProgramAction(input: { wish?: string; days?: string[] }) {
   return attempt("programme", (userId) => planProgram(userId, input));
 }
 

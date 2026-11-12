@@ -5,12 +5,14 @@ import { useState, useTransition } from "react";
 import { ArrowDown, ArrowUp, Eye, EyeOff, SlidersHorizontal } from "lucide-react";
 import { saveDashboardAction } from "@/lib/actions";
 import type { WidgetState } from "@/lib/dashboard";
+import { useLockScroll } from "@/lib/client/lock-scroll";
 import { cx } from "@/lib/format";
 
 /** "Customise home": show or hide blocks and change their order. */
 export function DashboardCustomizer({ widgets }: { widgets: WidgetState[] }) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
+  useLockScroll(open);
   const [items, setItems] = useState(widgets);
   const [error, setError] = useState(false);
   const [pending, start] = useTransition();

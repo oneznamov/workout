@@ -323,23 +323,6 @@ async function libraryText(userId: string) {
   return { library, text: library.map((e) => `${e.name} [${e.muscle}, ${e.equipment}, ${e.tracking}]`).join("\n") };
 }
 
-/** Asks the model for a workout and saves it as planned. Returns the new workout id. */
-export async function planWorkout(userId: string, input: { wish?: string; date?: string }) {
-  const cfg = await getAiConfig(userId);
-  const [context, lib] = await Promise.all([athleteContext(userId), libraryText(userId)]);
-  const date = input.date && /^\d{4}-\d{2}-\d{2}$/.test(input.date) ? input.date : dayOf();
-  const prompt = `${context}
-
-Exercise library — name [muscle, equipment, tracking]:
-${lib.text}
-
-Plan one workout for ${date}.${input.wish?.trim() ? `\nThe athlete's wish for this session: ${input.wish.trim().slice(0, 500)}` : ""}`;
-  const plan = resolvePlan(await askJson(cfg, { system: PLAN_SYSTEM, prompt }, planSchema), lib.library);
-  if (plan.exercises.length === 0) throw new AiError("Модель не запропонувала жодної вправи з бібліотеки. Спробуйте ще раз.");
-  const id = await createWorkout(userId, { name: plan.name, status: "planned", scheduledFor: date, notes: plan.notes || null, exercises: plan.exercises });
-  return { id, exercises: plan.exercises.length };
-}
-
 /** Asks the model what an existing plan is missing and appends those exercises. */
 export async function supplementWorkout(userId: string, workoutId: string) {
   const cfg = await getAiConfig(userId);
@@ -364,7 +347,7 @@ Return only the exercises to ADD (usually one to three; none if the workout is a
   return { added: Math.min(4, plan.exercises.length), why: plan.notes };
 }
 
-const PROGRAM_SYSTEM = `${PLAN_SYSTEM.slice(0, PLAN_SYSTEM.indexOf("Reply with a single JSON object"))}You are planning several sessions at once, so think of them as one programme: spread the muscle groups so each gets enough work across the days and none is trained hard on two days in a row, vary the sessions instead of repeating one workout, and count what the athlete does outside the gym (Apple Watch sessions, things they mention in their wish) as load that needs recovery. Give each workout a short distinct name.
+const PROGRAM_SYSTEM = `${PLAN_SYSTEM.slice(0, PLAN_SYSTEM.indexOf("Reply with a single JSON object"))}You may be planning one session or several. When there are several, think of them as one programme: spread the muscle groups so each gets enough work across the days and none is trained hard on two days in a row, vary the sessions instead of repeating one workout, and count what the athlete does outside the gym (Apple Watch sessions, things they mention in their wish) as load that needs recovery. Give each workout a short distinct name.
 
 Reply with a single JSON object and nothing else, in this shape:
 ${PROGRAM_SHAPE}
@@ -373,28 +356,30 @@ where every item of "exercises" looks like this:
 ${PLAN_SHAPE.slice(PLAN_SHAPE.indexOf('"exercises": [{') + '"exercises": ['.length, PLAN_SHAPE.lastIndexOf("]"))}`;
 
 /**
- * Plans several workouts at once and saves them as planned: either on the days the athlete
- * picked, or `count` sessions the model spreads over the week starting at `from`.
+ * Plans one or several workouts from a free-form request and saves them as planned.
+ * Days can be ticked in the calendar; when none are, the model works out from the words
+ * ("three this week", "tomorrow legs", "Mon, Wed, Fri") how many and when — and plans a
+ * single workout for today when the request says nothing about days.
  */
-export async function planProgram(userId: string, input: { wish?: string; days?: string[]; count?: number; from?: string }) {
+export async function planProgram(userId: string, input: { wish?: string; days?: string[] }) {
   const cfg = await getAiConfig(userId);
   const isDay = (d: unknown): d is string => typeof d === "string" && /^\d{4}-\d{2}-\d{2}$/.test(d);
   const today = dayOf();
   const picked = [...new Set((input.days ?? []).filter(isDay))].filter((d) => d >= today).sort().slice(0, 7);
-  const from = isDay(input.from) && input.from >= today ? input.from : today;
-  const week = Array.from({ length: 7 }, (_, i) => addDays(from, i));
-  const count = Math.min(6, Math.max(2, Math.round(input.count ?? 3)));
-  const allowed = picked.length ? picked : week;
+  const horizon = Array.from({ length: 28 }, (_, i) => addDays(today, i));
+  const allowed = picked.length ? picked : horizon;
   const [context, lib] = await Promise.all([athleteContext(userId), libraryText(userId)]);
+  const wish = input.wish?.trim().slice(0, 800);
   const task = picked.length
     ? `Plan one workout for each of these days: ${picked.join(", ")}.`
-    : `Plan ${count} workouts in the week ${week[0]} … ${week[6]}. Choose the days yourself, leaving recovery between hard sessions and avoiding days that already have a planned workout or a demanding activity.`;
+    : `The athlete did not tick any days. Work out from their request how many workouts they want and on which dates — any day from ${today} to ${horizon[27]} (at most 7 workouts). "This week" runs up to the coming Sunday, "next week" is the Monday–Sunday after it. If the request says nothing about days, plan a single workout for today, ${today}. Unless asked otherwise, skip days that already have a planned workout and leave recovery between hard sessions.`;
   const prompt = `${context}
 
 Exercise library — name [muscle, equipment, tracking]:
 ${lib.text}
 
-${task}${input.wish?.trim() ? `\nThe athlete's wishes for this programme: ${input.wish.trim().slice(0, 800)}` : ""}`;
+${task}
+${wish ? `The athlete's request, in their own words: ${wish}` : "The athlete gave no further wishes."}`;
   const program = resolveProgram(await askJson(cfg, { system: PROGRAM_SYSTEM, prompt }, programSchema), lib.library, allowed);
   if (program.workouts.length === 0) throw new AiError("Модель не запропонувала жодного тренування з вправами з бібліотеки. Спробуйте ще раз.");
   const created: { id: string; name: string; date: string }[] = [];

@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState, useTransition } from "react";
 import { Plus, Search, X } from "lucide-react";
 import { EQUIPMENT, MUSCLE_GROUPS, TRACKING, type Equipment, type MuscleGroup, type Tracking } from "@/db/schema";
 import { createExerciseAction } from "@/lib/actions";
+import { useLockScroll } from "@/lib/client/lock-scroll";
 import { cx } from "@/lib/format";
 import { EQUIPMENT_LABEL, MUSCLE_LABEL, TRACKING_LABEL } from "@/lib/labels";
 import type { CExerciseInfo } from "@/lib/shape";
@@ -24,14 +25,11 @@ export function ExercisePicker({
   const [creating, setCreating] = useState(false);
   const [extra, setExtra] = useState<CExerciseInfo[]>([]);
 
+  useLockScroll();
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => e.key === "Escape" && onClose();
     window.addEventListener("keydown", onKey);
-    document.body.style.overflow = "hidden";
-    return () => {
-      window.removeEventListener("keydown", onKey);
-      document.body.style.overflow = "";
-    };
+    return () => window.removeEventListener("keydown", onKey);
   }, [onClose]);
 
   const filtered = useMemo(() => {
@@ -93,7 +91,7 @@ export function ExercisePicker({
                 ))}
               </div>
             </div>
-            <ul className="flex-1 overflow-y-auto px-2 pb-2">
+            <ul className="flex-1 overflow-y-auto overscroll-contain px-2 pb-2">
               {filtered.map((e) => (
                 <li key={e.id}>
                   <button

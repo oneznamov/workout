@@ -30,6 +30,7 @@ import { AiPromptDialog, AiWorkoutNote } from "@/components/ai";
 import { deleteWorkoutAction, linkHealthWorkoutAction } from "@/lib/actions";
 import { reviseWorkoutAction, supplementWorkoutAction } from "@/lib/ai-actions";
 import type { AiNote } from "@/lib/ai-providers";
+import { useLockScroll } from "@/lib/client/lock-scroll";
 import { cloneWorkout, hardNavigate, pushWorkout, readLocal, removeLocal, writeLocal } from "@/lib/client/offline";
 import { addDays, cx, dayOf, EXERCISES_FORMS, fmtClock, fmtDate, fmtDateLong, fmtDuration, fmtNum, fmtTime, plural } from "@/lib/format";
 import { STATUS_LABEL } from "@/lib/labels";
@@ -75,6 +76,7 @@ export function WorkoutEditor({
   const saveRef = useRef<SaveState>("saved");
   const [picker, setPicker] = useState<Picker>(null);
   const [confirmFinish, setConfirmFinish] = useState(false);
+  useLockScroll(confirmFinish);
   const [menuOpen, setMenuOpen] = useState(false);
   // During a workout: one set at a time ("focus") or the whole list.
   const [view, setViewState] = useState<View>("focus");
