@@ -1,0 +1,101 @@
+import { Suspense } from "react";
+import { PageSkeleton } from "@/components/ui";
+import { desc, eq } from "drizzle-orm";
+import { headers } from "next/headers";
+import { CopyField, LogoutButton, PasswordForm, TokensManager } from "@/components/settings";
+import { Card, PageHeader } from "@/components/ui";
+import { db } from "@/db";
+import { apiTokens } from "@/db/schema";
+import { getUser } from "@/lib/auth";
+
+export const metadata = { title: "Налаштування" };
+
+async function Content() {
+  const user = await getUser();
+  const h = await headers();
+  const host = h.get("x-forwarded-host") ?? h.get("host") ?? "localhost:3000";
+  const origin = `${h.get("x-forwarded-proto") ?? (host.startsWith("localhost") ? "http" : "https")}://${host}`;
+  const tokens = await db
+    .select({ id: apiTokens.id, name: apiTokens.name, prefix: apiTokens.prefix, createdAt: apiTokens.createdAt, lastUsedAt: apiTokens.lastUsedAt })
+    .from(apiTokens)
+    .where(eq(apiTokens.userId, user.id))
+    .orderBy(desc(apiTokens.createdAt));
+
+  return (
+    <>
+      <PageHeader title="Налаштування" subtitle={`Акаунт: ${user.username}`} actions={<LogoutButton />} />
+      <div className="space-y-5">
+        <Card title="Токени доступу">
+          <p className="mb-4 text-sm text-ink-2">
+            Токен дає доступ до ваших даних без пароля — для Claude та для синхронізації Apple Health. Створіть окремий токен
+            для кожного підключення.
+          </p>
+          <TokensManager
+            origin={origin}
+            tokens={tokens.map((t) => ({ ...t, createdAt: t.createdAt.toISOString(), lastUsedAt: t.lastUsedAt?.toISOString() ?? null }))}
+          />
+        </Card>
+
+        <Card title="Claude: планування та аналіз тренувань">
+          <ol className="list-decimal space-y-2 pl-5 text-sm text-ink-2">
+            <li>Створіть токен вище (наприклад, «Claude»).</li>
+            <li>
+              У claude.ai: <span className="text-ink">Settings → Connectors → Add custom connector</span> і вставте адресу з
+              токеном, яку покаже форма. У Claude Code — виконайте показану команду.
+            </li>
+            <li>
+              Пишіть Claude: «склади мені тренування ніг на завтра», «проаналізуй мій прогрес у жимі за 3 місяці», «заміни
+              присідання на жим ногами в поточному тренуванні».
+            </li>
+          </ol>
+          <div className="mt-3">
+            <CopyField value={`${origin}/api/mcp`} label="Адреса MCP-сервера" />
+          </div>
+        </Card>
+
+        <Card title="Apple Watch / Apple Health">
+          <p className="text-sm text-ink-2">
+            Сайт не може сам читати Apple Health — дані має надсилати iPhone. Найпростіше через застосунок{" "}
+            <span className="text-ink">Health Auto Export</span> (App Store):
+          </p>
+          <ol className="mt-2 list-decimal space-y-2 pl-5 text-sm text-ink-2">
+            <li>Створіть токен вище (наприклад, «iPhone»).</li>
+            <li>
+              У Health Auto Export: <span className="text-ink">Automations → New Automation → REST API</span>. URL — адреса
+              нижче, метод POST, формат JSON.
+            </li>
+            <li>
+              Додайте заголовок <code className="font-mono text-ink">Authorization</code> зі значенням{" "}
+              <code className="font-mono text-ink">Bearer ваш_токен</code>.
+            </li>
+            <li>
+              Створіть дві автоматизації: <span className="text-ink">Health Metrics</span> (вага, пульс спокою, HRV, VO₂ max,
+              кроки, калорії, сон; агрегація — по днях) і <span className="text-ink">Workouts</span> (увімкніть «Include
+              Heart Rate Data»). Період синхронізації — щогодини або частіше.
+            </li>
+          </ol>
+          <div className="mt-3">
+            <CopyField value={`${origin}/api/health`} label="Адреса для Apple Health" />
+          </div>
+          <p className="mt-3 text-xs text-muted">
+            Тренування з годинника (стандартна програма «Тренування») автоматично привʼязується до запису в щоденнику, якщо
+            вони перетинаються в часі: запустіть «Силове тренування» на годиннику й тренування тут — пульс і калорії
+            зʼявляться в записі після синхронізації.
+          </p>
+        </Card>
+
+        <Card title="Пароль">
+          <PasswordForm />
+        </Card>
+      </div>
+    </>
+  );
+}
+
+export default function Page() {
+  return (
+    <Suspense fallback={<PageSkeleton />}>
+      <Content />
+    </Suspense>
+  );
+}
