@@ -100,6 +100,10 @@ export async function getAthleteContext(userId: string, opts: { history?: number
       training_experience: profile.experience,
       about_in_their_own_words: profile.about || null,
     },
+    health: {
+      ill_now: profile.sick ? { since: profile.sick.since, note: profile.sick.note || undefined } : null,
+      recent_illnesses: profile.sickHistory.slice(-3),
+    },
     goals: profile.goals.map((g) => ({
       title: g.title,
       details: g.details || undefined,

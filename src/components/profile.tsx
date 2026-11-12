@@ -2,8 +2,8 @@
 
 import { useRouter } from "next/navigation";
 import { useEffect, useState, useTransition } from "react";
-import { Check, Plus, Trash2 } from "lucide-react";
-import { saveProfileAction } from "@/lib/ai-actions";
+import { Check, Plus, Thermometer, Trash2 } from "lucide-react";
+import { saveProfileAction, setSickAction } from "@/lib/ai-actions";
 import { cx } from "@/lib/format";
 import { saveMeasurementsAction } from "@/lib/actions";
 import { fmtDate, fmtNum } from "@/lib/format";
@@ -414,6 +414,52 @@ export function MeasurementsForm({ today, latest }: { today: string; latest: Mea
         </p>
       )}
       <p className="text-xs text-muted">У сантиметрах. Заповнюйте лише те, що міряли сьогодні — решта лишиться як була.</p>
+    </div>
+  );
+}
+
+/** Illness mode: one button on, one button off. While it is on, nothing in the app nags. */
+export function SickMode({ sick, today, compact }: { sick: Profile["sick"]; today: string; compact?: boolean }) {
+  const router = useRouter();
+  const [note, setNote] = useState("");
+  const [pending, start] = useTransition();
+  const set = (on: boolean) =>
+    start(async () => {
+      await setSickAction(on, note);
+      router.refresh();
+    });
+  if (sick) {
+    const days = Math.round((Date.parse(`${today}T12:00:00Z`) - Date.parse(`${sick.since}T12:00:00Z`)) / 86400000) + 1;
+    return (
+      <div className={cx("flex flex-wrap items-center justify-between gap-3", !compact && "rounded-2xl bg-warning/12 p-3.5 ring-1 ring-warning/40")}>
+        <div className="min-w-0 flex-1 basis-48">
+          <div className="flex items-center gap-2 text-[15px] font-semibold text-warning">
+            <Thermometer size={17} /> Режим хвороби · {days}-й день
+          </div>
+          <p className="mt-0.5 text-sm text-ink-2">
+            З {fmtDate(sick.since).replace(/\.$/, "")}
+            {sick.note && ` · ${sick.note}`}. Цілі тижня на паузі, серія тижнів не переривається, ШІ радить відновлення.
+          </p>
+        </div>
+        <button disabled={pending} onClick={() => set(false)} className="btn btn-primary btn-sm">
+          <Check size={15} strokeWidth={3} /> Я одужую
+        </button>
+      </div>
+    );
+  }
+  if (compact) return null;
+  return (
+    <div className="space-y-3">
+      <p className="text-sm text-ink-2">
+        Захворіли? Увімкніть режим хвороби: цілі тижня стануть на паузу, пропущені тренування не дорікатимуть, серія тижнів у команді не
+        перерветься, а ШІ радитиме відновлення й легке повернення.
+      </p>
+      <div className="flex flex-wrap gap-2">
+        <input value={note} onChange={(e) => setNote(e.target.value)} maxLength={200} placeholder="Що саме (необовʼязково): застуда, спина…" aria-label="Що саме" className="field min-w-0 flex-1 basis-52" />
+        <button disabled={pending} onClick={() => set(true)} className="btn btn-ghost">
+          <Thermometer size={17} /> Я хворію
+        </button>
+      </div>
     </div>
   );
 }

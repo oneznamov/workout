@@ -569,6 +569,28 @@ export function registerWorkoutTools(server: McpServer, userId: string) {
   );
 
   server.registerTool(
+    "set_illness_mode",
+    {
+      title: "Illness mode",
+      description:
+        "Turns the athlete's illness mode on or off. While it is on, weekly targets are paused, streaks do not break and advice should focus on recovery. Use it when the athlete says they are ill or injured, or that they have recovered.",
+      inputSchema: z.object({ on: z.boolean(), note: z.string().max(200).optional().describe("What it is, in a few words.") }),
+    },
+    tool(async ({ on, note }) => {
+      const [u] = await db.select({ profile: users.profile }).from(users).where(eq(users.id, userId));
+      const current = normalizeProfile(u?.profile);
+      const today = dayOf();
+      const profile = normalizeProfile(
+        on
+          ? { ...current, sick: current.sick ?? { since: today, note: note ?? "" } }
+          : { ...current, sick: null, sickHistory: current.sick ? [...current.sickHistory, { from: current.sick.since, to: today }] : current.sickHistory },
+      );
+      await db.update(users).set({ profile }).where(eq(users.id, userId));
+      return { ill_now: profile.sick, recent_illnesses: profile.sickHistory.slice(-3) };
+    }),
+  );
+
+  server.registerTool(
     "get_team_leaderboard",
     {
       title: "Team leaderboard",

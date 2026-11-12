@@ -1,10 +1,10 @@
 import { Suspense } from "react";
 import { PageSkeleton } from "@/components/ui";
 import Link from "next/link";
-import { Activity, AlertTriangle, Droplet, Flame, Footprints, Heart, Moon, PersonStanding, Ruler, Scale, Sparkles, Target, Timer, TrendingUp, UserRound, Wind } from "lucide-react";
+import { Activity, AlertTriangle, Droplet, Flame, Footprints, Heart, Moon, PersonStanding, Ruler, Scale, Sparkles, Target, Thermometer, Timer, TrendingUp, UserRound, Wind } from "lucide-react";
 import { TrendChart } from "@/components/charts";
 import { DeleteMetricButton, WeightForm } from "@/components/metric-form";
-import { GoalsEditor, MeasurementsForm, PersonForm, type MeasureState } from "@/components/profile";
+import { GoalsEditor, MeasurementsForm, PersonForm, SickMode, type MeasureState } from "@/components/profile";
 import { Card, Disclosure, PageHeader, Segmented } from "@/components/ui";
 import { getUser } from "@/lib/auth";
 import { addDays, dayOf, fmtDate, fmtDuration, fmtNum, fmtTime } from "@/lib/format";
@@ -174,6 +174,10 @@ async function Content({ searchParams }: PageProps<"/profile">) {
       />
       <div className="grid grid-cols-1 gap-5 lg:grid-cols-2 lg:items-start">
         <div className="space-y-5">
+          <Card title="Самопочуття" icon={<Thermometer size={16} />}>
+            <SickMode sick={profile.sick} today={today} />
+          </Card>
+
           <Card title="Про мене" icon={<UserRound size={16} />}>
             <p className="mb-4 text-sm text-ink-2">
               Ці дані бачите лише ви, Claude та вбудований ШІ: за ними підбираються навантаження, оцінюється прогрес і малюється фігура на

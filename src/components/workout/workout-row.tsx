@@ -10,8 +10,10 @@ const DAY_FORMS: [string, string, string] = ["день", "дні", "днів"];
 const dayNumber = (day: string) => Date.parse(`${day}T12:00:00Z`) / 86400000;
 
 /** "сьогодні", "завтра", "через 3 дні", "прострочено" (the date itself is on the calendar tile). */
-function whenPlanned(day: string, today: string) {
+function whenPlanned(day: string, today: string, sick: boolean) {
   const diff = Math.round(dayNumber(day) - dayNumber(today));
+  // While the athlete is ill a missed day is not a failure — it just waits.
+  if (diff < 0 && sick) return { text: "чекає на одужання", tone: "text-muted" };
   if (diff === 0) return { text: "сьогодні", tone: "text-accent" };
   if (diff === 1) return { text: "завтра", tone: "text-ink-2" };
   if (diff > 1) return { text: `через ${plural(diff, DAY_FORMS)}`, tone: "text-muted" };
@@ -24,10 +26,10 @@ const KindTag = ({ label }: { label: string }) => <span className="rounded-full 
  * A workout that is still ahead: outlined rather than filled, with a calendar tile for the
  * date — so it never reads as something already done.
  */
-export function PlannedCard({ w }: { w: WorkoutListItem }) {
+export function PlannedCard({ w, sick = false }: { w: WorkoutListItem; sick?: boolean }) {
   const kind = workoutKind(w.muscles);
   const today = dayOf();
-  const when = w.scheduledFor ? whenPlanned(w.scheduledFor, today) : null;
+  const when = w.scheduledFor ? whenPlanned(w.scheduledFor, today, sick) : null;
   const overdue = Boolean(w.scheduledFor && w.scheduledFor < today);
   return (
     <div>
@@ -67,8 +69,8 @@ export function PlannedCard({ w }: { w: WorkoutListItem }) {
 }
 
 /** One workout in a list: pictogram, name, the headline number, then the supporting details. */
-export function WorkoutRow({ w }: { w: WorkoutListItem }) {
-  if (w.status === "planned") return <PlannedCard w={w} />;
+export function WorkoutRow({ w, sick = false }: { w: WorkoutListItem; sick?: boolean }) {
+  if (w.status === "planned") return <PlannedCard w={w} sick={sick} />;
   const kind = workoutKind(w.muscles);
   // Active time: pauses are not counted.
   const duration = w.startedAt && w.endedAt ? Math.max(0, (w.endedAt.getTime() - w.startedAt.getTime()) / 1000 - w.pausedSec) : null;

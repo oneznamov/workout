@@ -219,18 +219,19 @@ function NoteCard({
             <Sparkles size={16} /> {title}
           </h2>
         )}
-        {note && !folded && (
-          <button onClick={() => void load(true)} disabled={busy} aria-label="Оновити аналіз" title="Оновити" className="icon-btn size-8">
-            <RefreshCw size={15} className={busy ? "animate-spin" : undefined} />
-          </button>
-        )}
       </div>
       {folded ? null : note ? (
         <>
           <p className={cx("text-[15px] leading-relaxed whitespace-pre-line text-ink-2", busy && "opacity-50")}>{note.content}</p>
-          <p className="mt-2 text-xs text-muted">
-            {note.model} · {fmtDate(note.createdAt)}, {fmtTime(note.createdAt)}
-          </p>
+          {/* The refresh control sits at the bottom, away from the fold arrow in the header. */}
+          <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
+            <p className="text-xs text-muted">
+              {note.model} · {fmtDate(note.createdAt)}, {fmtTime(note.createdAt)}
+            </p>
+            <button onClick={() => void load(true)} disabled={busy} className="btn btn-ghost btn-sm">
+              <RefreshCw size={14} className={busy ? "animate-spin" : undefined} /> {busy ? "Оновлюю…" : "Оновити"}
+            </button>
+          </div>
         </>
       ) : busy ? (
         <p className="flex items-center gap-2 text-sm text-muted">

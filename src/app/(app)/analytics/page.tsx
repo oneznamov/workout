@@ -11,7 +11,7 @@ import { BODY_MUSCLES, TARGET_MIN } from "@/lib/muscles";
 import { getUser } from "@/lib/auth";
 import { normalizeProfile } from "@/lib/profile";
 import { getCardioAnalytics } from "@/lib/cardio";
-import { CARDIO_COLOR, CARDIO_LABEL } from "@/lib/cardio-kinds";
+import { CARDIO_COLOR, CARDIO_LABEL, paceLabel } from "@/lib/cardio-kinds";
 import { addDays, dayOf, durationParts, fmtDate, fmtDuration, fmtNum, fmtWeight, weekStart } from "@/lib/format";
 import { MUSCLE_LABEL } from "@/lib/labels";
 import { listWorkouts } from "@/lib/workouts";
@@ -23,6 +23,12 @@ const PERIODS = [
   { value: "12", label: "12 тиж" },
   { value: "26", label: "Півроку" },
   { value: "52", label: "Рік" },
+];
+
+const KINDS = [
+  { value: "all", label: "Усе" },
+  { value: "run", label: "Біг" },
+  { value: "cycle", label: "Вело" },
 ];
 
 async function Content({ searchParams }: PageProps<"/analytics">) {
@@ -64,6 +70,23 @@ async function Content({ searchParams }: PageProps<"/analytics">) {
   const kcalPoints = chrono
     .filter((w) => w.activeKcal != null)
     .map((w) => ({ label: fmtDate(w.startedAt), value: Math.round(w.activeKcal!), hint: `${fmtDate(w.startedAt, { day: "numeric", month: "long" })} · ${w.name}` }));
+  // Cardio details: one kind or both, pace (run) or speed (ride) per session, oldest → newest.
+  const kind = KINDS.some((k) => k.value === sp.k) ? String(sp.k) : "all";
+  const shownKinds: ("run" | "cycle")[] = kind === "all" ? ["run", "cycle"] : [kind as "run" | "cycle"];
+  const paceTrend = (k: "run" | "cycle") =>
+    cardio.sessions
+      .filter((s) => s.kind === k && s.distanceM && s.distanceM > 200)
+      .reverse()
+      .map((s) => {
+        const value = k === "run" ? s.durationSec / 60 / (s.distanceM! / 1000) : s.distanceM! / 1000 / (s.durationSec / 3600);
+        return {
+          label: fmtDate(s.startAt),
+          value: Math.round(value * 100) / 100,
+          hint: `${fmtDate(s.startAt, { day: "numeric", month: "long" })} · ${fmtNum(s.distanceM! / 1000, 2)} км`,
+          display: paceLabel(k, s.distanceM, s.durationSec) ?? undefined,
+        };
+      });
+
   // This week against the previous one.
   const monday = weekStart(dayOf());
   const [wk, weekRecords] = await Promise.all([getWeekSummary(userId), getRecords(userId, monday, 50)]);
@@ -155,7 +178,40 @@ async function Content({ searchParams }: PageProps<"/analytics">) {
           </div>
         </Disclosure>
 
-        <Disclosure title="Кардіо і пульс" hint="Кілометри, пульс і калорії на тренуваннях">
+        <Disclosure title="Кардіо і пульс" hint="Біг і вело: дистанція, темп, пульс, калорії" defaultOpen={sp.k != null}>
+          <div className="mb-4">
+            <Segmented options={KINDS} current={kind} param="k" extra={{ w: String(weeks) }} label="Вид кардіо" />
+          </div>
+          {shownKinds.map((k) => {
+            const t = cardio.totals[k];
+            return (
+              <div key={k} className="mb-4">
+                <div className="caps mb-2">{CARDIO_LABEL[k]}</div>
+                <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+                  <Stat label="Дистанція" tone={k === "run" ? "text-run" : "text-cycle"} value={fmtNum(t.distanceM / 1000, 1)} unit="км" />
+                  <Stat label="Час" tone="text-activity" {...durationParts(t.durationSec)} />
+                  <Stat label={k === "run" ? "Пробіжок" : "Заїздів"} value={t.sessions} hint={`≈ ${fmtNum(t.sessions / weeks, 1)} на тиждень`} />
+                  <Stat
+                    label={k === "run" ? "Середній темп" : "Середня швидкість"}
+                    value={paceLabel(k, t.pacedDistanceM, t.pacedDurationSec)?.split(" ")[0] ?? "—"}
+                    unit={k === "run" ? "/км" : "км/год"}
+                  />
+                </div>
+              </div>
+            );
+          })}
+          <div className="mb-4 grid gap-4 lg:grid-cols-2">
+            {shownKinds.includes("run") && (
+              <Card title="Темп пробіжок, хв/км" tone="text-run">
+                <TrendChart data={paceTrend("run")} unit="хв/км" digits={2} color="var(--c-run)" />
+              </Card>
+            )}
+            {shownKinds.includes("cycle") && (
+              <Card title="Швидкість заїздів, км/год" tone="text-cycle">
+                <TrendChart data={paceTrend("cycle")} unit="км/год" digits={1} color="var(--c-cycle)" />
+              </Card>
+            )}
+          </div>
           <div className="grid gap-4 lg:grid-cols-3">
             <Card title="Кілометри за тижнями">
               <StackedBars
@@ -174,8 +230,8 @@ async function Content({ searchParams }: PageProps<"/analytics">) {
               <TrendChart kind="bar" data={kcalPoints} unit="ккал" color="var(--c-activity)" />
             </Card>
           </div>
-          <Link href="/cardio" className="mt-3 inline-block text-sm text-accent">
-            Усе про кардіо →
+          <Link href="/workouts?t=cardio" className="mt-3 inline-block text-sm text-accent">
+            Усі пробіжки й заїзди →
           </Link>
         </Disclosure>
 

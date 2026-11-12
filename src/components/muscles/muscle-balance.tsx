@@ -316,7 +316,7 @@ function MuscleDetail({
               {worked.map((e) => (
                 <li key={e.exerciseId} className="flex justify-between gap-3">
                   {e.cardio ? (
-                    <Link href="/cardio" className="truncate hover:underline">
+                    <Link href="/workouts?t=cardio" className="truncate hover:underline">
                       {e.name} <span className="text-xs text-muted">кардіо</span>
                     </Link>
                   ) : (

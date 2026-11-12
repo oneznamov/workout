@@ -3,18 +3,17 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useState, type ReactNode } from "react";
-import { Activity, BarChart3, Bike, CircleUser, Dumbbell, Home, Settings, Users } from "lucide-react";
+import { Activity, BarChart3, CircleUser, Dumbbell, Home, Settings, Users } from "lucide-react";
 import { cx } from "@/lib/format";
 import { ConnectionBadge } from "./connection";
 
 const items = [
   { href: "/", label: "Головна", icon: Home },
-  { href: "/workouts", label: "Тренування", icon: Activity, also: ["/train", "/exercises"], mobileAlso: true },
-  { href: "/cardio", label: "Кардіо", icon: Bike },
+  { href: "/workouts", label: "Тренування", icon: Activity, also: ["/train", "/exercises", "/cardio"], mobileAlso: true },
   { href: "/exercises", label: "Вправи", icon: Dumbbell, desktopOnly: true },
   { href: "/analytics", label: "Аналітика", icon: BarChart3 },
+  { href: "/team", label: "Команда", icon: Users },
   { href: "/profile", label: "Профіль", icon: CircleUser },
-  { href: "/team", label: "Команда", icon: Users, desktopOnly: true },
   { href: "/settings", label: "Налаштування", icon: Settings, desktopOnly: true },
 ];
 
@@ -24,7 +23,6 @@ const items = [
  * gradient, so the glow runs behind it without a seam.
  */
 const TINTS: [string, string][] = [
-  ["/cardio", "var(--c-run)"],
   ["/profile", "var(--c-body)"],
   ["/analytics", "var(--c-sleep)"],
   ["/team", "var(--c-cycle)"],
@@ -117,10 +115,6 @@ export function Nav({ teamBadge }: { teamBadge?: ReactNode }) {
           <Brand />
           <div className="flex items-center gap-1">
             <ConnectionBadge compact />
-            <Link href="/team" aria-label="Команда" className={cx("icon-btn relative size-9", pathname.startsWith("/team") && "text-accent")}>
-              <Users size={19} />
-              <span className="absolute top-1 right-1">{teamBadge}</span>
-            </Link>
             <Link href="/settings" aria-label="Налаштування" className="icon-btn size-9">
               <Settings size={19} />
             </Link>
@@ -143,7 +137,10 @@ export function Nav({ teamBadge }: { teamBadge?: ReactNode }) {
                   active(i, true) ? "text-accent" : "text-muted",
                 )}
               >
-                <i.icon size={23} />
+                <span className="relative">
+                  <i.icon size={23} />
+                  {i.href === "/team" && <span className="absolute -top-0.5 -right-1.5">{teamBadge}</span>}
+                </span>
                 {i.label}
               </Link>
             ))}

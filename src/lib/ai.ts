@@ -1,7 +1,7 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { zodOutputFormat } from "@anthropic-ai/sdk/helpers/zod";
 import { and, desc, eq, gte, notInArray } from "drizzle-orm";
-import type { z } from "zod";
+import { z } from "zod";
 import { db } from "@/db";
 import { aiNotes, users, workouts as workoutsTable } from "@/db/schema";
 import { extractJson, PLAN_SHAPE, planSchema, PROGRAM_SHAPE, programSchema, resolvePlan, resolveProgram } from "./ai-plan";
@@ -10,6 +10,7 @@ import { getAthleteContext, setText } from "./athlete-context";
 import { getTrainingAnalytics } from "./analytics";
 import { seal, unseal } from "./crypto";
 import { addDays, dayOf } from "./format";
+import { normalizeGoals } from "./goals";
 import { linkHealthWorkouts } from "./health";
 import { toClientWorkout } from "./shape";
 import { buildTimeline } from "./timeline";
@@ -189,7 +190,7 @@ const SYSTEM = `You are the training coach inside Workout, a personal gym-tracki
 
 Write in Ukrainian and address the reader as «ви». Plain text only: short paragraphs, or lines starting with «•» — no markdown headings, bold or tables. Exercise names stay as they are in the data.
 
-The athlete's private goals and notes are the frame for every judgement: say how the data moves them toward a goal or away from it, and respect any limitation they mention (injury, schedule, equipment). Use only what is in the context; when there is too little history to judge something, say so in a few words rather than guessing. You are not a doctor — for pain or injury suggest seeing a specialist instead of diagnosing.`;
+The athlete's private goals and notes are the frame for every judgement: say how the data moves them toward a goal or away from it, and respect any limitation they mention (injury, schedule, equipment). Use only what is in the context; when there is too little history to judge something, say so in a few words rather than guessing. You are not a doctor — for pain or injury suggest seeing a specialist instead of diagnosing. When the context says the athlete is ill right now (health.ill_now), recovery comes first: no pressure about missed sessions or weekly targets, advise rest and, once they are better, an easy return at lower weights.`;
 
 function workoutText(w: WorkoutFull | Awaited<ReturnType<typeof listWorkoutsFull>>[number], completedOnly = true) {
   const minutes = w.startedAt && w.endedAt ? Math.round(Math.max(0, (w.endedAt.getTime() - w.startedAt.getTime()) / 1000 - w.pausedSec) / 60) : null;
@@ -460,4 +461,23 @@ export async function listUnreviewed(userId: string, limit = 10) {
     .where(and(...where))
     .orderBy(desc(workoutsTable.startedAt))
     .limit(limit);
+}
+
+const targetsSchema = z.object({ workouts: z.number(), cardio_min: z.number(), muscles: z.number(), why: z.string() });
+
+/** Weekly targets (the three rings) that fit what the athlete has actually been doing and what they want. */
+export async function suggestWeeklyTargets(userId: string) {
+  const cfg = await getAiConfig(userId);
+  const prompt = `${await athleteContext(userId, 20)}
+
+Suggest the athlete's weekly targets — the three rings on their home screen:
+- "workouts": strength workouts per week (1–14)
+- "cardio_min": minutes of cardio per week (10–1200, in steps of 10)
+- "muscles": how many of the 11 muscle groups should get enough load in a week (1–11)
+
+Start from what they have really managed over the past weeks and stretch it a little toward their goals — a target they hit most weeks beats an ideal they miss. Take their experience, schedule, limitations and current illness (if any) into account.
+
+Reply with a single JSON object and nothing else: {"workouts": number, "cardio_min": number, "muscles": number, "why": string} — "why" is two or three sentences in Ukrainian, addressed to the athlete as «ви», naming the numbers you relied on.`;
+  const raw = targetsSchema.parse(await askJson(cfg, { system: SYSTEM, prompt }, targetsSchema));
+  return { goals: normalizeGoals({ workouts: raw.workouts, cardioMin: Math.round(raw.cardio_min / 10) * 10, muscles: raw.muscles }), why: raw.why.trim().slice(0, 600) };
 }

@@ -11,7 +11,7 @@ import { MuscleWeekCard } from "@/components/muscles/muscle-balance";
 import { Card, Empty, PageSkeleton, SectionTitle, Stat } from "@/components/ui";
 import { WeekStrip, type StripDay } from "@/components/week-strip";
 import { WeightQuick } from "@/components/weight-quick";
-import { GoalBar } from "@/components/profile";
+import { GoalBar, SickMode } from "@/components/profile";
 import { NewWorkoutButtons } from "@/components/workout/new-workout";
 import { WorkoutRow } from "@/components/workout/workout-row";
 import { getAiState, getCoachNote } from "@/lib/ai";
@@ -39,7 +39,7 @@ async function Content() {
   const on = (id: WidgetId) => widgets.some((w) => w.id === id && w.visible);
   const profile = normalizeProfile(user.profile);
 
-  const [active, planned, recent, week, weights, muscles, cardio, vitals, board, ai, coach, teamInvites, progress] = await Promise.all([
+  const [active, planned, recent, week, weights, muscles, cardio, vitals, board, ai, coach, teamInvites, progress, aiState] = await Promise.all([
     listWorkouts(user.id, { status: "in_progress", limit: 1 }),
     listWorkouts(user.id, { status: "planned", limit: 50 }),
     listWorkouts(user.id, { status: "completed", limit: 40 }),
@@ -55,7 +55,9 @@ async function Content() {
     on("coach") ? getCoachNote(user.id) : null,
     listMyTeamInvites(user.id),
     on("mygoals") ? goalProgress(user.id, profile) : ({} as Awaited<ReturnType<typeof goalProgress>>),
+    getAiState(user.id),
   ]);
+  const aiConnected = Boolean(aiState);
 
   const upcoming = planned
     .filter((w) => !w.scheduledFor || w.scheduledFor >= today)
@@ -101,6 +103,8 @@ async function Content() {
       <GoalsCard
         goals={normalizeGoals(user.goals)}
         values={{ workouts: week.cur.workouts, cardioMin: Math.round(cardioMin), muscles: musclesInNorm }}
+        ai={aiConnected}
+        paused={Boolean(profile.sick)}
       />
     ),
     minutes: (
@@ -165,7 +169,7 @@ async function Content() {
         <SectionTitle action={<Link href="/workouts" className="text-sm text-accent">Усі</Link>}>За планом</SectionTitle>
         <div className="grid gap-3 lg:grid-cols-2">
           {overdue.length + upcoming.length ? (
-            [...overdue.slice(0, 2), ...upcoming.slice(0, 4)].map((w) => <WorkoutRow key={w.id} w={w} />)
+            [...overdue.slice(0, 2), ...upcoming.slice(0, 4)].map((w) => <WorkoutRow key={w.id} w={w} sick={Boolean(profile.sick)} />)
           ) : (
             <Empty>Запланованих тренувань немає.</Empty>
           )}
@@ -198,7 +202,7 @@ async function Content() {
       ),
     cardio: (
       <section>
-        <SectionTitle action={<Link href="/cardio" className="text-sm text-accent">Усе</Link>}>Останнє кардіо</SectionTitle>
+        <SectionTitle action={<Link href="/workouts?t=cardio" className="text-sm text-accent">Усе</Link>}>Останнє кардіо</SectionTitle>
         <div className="grid gap-3 lg:grid-cols-2">
           {cardio.length ? cardio.slice(0, 2).map((c) => <CardioRow key={c.id} s={c} />) : <Empty>Пробіжок і заїздів ще немає.</Empty>}
         </div>
@@ -220,6 +224,8 @@ async function Content() {
         <p className="caps first-letter:uppercase">{fmtDateLong(new Date())}</p>
         <h1 className="truncate text-[2rem] leading-tight font-bold tracking-tight">Привіт, {user.username.split("@")[0]}</h1>
       </header>
+
+      {profile.sick && <SickMode sick={profile.sick} today={today} />}
 
       {teamInvites.length > 0 && (
         <Link href="/team" className="flex items-center justify-between gap-3 rounded-[20px] bg-accent/12 p-4 ring-1 ring-accent/40">

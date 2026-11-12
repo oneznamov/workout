@@ -2,8 +2,9 @@
 
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
-import { Bike, Check, Dumbbell, Minus, Pencil, Plus } from "lucide-react";
+import { Bike, Check, Dumbbell, Loader2, Minus, Pencil, Plus, Sparkles } from "lucide-react";
 import { saveGoalsAction } from "@/lib/actions";
+import { suggestWeeklyTargetsAction } from "@/lib/ai-actions";
 import { DEFAULT_GOALS, GOAL_LIMITS, type Goals } from "@/lib/goals";
 import { Rings } from "./rings";
 
@@ -14,13 +15,22 @@ const FIELDS: { key: keyof Goals; label: string; unit: string; color: string }[]
 ];
 
 /** Weekly goal rings with an inline editor for the targets. */
-export function GoalsCard({ values, goals: saved }: { values: Goals; goals: Goals }) {
+export function GoalsCard({ values, goals: saved, ai = false, paused = false }: { values: Goals; goals: Goals; ai?: boolean; paused?: boolean }) {
   const router = useRouter();
   const [goals, setGoals] = useState(saved);
   const [draft, setDraft] = useState(saved);
   const [editing, setEditing] = useState(false);
   const [error, setError] = useState(false);
   const [pending, start] = useTransition();
+  // "Let the AI pick": fills the draft and says why; nothing is saved until "Зберегти".
+  const [advice, setAdvice] = useState<{ busy?: boolean; text?: string; error?: string } | null>(null);
+  const askAi = async () => {
+    setAdvice({ busy: true });
+    const r = await suggestWeeklyTargetsAction();
+    if (!r.ok) return setAdvice({ error: r.error });
+    setDraft(r.goals);
+    setAdvice({ text: r.why });
+  };
 
   const step = (key: keyof Goals, dir: 1 | -1) =>
     setDraft((d) => {
@@ -41,6 +51,7 @@ export function GoalsCard({ values, goals: saved }: { values: Goals; goals: Goal
             onClick={() => {
               setDraft(goals);
               setError(false);
+              setAdvice(null);
               setEditing(true);
             }}
             className="flex items-center gap-1.5 text-xs text-accent"
@@ -50,7 +61,9 @@ export function GoalsCard({ values, goals: saved }: { values: Goals; goals: Goal
         )}
       </div>
 
+      {paused && !editing && <p className="mb-2 text-xs text-warning">На паузі, поки триває режим хвороби.</p>}
       {!editing ? (
+        <div className={paused ? "opacity-45" : undefined}>
         <Rings
           rings={[
             { label: "Силові", value: values.workouts, goal: goals.workouts, unit: "трен.", color: "var(--c-strength)", icon: <Dumbbell size={14} /> },
@@ -58,6 +71,7 @@ export function GoalsCard({ values, goals: saved }: { values: Goals; goals: Goal
             { label: "Мʼязи в нормі", value: values.muscles, goal: goals.muscles, unit: "груп", color: "var(--c-cycle)", icon: <Check size={14} strokeWidth={3} /> },
           ]}
         />
+        </div>
       ) : (
         <form
           className="space-y-3"
@@ -111,6 +125,20 @@ export function GoalsCard({ values, goals: saved }: { values: Goals; goals: Goal
               </div>
             );
           })}
+          {ai && (
+            <div className="space-y-2 rounded-2xl bg-body/12 p-3">
+              <button type="button" onClick={() => void askAi()} disabled={advice?.busy} className="btn btn-ghost btn-sm w-full">
+                {advice?.busy ? <Loader2 size={15} className="animate-spin" /> : <Sparkles size={15} className="text-body" />}
+                {advice?.busy ? "ШІ дивиться на ваші тижні…" : "Підібрати з ШІ"}
+              </button>
+              {advice?.text && <p className="text-sm leading-snug text-ink-2">{advice.text}</p>}
+              {advice?.error && (
+                <p role="alert" className="text-sm text-critical">
+                  {advice.error}
+                </p>
+              )}
+            </div>
+          )}
           {error && (
             <p role="alert" className="text-sm text-critical">
               Не вдалося зберегти — перевірте звʼязок.

@@ -14,12 +14,14 @@ import {
   removeAiSettings,
   reviseWorkout,
   saveAiSettings,
+  suggestWeeklyTargets,
   supplementWorkout,
   testAi,
 } from "./ai";
 import { AI_PROVIDER_IDS, type AiNote, type AiResult } from "./ai-providers";
 import { requireUserId } from "./auth";
 import { logError } from "./errors";
+import { dayOf } from "./format";
 import { currentGoalValues } from "./goal-progress";
 import { normalizeProfile, type Profile } from "./profile";
 
@@ -88,6 +90,26 @@ export async function unreviewedWorkoutsAction() {
 
 export async function supplementWorkoutAction(workoutId: string) {
   return attempt("supplement", (userId) => supplementWorkout(userId, workoutId));
+}
+
+/** Turns illness mode on (from today) or off (the period goes to the history). */
+export async function setSickAction(on: boolean, note = ""): Promise<Profile> {
+  const userId = await requireUserId();
+  const [u] = await db.select({ profile: users.profile }).from(users).where(eq(users.id, userId));
+  const current = normalizeProfile(u?.profile);
+  const today = dayOf();
+  const profile = normalizeProfile(
+    on
+      ? { ...current, sick: current.sick ?? { since: today, note } }
+      : { ...current, sick: null, sickHistory: current.sick ? [...current.sickHistory, { from: current.sick.since, to: today }] : current.sickHistory },
+  );
+  await db.update(users).set({ profile }).where(eq(users.id, userId));
+  return profile;
+}
+
+/** Weekly targets suggested by the AI from the athlete's history and goals; nothing is saved until the athlete accepts. */
+export async function suggestWeeklyTargetsAction() {
+  return attempt("weekly targets", (userId) => suggestWeeklyTargets(userId));
 }
 
 /** Private data about the athlete: who they are, their goals, their own notes. Only the given fields change. */

@@ -23,9 +23,13 @@ export type Profile = {
   birthDate: string | null;
   heightCm: number | null;
   experience: Experience | null;
+  /** Illness mode: on while set. Weekly targets pause and the coach switches to recovery. */
+  sick: { since: string; note: string } | null;
+  /** Finished illnesses, newest last — weeks touched by them do not break streaks. */
+  sickHistory: { from: string; to: string }[];
 };
 
-export const EMPTY_PROFILE: Profile = { about: "", goals: [], sex: null, birthDate: null, heightCm: null, experience: null };
+export const EMPTY_PROFILE: Profile = { about: "", goals: [], sex: null, birthDate: null, heightCm: null, experience: null, sick: null, sickHistory: [] };
 export const SEX_LABEL: Record<Sex, string> = { male: "Чоловік", female: "Жінка" };
 export const EXPERIENCE_LABEL: Record<Experience, string> = {
   beginner: "Новачок — до року",
@@ -100,7 +104,35 @@ export function normalizeProfile(input: unknown): Profile {
     birthDate: /^(19|20)\d{2}-\d{2}-\d{2}$/.test(birth) ? birth : null,
     heightCm: Number.isFinite(height) && height >= 100 && height <= 250 ? Math.round(height) : null,
     experience: src.experience === "beginner" || src.experience === "intermediate" || src.experience === "advanced" ? src.experience : null,
+    sick: sickNow(src.sick),
+    sickHistory: (Array.isArray(src.sickHistory) ? src.sickHistory : [])
+      .flatMap((p) => {
+        const r = (p && typeof p === "object" ? p : {}) as Record<string, unknown>;
+        return isDay(r.from) && isDay(r.to) && r.from <= r.to ? [{ from: r.from, to: r.to }] : [];
+      })
+      .slice(-12),
   };
+}
+
+const isDay = (v: unknown): v is string => typeof v === "string" && /^\d{4}-\d{2}-\d{2}$/.test(v);
+function sickNow(raw: unknown): Profile["sick"] {
+  if (!raw || typeof raw !== "object") return null;
+  const r = raw as Record<string, unknown>;
+  return isDay(r.since) ? { since: r.since, note: text(r.note, 200) } : null;
+}
+
+/** Mondays of every week touched by an illness (finished ones and the current one, up to `today`). */
+export function sickWeeks(profile: Pick<Profile, "sick" | "sickHistory">, today: string): Set<string> {
+  const monday = (day: string) => {
+    const d = new Date(`${day}T12:00:00Z`);
+    d.setUTCDate(d.getUTCDate() - ((d.getUTCDay() + 6) % 7));
+    return d.toISOString().slice(0, 10);
+  };
+  const weeks = new Set<string>();
+  for (const p of [...profile.sickHistory, ...(profile.sick ? [{ from: profile.sick.since, to: today }] : [])]) {
+    for (let d = new Date(`${monday(p.from)}T12:00:00Z`); d.toISOString().slice(0, 10) <= p.to; d.setUTCDate(d.getUTCDate() + 7)) weeks.add(d.toISOString().slice(0, 10));
+  }
+  return weeks;
 }
 
 /** The profile as plain text for a prompt. */

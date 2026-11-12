@@ -317,7 +317,7 @@ export async function addCardioAction(input: z.infer<typeof cardioSchema>) {
 export async function deleteCardioAction(id: string) {
   const userId = await requireUserId();
   await deleteManualCardio(userId, id);
-  redirect("/cardio");
+  redirect("/workouts?t=cardio");
 }
 
 // ───────────────────────── Goals ─────────────────────────

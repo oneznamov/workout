@@ -4,23 +4,45 @@ import { NewWorkoutButtons } from "@/components/workout/new-workout";
 import { CalendarDays, History, LayoutTemplate } from "lucide-react";
 import { PlannedCard, WorkoutList, WorkoutRow, WorkoutTable } from "@/components/workout/workout-row";
 import Link from "next/link";
-import { Empty, PageHeader, PageSkeleton, SectionTitle } from "@/components/ui";
+import { CardioForm } from "@/components/cardio/cardio-form";
+import { CardioRow, CardioTable } from "@/components/cardio/cardio-row";
+import { Disclosure, Empty, PageHeader, PageSkeleton, SectionTitle, Segmented } from "@/components/ui";
+import { listCardio } from "@/lib/cardio";
+import { normalizeProfile } from "@/lib/profile";
+import { dayOf } from "@/lib/format";
 import { getAiState } from "@/lib/ai";
 import { getUser } from "@/lib/auth";
 import { listWorkouts } from "@/lib/workouts";
 
 export const metadata = { title: "Тренування" };
 
-async function Content() {
+const TYPES = [
+  { value: "all", label: "Усі" },
+  { value: "strength", label: "Силові" },
+  { value: "cardio", label: "Кардіо" },
+];
+
+async function Content({ searchParams }: PageProps<"/workouts">) {
   const user = await getUser();
   const userId = user.id;
-  const [all, ai] = await Promise.all([listWorkouts(userId, { limit: 300 }), getAiState(userId)]);
+  const sick = Boolean(normalizeProfile(user.profile).sick);
+  const sp = await searchParams;
+  const type = TYPES.some((t) => t.value === sp.t) ? String(sp.t) : "all";
+  const [all, ai, cardioAll] = await Promise.all([listWorkouts(userId, { limit: 300 }), getAiState(userId), listCardio(userId, { limit: 200 })]);
   const active = all.filter((w) => w.status === "in_progress");
   const planned = all
     .filter((w) => w.status === "planned")
     .sort((a, b) => (a.scheduledFor ?? "9999").localeCompare(b.scheduledFor ?? "9999"));
   const templates = all.filter((w) => w.status === "template");
   const history = all.filter((w) => w.status === "completed");
+  // History: strength workouts and cardio sessions, filtered by kind.
+  const strength = type === "cardio" ? [] : history;
+  const cardio = type === "strength" ? [] : cardioAll;
+  const feed = [
+    ...strength.map((w) => ({ kind: "strength" as const, at: w.startedAt?.getTime() ?? 0, w })),
+    ...cardio.map((s) => ({ kind: "cardio" as const, at: s.startAt.getTime(), s })),
+  ].sort((a, b) => b.at - a.at);
+  const shownCount = strength.length + cardio.length;
 
   return (
     <>
@@ -56,7 +78,7 @@ async function Content() {
           {planned.length ? (
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
               {planned.map((w) => (
-                <PlannedCard key={w.id} w={w} />
+                <PlannedCard key={w.id} w={w} sick={sick} />
               ))}
             </div>
           ) : (
@@ -84,20 +106,38 @@ async function Content() {
           <SectionTitle>
             <span className="flex items-center gap-2">
               <History size={20} className="text-muted" /> Історія
-              {history.length > 0 && <span className="text-base font-medium text-muted">{history.length}</span>}
+              {shownCount > 0 && <span className="text-base font-medium text-muted">{shownCount}</span>}
             </span>
           </SectionTitle>
-          {history.length ? (
-            <>
-              <div className="grid gap-3 lg:hidden">
-                {history.map((w) => (
-                  <WorkoutRow key={w.id} w={w} />
-                ))}
-              </div>
-              <WorkoutTable rows={history} className="hidden lg:block" />
-            </>
+          <div className="mb-3">
+            <Segmented options={TYPES} current={type} param="t" label="Вид тренувань" />
+          </div>
+          {shownCount === 0 ? (
+            <Empty>{type === "cardio" ? "Кардіо ще немає: запишіть «Біг» чи «Велосипед» на Apple Watch або додайте вручну нижче." : "Ще немає завершених тренувань."}</Empty>
           ) : (
-            <Empty>Ще немає завершених тренувань.</Empty>
+            <>
+              {/* Phone: one feed, strength and cardio together, newest first. */}
+              <div className="grid gap-3 lg:hidden">
+                {feed.map((item) => (item.kind === "strength" ? <WorkoutRow key={item.w.id} w={item.w} /> : <CardioRow key={item.s.id} s={item.s} />))}
+              </div>
+              {/* Desktop: a table per kind — their columns differ. */}
+              <div className="hidden space-y-5 lg:block">
+                {strength.length > 0 && <WorkoutTable rows={strength} />}
+                {cardio.length > 0 && (
+                  <div>
+                    {strength.length > 0 && <h3 className="caps mb-2 px-1">Кардіо</h3>}
+                    <CardioTable rows={cardio} />
+                  </div>
+                )}
+              </div>
+            </>
+          )}
+          {type !== "strength" && (
+            <div className="mt-4">
+              <Disclosure title="Додати кардіо вручну" hint="Якщо пробіжку чи заїзд не записав годинник">
+                <CardioForm today={dayOf()} />
+              </Disclosure>
+            </div>
           )}
         </section>
       </div>
@@ -114,10 +154,10 @@ function Section({ title, children }: { title: string; children: React.ReactNode
   );
 }
 
-export default function Page() {
+export default function Page(props: PageProps<"/workouts">) {
   return (
     <Suspense fallback={<PageSkeleton />}>
-      <Content />
+      <Content {...props} />
     </Suspense>
   );
 }

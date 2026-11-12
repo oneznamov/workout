@@ -142,9 +142,9 @@ export function PageSkeleton() {
 }
 
 /** A card that stays folded until tapped — for instructions and rarely needed settings. */
-export function Disclosure({ title, hint, children }: { title: string; hint?: string; children: ReactNode }) {
+export function Disclosure({ title, hint, children, defaultOpen }: { title: string; hint?: string; children: ReactNode; defaultOpen?: boolean }) {
   return (
-    <details className="card group">
+    <details className="card group" open={defaultOpen}>
       <summary className="flex cursor-pointer list-none items-center justify-between gap-3 p-4 [&::-webkit-details-marker]:hidden">
         <span className="min-w-0">
           <span className="block text-[15px] font-semibold">{title}</span>

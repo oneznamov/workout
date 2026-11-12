@@ -6,6 +6,7 @@ import { healthWorkouts, sets, teamInvites, teamMembers, teams, users, workoutEx
 import { hashToken } from "./auth";
 import { cardioKind } from "./cardio-kinds";
 import { addDays, dayOf, weekStart } from "./format";
+import { normalizeProfile, sickWeeks } from "./profile";
 import { displayName, normalizeChallenge, REACTIONS, weekStreak, type BoardRow } from "./team-logic";
 
 const LINK_DAYS = 14;
@@ -246,6 +247,9 @@ export async function getLeaderboard(userId: string, period: BoardPeriod): Promi
   const members = await teamPeople(userId);
   const ids = members.map((m) => m.id);
   const today = dayOf();
+  // Weeks someone spent ill do not break their streak.
+  const profiles = await db.select({ id: users.id, profile: users.profile }).from(users).where(inArray(users.id, ids));
+  const paused = new Map(profiles.map((p) => [p.id, sickWeeks(normalizeProfile(p.profile), today)]));
   const start = periodStart(period, today);
   // Day boundaries are in the app's time zone; a small margin keeps the query simple.
   const since = start ? new Date(`${addDays(start, -1)}T12:00:00Z`) : null;
@@ -298,7 +302,7 @@ export async function getLeaderboard(userId: string, period: BoardPeriod): Promi
       volume: Math.round(ownSets.reduce((a, r) => a + r.volume, 0)),
       sets: ownSets.reduce((a, r) => a + r.n, 0),
       cardioKm: Math.round(ownCardio.filter((c) => inPeriod(c.startAt)).reduce((a, c) => a + (c.distanceM ?? 0), 0) / 100) / 10,
-      streak: weekStreak(days, today),
+      streak: weekStreak(days, today, paused.get(m.id)),
     };
   });
 }

@@ -127,7 +127,7 @@ describe("athlete profile", () => {
     expect(p.goals[1].id).not.toBe("a");
     expect(p.goals[1].targetDate).toBeNull();
     expect(profileText(p)).toContain("Жим 100 кг (by 2027-03-01) — зараз 80×5");
-    expect(normalizeProfile(null)).toEqual({ about: "", goals: [], sex: null, birthDate: null, heightCm: null, experience: null });
+    expect(normalizeProfile(null)).toEqual({ about: "", goals: [], sex: null, birthDate: null, heightCm: null, experience: null, sick: null, sickHistory: [] });
   });
   it("keeps a goal that was typed only into the details field", () => {
     const p = normalizeProfile({ goals: [{ id: "x", title: "", details: "Схуднути до 80 кг", done: false }, { id: "y", title: "", details: "" }] });
@@ -313,5 +313,20 @@ describe("team challenge", () => {
     expect(challengeProgress({ metric: "workouts", target: 3, mode: "each" }, rows)).toMatchObject({ total: 4, done: false });
     expect(challengeProgress({ metric: "workouts", target: 4, mode: "team" }, rows)).toMatchObject({ total: 4, done: true });
     expect(challengeProgress({ metric: "workouts", target: 1, mode: "each" }, rows).done).toBe(true);
+  });
+});
+
+import { sickWeeks } from "@/lib/profile";
+
+describe("illness mode", () => {
+  it("lists the weeks an illness touched", () => {
+    const weeks = sickWeeks({ sick: { since: "2026-11-11", note: "" }, sickHistory: [{ from: "2026-10-22", to: "2026-10-27" }] }, "2026-11-12");
+    expect([...weeks].sort()).toEqual(["2026-10-19", "2026-10-26", "2026-11-09"]);
+  });
+  it("does not let a sick week break the streak", () => {
+    // Trained in the weeks of 26 Oct and 9 Nov; the week of 2 Nov was spent ill.
+    expect(weekStreak(["2026-11-10", "2026-10-28"], "2026-11-12")).toBe(1);
+    expect(weekStreak(["2026-11-10", "2026-10-28"], "2026-11-12", new Set(["2026-11-02"]))).toBe(2);
+    expect(weekStreak(["2026-10-28"], "2026-11-12", new Set(["2026-11-02", "2026-11-09"]))).toBe(1);
   });
 });

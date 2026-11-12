@@ -1,15 +1,19 @@
 import { addDays, weekStart } from "./format";
 
-/** How many weeks in a row (ending this week or last week) had at least one training day. */
-export function weekStreak(trainingDays: Iterable<string>, today: string): number {
+/**
+ * How many weeks in a row (ending this week or last week) had at least one training day.
+ * Weeks in `paused` (illness) neither count nor break the streak.
+ */
+export function weekStreak(trainingDays: Iterable<string>, today: string, paused: Set<string> = new Set()): number {
   const weeks = new Set<string>();
   for (const d of trainingDays) weeks.add(weekStart(d));
   let cursor = weekStart(today);
   // The current week may not have a workout yet — the streak is still alive.
   if (!weeks.has(cursor)) cursor = addDays(cursor, -7);
   let n = 0;
-  while (weeks.has(cursor)) {
-    n++;
+  for (let guard = 0; guard < 520; guard++) {
+    if (weeks.has(cursor)) n++;
+    else if (!paused.has(cursor)) break;
     cursor = addDays(cursor, -7);
   }
   return n;
