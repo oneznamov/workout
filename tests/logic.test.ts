@@ -131,7 +131,8 @@ describe("athlete profile", () => {
   });
   it("keeps a goal that was typed only into the details field", () => {
     const p = normalizeProfile({ goals: [{ id: "x", title: "", details: "Схуднути до 80 кг", done: false }, { id: "y", title: "", details: "" }] });
-    expect(p.goals).toEqual([{ id: "x", title: "Схуднути до 80 кг", details: "", targetDate: null, done: false }]);
+    expect(p.goals).toHaveLength(1);
+    expect(p.goals[0]).toMatchObject({ id: "x", title: "Схуднути до 80 кг", details: "", targetDate: null, done: false });
   });
 });
 
@@ -265,5 +266,34 @@ describe("person and vitals", () => {
       ["resting_heart_rate", "attention"],
       ["sleep_analysis", "great"],
     ]);
+  });
+});
+
+import { goalFraction } from "@/lib/profile";
+import { suggestWeight } from "@/lib/progression";
+
+describe("goals and progression", () => {
+  it("measures progress toward a target in either direction", () => {
+    expect(goalFraction(80, 90, 100)).toBe(0.5);
+    expect(goalFraction(90, 86, 82)).toBe(0.5);
+    expect(goalFraction(90, 95, 82)).toBe(0);
+    expect(goalFraction(80, 120, 100)).toBe(1);
+    expect(goalFraction(null, 80, 100)).toBeNull();
+    expect(goalFraction(80, null, 100)).toBeNull();
+  });
+  it("keeps a measurable goal only with a target", () => {
+    const p = normalizeProfile({ goals: [{ title: "Жим 100", metric: { kind: "exercise", exerciseId: "e1", name: "Bench" }, target: 100, start: 80 }, { title: "Талія", metric: { kind: "measure", key: "m_waist" } }, { title: "Вага", metric: { kind: "nonsense" }, target: 80 }] });
+    expect(p.goals.map((g) => [g.metric?.kind ?? null, g.target, g.start])).toEqual([
+      ["exercise", 100, 80],
+      [null, null, null],
+      [null, null, null],
+    ]);
+  });
+  it("suggests a step up only after a set that went well", () => {
+    expect(suggestWeight({ weight: 60, reps: 8 }, { weight: 60, reps: 8 })).toBe(62.5);
+    expect(suggestWeight({ weight: 60, reps: 8 }, { weight: 60, reps: 6 })).toBeNull();
+    expect(suggestWeight({ weight: 62.5, reps: 8 }, { weight: 60, reps: 9 })).toBeNull();
+    expect(suggestWeight({ weight: 12, reps: 10 }, { weight: 12, reps: 12 })).toBe(13);
+    expect(suggestWeight({ weight: 60, reps: 8 }, undefined)).toBeNull();
   });
 });

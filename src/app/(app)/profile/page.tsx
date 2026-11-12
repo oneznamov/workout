@@ -13,6 +13,8 @@ import { METRIC_INFO } from "@/lib/labels";
 import { MEASURE_KEYS } from "@/lib/measurements";
 import { ageOn, EXPERIENCE_LABEL, normalizeProfile, SEX_LABEL } from "@/lib/profile";
 import { notableVitals } from "@/lib/vitals";
+import { goalProgress } from "@/lib/goal-progress";
+import { listExercises } from "@/lib/workouts";
 
 export const metadata = { title: "Профіль" };
 
@@ -87,11 +89,13 @@ async function Content({ searchParams }: PageProps<"/profile">) {
 
   const available = await listAvailableMetrics(userId);
   const watchMetrics = ORDER.filter((m) => available.some((a) => a.metric === m));
-  const [series, recentVitals, measures, watchWorkouts] = await Promise.all([
+  const [series, recentVitals, measures, watchWorkouts, progress, exercises] = await Promise.all([
     getMetricSeries(userId, [...BODY, ...watchMetrics], from),
     getMetricSeries(userId, watchMetrics, addDays(today, -28)),
     getMetricSeries(userId, MEASURE_KEYS),
     listHealthWorkouts(userId, { limit: 15 }),
+    goalProgress(userId, profile),
+    listExercises(userId),
   ]);
   const of = (metric: string) => series.filter((s) => s.metric === metric);
   const points = (metric: string) =>
@@ -179,7 +183,7 @@ async function Content({ searchParams }: PageProps<"/profile">) {
           </Card>
 
           <Card title="Цілі" icon={<Target size={16} />}>
-            <GoalsEditor initial={profile} />
+            <GoalsEditor initial={profile} progress={progress} exercises={exercises.map((e) => ({ id: e.id, name: e.name }))} />
           </Card>
         </div>
 

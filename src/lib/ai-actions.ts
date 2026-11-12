@@ -21,6 +21,7 @@ import {
 import { AI_PROVIDER_IDS, type AiNote, type AiResult } from "./ai-providers";
 import { requireUserId } from "./auth";
 import { logError } from "./errors";
+import { currentGoalValues } from "./goal-progress";
 import { normalizeProfile, type Profile } from "./profile";
 
 /** Runs an AI call and turns failures into a message the interface can show. */
@@ -99,6 +100,12 @@ export async function saveProfileAction(patch: Partial<Profile>): Promise<Profil
   const userId = await requireUserId();
   const [u] = await db.select({ profile: users.profile }).from(users).where(eq(users.id, userId));
   const profile = normalizeProfile({ ...normalizeProfile(u?.profile), ...patch });
+  // A goal that has just become measurable remembers the value it starts from.
+  const fresh = profile.goals.filter((g) => g.metric && g.start == null);
+  if (fresh.length) {
+    const now = await currentGoalValues(userId, fresh);
+    for (const g of fresh) g.start = now.get(g.id) ?? null;
+  }
   await db.update(users).set({ profile }).where(eq(users.id, userId));
   return profile;
 }

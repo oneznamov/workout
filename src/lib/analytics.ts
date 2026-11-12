@@ -337,3 +337,23 @@ export async function getRecords(userId: string, since: string, limit = 12): Pro
     .sort((a, b) => Number(b.isNew) - Number(a.isNew) || b.day.localeCompare(a.day) || b.e1rm - a.e1rm)
     .slice(0, limit);
 }
+
+export type WorkoutRecord = { exerciseId: string; name: string; weight: number; reps: number; before: { weight: number; reps: number } };
+
+/** Personal records (by estimated 1RM) that were beaten in this workout, with the set that held the record before. */
+export async function getWorkoutRecords(userId: string, workoutId: string): Promise<WorkoutRecord[]> {
+  const rows = (await completedSetRows(userId)).filter((r) => r.startedAt && r.weight && r.reps && r.type !== "warmup");
+  const mine = rows.filter((r) => r.workoutId === workoutId);
+  if (mine.length === 0) return [];
+  const startedAt = mine[0].startedAt!;
+  const best = (list: typeof rows) => list.reduce<(typeof rows)[number] | null>((a, r) => (!a || e1rm(r.weight!, r.reps!) > e1rm(a.weight!, a.reps!) ? r : a), null);
+  const out: WorkoutRecord[] = [];
+  for (const exerciseId of new Set(mine.map((r) => r.exerciseId))) {
+    const now = best(mine.filter((r) => r.exerciseId === exerciseId))!;
+    const before = best(rows.filter((r) => r.exerciseId === exerciseId && r.workoutId !== workoutId && r.startedAt! < startedAt));
+    if (before && e1rm(now.weight!, now.reps!) > e1rm(before.weight!, before.reps!) + 0.01) {
+      out.push({ exerciseId, name: now.exerciseName, weight: now.weight!, reps: now.reps!, before: { weight: before.weight!, reps: before.reps! } });
+    }
+  }
+  return out;
+}

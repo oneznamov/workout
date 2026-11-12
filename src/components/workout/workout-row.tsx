@@ -4,6 +4,7 @@ import { cx, dayOf, EXERCISES_FORMS, fmtDate, fmtDateLong, fmtDuration, fmtNum, 
 import { workoutKind } from "@/lib/workout-kind";
 import type { WorkoutListItem } from "@/lib/workouts";
 import { BodyIcon } from "./body-icon";
+import { RescheduleButtons } from "./reschedule";
 
 const DAY_FORMS: [string, string, string] = ["день", "дні", "днів"];
 const dayNumber = (day: string) => Date.parse(`${day}T12:00:00Z`) / 86400000;
@@ -25,8 +26,11 @@ const KindTag = ({ label }: { label: string }) => <span className="rounded-full 
  */
 export function PlannedCard({ w }: { w: WorkoutListItem }) {
   const kind = workoutKind(w.muscles);
-  const when = w.scheduledFor ? whenPlanned(w.scheduledFor, dayOf()) : null;
+  const today = dayOf();
+  const when = w.scheduledFor ? whenPlanned(w.scheduledFor, today) : null;
+  const overdue = Boolean(w.scheduledFor && w.scheduledFor < today);
   return (
+    <div>
     <Link
       href={`/workouts/${w.id}`}
       className="flex items-center gap-3.5 rounded-[20px] border border-dashed border-accent/45 bg-accent/[0.05] p-3.5 transition-colors hover:bg-accent/10"
@@ -57,6 +61,8 @@ export function PlannedCard({ w }: { w: WorkoutListItem }) {
       <BodyIcon kind={kind} size={40} className="bg-transparent" />
       <ChevronRight size={18} className="shrink-0 text-muted" />
     </Link>
+    {overdue && <RescheduleButtons id={w.id} />}
+    </div>
   );
 }
 

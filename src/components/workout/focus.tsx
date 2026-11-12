@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { ArrowLeftRight, Check, ChevronDown, ChevronRight, Flag, Minus, MoreHorizontal, Plus, SkipForward, Trash2 } from "lucide-react";
 import { cx, fmtDate, plural, SETS_FORMS } from "@/lib/format";
 import { MUSCLE_LABEL, SET_TYPE_LABEL } from "@/lib/labels";
+import { suggestWeight } from "@/lib/progression";
 import { describeSet, type CExercise, type CLast, type CSet, type CWorkout } from "@/lib/shape";
 import { ActionSheet, columnsFor, ExerciseThumb, NotesField, NumInput, RestScreen } from "./parts";
 
@@ -57,6 +58,8 @@ export function FocusView({
   const others = pending.filter((e) => e.id !== current?.id);
   const finished = w.exercises.filter((e) => e.sets.length > 0 && e.sets.every((s) => s.completed));
   const prev = current ? last[current.exercise.id] : undefined;
+  // "Went well last time → a little more today", for weighted sets only.
+  const suggested = current && set && current.exercise.tracking === "weight_reps" ? suggestWeight(set, prev?.sets[index]) : null;
 
   const upNext = current && set && (
     <div className="flex w-full items-center gap-3 rounded-2xl bg-surface-2/90 p-3 text-left">
@@ -124,6 +127,18 @@ export function FocusView({
             <p className="mt-2.5 truncate text-xs text-muted">
               Минулого разу{prev.date ? ` (${fmtDate(prev.date)})` : ""}: {prev.sets.map((s) => describeSet(current.exercise.tracking, s)).join(", ")}
             </p>
+          )}
+
+          {suggested != null && (
+            <button
+              onClick={() => onPatchSet(current.id, set.id, { weight: suggested })}
+              className="mt-2.5 flex w-full items-center justify-between gap-3 rounded-2xl bg-accent/12 px-3.5 py-2.5 text-left ring-1 ring-accent/40"
+            >
+              <span className="min-w-0 text-sm text-ink-2">
+                Минулого разу цей підхід вдався — додайте вагу
+              </span>
+              <span className="num shrink-0 rounded-full bg-accent px-3 py-1 text-[15px] font-bold text-accent-ink">{suggested} кг</span>
+            </button>
           )}
 
           <div className={cx("mt-3 grid gap-3", columnsFor(current.exercise.tracking).length > 1 && "sm:grid-cols-2")}>

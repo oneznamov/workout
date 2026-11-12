@@ -4,6 +4,7 @@ import { db } from "@/db";
 import { users } from "@/db/schema";
 import { getMuscleSummary, getRecords } from "./analytics";
 import { addDays, dayOf, TZ } from "./format";
+import { goalProgress } from "./goal-progress";
 import { normalizeGoals } from "./goals";
 import { getMetricSeries, listHealthWorkouts } from "./health";
 import { MEASURES } from "./measurements";
@@ -60,6 +61,7 @@ export async function getAthleteContext(userId: string, opts: { history?: number
   ]);
   const profile = normalizeProfile(u?.profile);
   const targets = normalizeGoals(u?.goals);
+  const progress = await goalProgress(userId, profile);
   const lastWeight = weight.at(-1);
 
   type Full = (typeof recent)[number];
@@ -98,7 +100,21 @@ export async function getAthleteContext(userId: string, opts: { history?: number
       training_experience: profile.experience,
       about_in_their_own_words: profile.about || null,
     },
-    goals: profile.goals.map((g) => ({ title: g.title, details: g.details || undefined, target_date: g.targetDate, achieved: g.done })),
+    goals: profile.goals.map((g) => ({
+      title: g.title,
+      details: g.details || undefined,
+      target_date: g.targetDate,
+      achieved: g.done,
+      ...(g.metric
+        ? {
+            measured_by: g.metric.kind === "exercise" ? `heaviest set of ${g.metric.name}, kg` : g.metric.kind === "measure" ? `${g.metric.key.slice(2)} measurement, cm` : "body weight, kg",
+            started_at: g.start,
+            now: progress[g.id]?.current ?? null,
+            target: g.target,
+            percent_done: progress[g.id]?.fraction != null ? Math.round(progress[g.id].fraction! * 100) : null,
+          }
+        : {}),
+    })),
     weekly_targets: { strength_workouts: targets.workouts, cardio_minutes: targets.cardioMin, muscle_groups_trained_enough: targets.muscles },
     body: {
       weight_kg: lastWeight

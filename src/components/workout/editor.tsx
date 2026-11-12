@@ -21,6 +21,7 @@ import {
   Sparkles,
   Target,
   Trash2,
+  Trophy,
   Watch,
 } from "lucide-react";
 import type { WorkoutStatus } from "@/db/schema";
@@ -29,7 +30,7 @@ import { deleteWorkoutAction, linkHealthWorkoutAction } from "@/lib/actions";
 import { reviseWorkoutAction, supplementWorkoutAction } from "@/lib/ai-actions";
 import type { AiNote } from "@/lib/ai-providers";
 import { cloneWorkout, hardNavigate, pushWorkout, readLocal, removeLocal, writeLocal } from "@/lib/client/offline";
-import { cx, EXERCISES_FORMS, fmtClock, fmtDate, fmtDateLong, fmtDuration, fmtNum, fmtTime, plural } from "@/lib/format";
+import { addDays, cx, dayOf, EXERCISES_FORMS, fmtClock, fmtDate, fmtDateLong, fmtDuration, fmtNum, fmtTime, plural } from "@/lib/format";
 import { STATUS_LABEL } from "@/lib/labels";
 import { activeSeconds, type CExercise, type CExerciseInfo, type CLast, type CSet, type CWorkout } from "@/lib/shape";
 import { DEFAULT_REST, ExerciseCard, ExerciseSummary } from "./exercise-card";
@@ -53,7 +54,10 @@ export function WorkoutEditor({
   healthCandidates = [],
   localOnly = false,
   ai,
+  records = [],
 }: {
+  /** Personal records beaten in this (finished) workout. */
+  records?: { name: string; now: string; before: string }[];
   /** Present when an AI key is connected: enables the review and "complete with AI". */
   ai?: { auto: boolean; note: AiNote | null };
   initial: CWorkout;
@@ -335,7 +339,10 @@ export function WorkoutEditor({
       { ...cur(), status: "completed", endedAt: end.toISOString(), pausedSec: (cur().pausedSec ?? 0) + open, pausedAt: null, exercises: kept },
       { sets: removedSets, exercises: removedExercises },
     );
-    void saveNow();
+    // Once the result is on the server, reload what depends on it: new records, the AI review.
+    void saveNow().then((r) => {
+      if ((r.status === "ok" || r.status === "clean") && !localOnly) router.refresh();
+    });
   };
 
   const resume = () => {
@@ -589,6 +596,19 @@ export function WorkoutEditor({
           </div>
         )}
 
+        {w.status === "planned" && w.scheduledFor && w.scheduledFor < dayOf() && (
+          <div className="flex flex-wrap items-center justify-between gap-2 rounded-2xl bg-warning/12 px-3.5 py-2.5 text-sm ring-1 ring-warning/40">
+            <span className="text-warning">Заплановано на минулу дату</span>
+            <span className="flex gap-2">
+              <button onClick={() => persist({ ...cur(), scheduledFor: dayOf() })} className="btn btn-sm btn-ghost">
+                На сьогодні
+              </button>
+              <button onClick={() => persist({ ...cur(), scheduledFor: addDays(dayOf(), 1) })} className="btn btn-sm btn-ghost">
+                На завтра
+              </button>
+            </span>
+          </div>
+        )}
         {w.status === "planned" && readOnly && (
           <div className="card flex items-center justify-between gap-3 px-4 py-3 text-[15px]">
             <span className="text-muted">Дата</span>
@@ -626,6 +646,24 @@ export function WorkoutEditor({
           <NotesField value={w.notes} placeholder="Нотатки до тренування" onSave={(notes) => persist({ ...cur(), notes })} />
         )}
       </header>
+
+      {done && records.length > 0 && (
+        <section className="rounded-[20px] bg-activity/12 p-4 ring-1 ring-activity/40">
+          <h2 className="flex items-center gap-2 text-[17px] font-bold text-activity">
+            <Trophy size={19} /> {records.length === 1 ? "Новий рекорд" : `Нових рекордів: ${records.length}`}
+          </h2>
+          <ul className="mt-2 space-y-1.5">
+            {records.map((r) => (
+              <li key={r.name} className="flex flex-wrap items-baseline justify-between gap-x-3 text-[15px]">
+                <span className="font-semibold">{r.name}</span>
+                <span className="num">
+                  <span className="font-semibold">{r.now}</span> <span className="text-xs text-muted">було {r.before}</span>
+                </span>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
 
       {done && ai && !localOnly && <AiWorkoutNote workoutId={id} initial={ai.note} auto={ai.auto} ready={save === "saved"} />}
 

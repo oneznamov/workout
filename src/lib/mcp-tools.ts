@@ -534,6 +534,17 @@ export function registerWorkoutTools(server: McpServer, userId: string) {
               details: z.string().max(600).optional(),
               target_date: day.nullable().optional(),
               done: z.boolean().optional(),
+              metric: z
+                .union([
+                  z.object({ kind: z.literal("body_mass") }),
+                  z.object({ kind: z.literal("measure"), key: z.string().describe("m_chest, m_waist, m_hips, m_neck, m_shoulders, m_biceps, m_forearm, m_thigh or m_calf") }),
+                  z.object({ kind: z.literal("exercise"), exerciseId: z.string(), name: z.string() }),
+                ])
+                .nullable()
+                .optional()
+                .describe("Makes the goal measurable: body weight (kg), a tape measurement (cm) or the heaviest set of an exercise (kg). Keep it when resending an existing goal."),
+              target: z.number().positive().nullable().optional().describe("Target value for `metric`."),
+              start: z.number().nullable().optional().describe("Value when tracking began; keep it when resending an existing goal."),
             }),
           )
           .max(12)

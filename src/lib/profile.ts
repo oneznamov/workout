@@ -1,6 +1,18 @@
 /** Private goals and notes about the athlete. Pure helpers — used on the server, in the browser and in tests. */
 
-export type Goal = { id: string; title: string; details: string; targetDate: string | null; done: boolean };
+/** What a goal is measured by: body weight, one tape measurement, or the heaviest set of an exercise. */
+export type GoalMetric = { kind: "body_mass" } | { kind: "measure"; key: string } | { kind: "exercise"; exerciseId: string; name: string };
+export type Goal = {
+  id: string;
+  title: string;
+  details: string;
+  targetDate: string | null;
+  done: boolean;
+  /** Optional: makes the goal measurable. `start` is the value when tracking began. */
+  metric: GoalMetric | null;
+  target: number | null;
+  start: number | null;
+};
 export type Sex = "male" | "female";
 export type Experience = "beginner" | "intermediate" | "advanced";
 export type Profile = {
@@ -31,6 +43,22 @@ export const PROFILE_LIMITS = { about: 2000, title: 140, details: 600, goals: 12
 
 const text = (v: unknown, max: number) => (typeof v === "string" ? v.trim().slice(0, max) : "");
 
+function goalMetric(raw: unknown): GoalMetric | null {
+  if (!raw || typeof raw !== "object") return null;
+  const m = raw as Record<string, unknown>;
+  if (m.kind === "body_mass") return { kind: "body_mass" };
+  if (m.kind === "measure" && typeof m.key === "string" && /^m_[a-z]+$/.test(m.key)) return { kind: "measure", key: m.key };
+  if (m.kind === "exercise" && typeof m.exerciseId === "string" && m.exerciseId) return { kind: "exercise", exerciseId: m.exerciseId, name: text(m.name, 80) };
+  return null;
+}
+
+/** How far a measurable goal has come: 0…1 from where it started to its target (works both for "more" and for "less"). */
+export function goalFraction(start: number | null, current: number | null, target: number | null): number | null {
+  if (current == null || target == null) return null;
+  if (start == null || start === target) return current === target ? 1 : null;
+  return Math.min(1, Math.max(0, (current - start) / (target - start)));
+}
+
 /** Cleans whatever came from a form, the database or an agent into a well-formed profile. */
 export function normalizeProfile(input: unknown): Profile {
   const src = (input && typeof input === "object" ? input : {}) as Record<string, unknown>;
@@ -48,12 +76,18 @@ export function normalizeProfile(input: unknown): Profile {
     if (!id || seen.has(id)) id = crypto.randomUUID();
     seen.add(id);
     const date = text(g.targetDate ?? g.target_date, 10);
+    const metric = goalMetric(g.metric);
+    const target = Number(g.target);
+    const start = Number(g.start);
     goals.push({
       id,
       title,
       details,
       targetDate: /^\d{4}-\d{2}-\d{2}$/.test(date) ? date : null,
       done: g.done === true,
+      metric: metric && Number.isFinite(target) && target > 0 ? metric : null,
+      target: metric && Number.isFinite(target) && target > 0 ? Math.round(target * 10) / 10 : null,
+      start: metric && g.start != null && Number.isFinite(start) ? Math.round(start * 10) / 10 : null,
     });
     if (goals.length >= PROFILE_LIMITS.goals) break;
   }

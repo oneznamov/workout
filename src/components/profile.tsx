@@ -11,7 +11,40 @@ import { MEASURES, type MeasureKey } from "@/lib/measurements";
 import { EXPERIENCE_LABEL, PROFILE_LIMITS, SEX_LABEL, type Experience, type Goal, type Profile, type Sex } from "@/lib/profile";
 
 /** Private goals: what Claude and the AI coach read before planning or judging anything. */
-export function GoalsEditor({ initial }: { initial: Profile }) {
+export type GoalProgressView = Record<string, { current: number | null; unit: string; fraction: number | null }>;
+
+const metricValue = (g: Goal) => (!g.metric ? "none" : g.metric.kind === "body_mass" ? "body_mass" : g.metric.kind === "measure" ? `measure:${g.metric.key}` : `exercise:${g.metric.exerciseId}`);
+
+/** A thin bar from where the goal started to its target, with the numbers under it. */
+export function GoalBar({ goal, progress }: { goal: Goal; progress?: GoalProgressView[string] }) {
+  if (!goal.metric || goal.target == null) return null;
+  const unit = progress?.unit ?? (goal.metric.kind === "measure" ? "см" : "кг");
+  const pct = Math.round((progress?.fraction ?? 0) * 100);
+  return (
+    <div>
+      <div className="h-2 overflow-hidden rounded-full bg-surface-3" role="progressbar" aria-valuemin={0} aria-valuemax={100} aria-valuenow={pct} aria-label={`Прогрес цілі: ${goal.title}`}>
+        <div className="h-full rounded-full bg-accent" style={{ width: `${pct}%` }} />
+      </div>
+      <div className="num mt-1 flex justify-between gap-3 text-xs text-muted">
+        <span>
+          {progress?.current != null ? (
+            <>
+              зараз <span className="font-semibold text-ink">{fmtNum(progress.current, 1)}</span> {unit}
+            </>
+          ) : (
+            "ще немає даних"
+          )}
+        </span>
+        <span>
+          ціль {fmtNum(goal.target, 1)} {unit}
+          {progress?.fraction != null && ` · ${pct}%`}
+        </span>
+      </div>
+    </div>
+  );
+}
+
+export function GoalsEditor({ initial, progress = {}, exercises = [] }: { initial: Profile; progress?: GoalProgressView; exercises?: { id: string; name: string }[] }) {
   const router = useRouter();
   const [profile, setProfile] = useState(initial);
   const [saved, setSaved] = useState(true);
@@ -57,6 +90,57 @@ export function GoalsEditor({ initial }: { initial: Profile }) {
                 <Trash2 size={15} />
               </button>
             </div>
+            <div className="grid grid-cols-[minmax(0,1fr)_6.5rem] gap-2">
+              <select
+                value={metricValue(g)}
+                onChange={(e) => {
+                  const v = e.target.value;
+                  const [kind, ref] = v.split(":");
+                  const metric =
+                    v === "none"
+                      ? null
+                      : v === "body_mass"
+                        ? ({ kind: "body_mass" } as const)
+                        : kind === "measure"
+                          ? ({ kind: "measure", key: ref } as const)
+                          : ({ kind: "exercise", exerciseId: ref, name: exercises.find((x) => x.id === ref)?.name ?? "" } as const);
+                  // A different yardstick starts counting from scratch.
+                  patchGoal(g.id, { metric, start: null, target: metric ? g.target : null });
+                }}
+                aria-label="Чим вимірювати ціль"
+                className="min-w-0 rounded-lg border border-transparent bg-surface-3 px-3 py-2 text-sm text-ink outline-none focus:border-accent"
+              >
+                <option value="none">Без вимірювання</option>
+                <option value="body_mass">Вага тіла, кг</option>
+                <optgroup label="Заміри, см">
+                  {MEASURES.map((m) => (
+                    <option key={m.key} value={`measure:${m.key}`}>
+                      {m.label}
+                    </option>
+                  ))}
+                </optgroup>
+                <optgroup label="Вага у вправі, кг">
+                  {exercises.map((x) => (
+                    <option key={x.id} value={`exercise:${x.id}`}>
+                      {x.name}
+                    </option>
+                  ))}
+                </optgroup>
+              </select>
+              <input
+                inputMode="decimal"
+                disabled={!g.metric}
+                value={g.target ?? ""}
+                onChange={(e) => {
+                  const n = Number(e.target.value.replace(",", "."));
+                  patchGoal(g.id, { target: e.target.value && Number.isFinite(n) ? n : null });
+                }}
+                placeholder="Ціль"
+                aria-label="Цільове значення"
+                className="num rounded-lg border border-transparent bg-surface-3 px-3 py-2 text-sm outline-none placeholder:text-muted focus:border-accent disabled:opacity-40"
+              />
+            </div>
+            <GoalBar goal={g} progress={progress[g.id]} />
             <div className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_10.5rem]">
               <input
                 value={g.details}
@@ -80,7 +164,7 @@ export function GoalsEditor({ initial }: { initial: Profile }) {
       {profile.goals.length < PROFILE_LIMITS.goals && (
         <button
           type="button"
-          onClick={() => edit({ ...profile, goals: [...profile.goals, { id: crypto.randomUUID(), title: "", details: "", targetDate: null, done: false }] })}
+          onClick={() => edit({ ...profile, goals: [...profile.goals, { id: crypto.randomUUID(), title: "", details: "", targetDate: null, done: false, metric: null, target: null, start: null }] })}
           className="btn btn-ghost btn-sm"
         >
           <Plus size={15} /> Додати ціль

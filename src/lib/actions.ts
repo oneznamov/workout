@@ -7,7 +7,7 @@ import { z } from "zod";
 import { db } from "@/db";
 import { apiTokens, EQUIPMENT, errorLog, MUSCLE_GROUPS, TRACKING, users, type WorkoutStatus } from "@/db/schema";
 import { bumpSessionVersion, createSession, destroySession, generateApiToken, getAdmin, requireUserId } from "./auth";
-import { dayOf } from "./format";
+import { addDays, dayOf } from "./format";
 import { addManualCardio, deleteManualCardio } from "./cardio";
 import { WIDGETS } from "./dashboard";
 import { normalizeGoals, type Goals } from "./goals";
@@ -241,6 +241,13 @@ export async function archiveExerciseAction(id: string) {
   const userId = await requireUserId();
   await wk.archiveExercise(userId, id);
   redirect("/exercises");
+}
+
+/** Moves a planned workout to today (0) or a few days ahead. */
+export async function rescheduleWorkoutAction(id: string, inDays: number) {
+  const userId = await requireUserId();
+  const days = Math.min(14, Math.max(0, Math.round(inDays)));
+  await wk.updateWorkout(userId, id, { scheduledFor: addDays(dayOf(), days) });
 }
 
 // ───────────────────────── Health & body ─────────────────────────

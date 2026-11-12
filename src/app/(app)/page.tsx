@@ -1,6 +1,6 @@
 import { Suspense, type ReactNode } from "react";
 import Link from "next/link";
-import { Check, Dumbbell, Flame, Footprints, Heart, Moon, Play, Scale, Timer, Weight, Activity } from "lucide-react";
+import { Dumbbell, Flame, Footprints, Heart, Moon, Play, Scale, Timer, Weight, Activity } from "lucide-react";
 import { CoachCard } from "@/components/ai";
 import { CardioRow } from "@/components/cardio/cardio-row";
 import { StackedBars } from "@/components/charts";
@@ -9,7 +9,9 @@ import { Leaderboard } from "@/components/team";
 import { GoalsCard } from "@/components/goals-card";
 import { MuscleWeekCard } from "@/components/muscles/muscle-balance";
 import { Card, Empty, PageSkeleton, SectionTitle, Stat } from "@/components/ui";
+import { WeekStrip, type StripDay } from "@/components/week-strip";
 import { WeightQuick } from "@/components/weight-quick";
+import { GoalBar } from "@/components/profile";
 import { NewWorkoutButtons } from "@/components/workout/new-workout";
 import { WorkoutRow } from "@/components/workout/workout-row";
 import { getAiState, getCoachNote } from "@/lib/ai";
@@ -22,6 +24,7 @@ import { addDays, cx, dayOf, durationParts, EXERCISES_FORMS, fmtDate, fmtDateLon
 import { getLeaderboard, listMyTeamInvites } from "@/lib/team";
 import { normalizeGoals } from "@/lib/goals";
 import { getMetricSeries } from "@/lib/health";
+import { goalProgress } from "@/lib/goal-progress";
 import { normalizeProfile } from "@/lib/profile";
 import { BODY_MUSCLES, TARGET_MIN } from "@/lib/muscles";
 import { listWorkouts } from "@/lib/workouts";
@@ -34,15 +37,16 @@ async function Content() {
   const monday = weekStart(today);
   const widgets = resolveDashboard(user.dashboard);
   const on = (id: WidgetId) => widgets.some((w) => w.id === id && w.visible);
+  const profile = normalizeProfile(user.profile);
 
-  const [active, planned, recent, week, weights, muscles, cardio, vitals, board, ai, coach, teamInvites] = await Promise.all([
+  const [active, planned, recent, week, weights, muscles, cardio, vitals, board, ai, coach, teamInvites, progress] = await Promise.all([
     listWorkouts(user.id, { status: "in_progress", limit: 1 }),
     listWorkouts(user.id, { status: "planned", limit: 50 }),
-    listWorkouts(user.id, { status: "completed", limit: 20 }),
+    listWorkouts(user.id, { status: "completed", limit: 40 }),
     getWeekSummary(user.id),
     on("weight") ? getMetricSeries(user.id, ["body_mass"], addDays(today, -120)) : [],
     on("muscles") || on("goals") ? getMuscleBalance(user.id, 1) : null,
-    listCardio(user.id, { from: addDays(monday, -21) }),
+    listCardio(user.id, { from: addDays(monday, -42) }),
     on("vitals")
       ? getMetricSeries(user.id, ["resting_heart_rate", "heart_rate_variability", "sleep_analysis", "step_count"], addDays(today, -14))
       : [],
@@ -50,6 +54,7 @@ async function Content() {
     on("coach") ? getAiState(user.id) : null,
     on("coach") ? getCoachNote(user.id) : null,
     listMyTeamInvites(user.id),
+    on("mygoals") ? goalProgress(user.id, profile) : ({} as Awaited<ReturnType<typeof goalProgress>>),
   ]);
 
   const upcoming = planned
@@ -78,6 +83,19 @@ async function Content() {
     prev > 0 ? `${cur >= prev ? "+" : "−"}${fmtNum(Math.abs(((cur - prev) / prev) * 100))}% до минулого` : "цього тижня";
   const latest = (metric: string) => vitals.filter((v) => v.metric === metric).at(-1);
 
+  // Six weeks back and two ahead for the week strip.
+  const WEEKS_BACK = 6;
+  const cardioDayColor = new Map<string, string>();
+  for (const c of cardio) if (!cardioDayColor.has(dayOf(c.startAt))) cardioDayColor.set(dayOf(c.startAt), CARDIO_COLOR[c.kind]);
+  const stripWeeks: StripDay[][] = Array.from({ length: WEEKS_BACK + 3 }, (_, w) =>
+    Array.from({ length: 7 }, (_, d) => {
+      const day = addDays(monday, (w - WEEKS_BACK) * 7 + d);
+      return { day, done: doneDays.has(day), planned: plannedDays.has(day), cardio: cardioDayColor.get(day) ?? null };
+    }),
+  );
+  const openGoals = profile.goals.filter((g) => !g.done);
+  const overdue = planned.filter((w) => w.scheduledFor && w.scheduledFor < today).sort((a, b) => b.scheduledFor!.localeCompare(a.scheduledFor!));
+
   const blocks: Record<WidgetId, ReactNode> = {
     goals: (
       <GoalsCard
@@ -101,34 +119,22 @@ async function Content() {
         />
       </Card>
     ),
-    week: (
-      <div className="card grid grid-cols-7 gap-1 p-3">
-        {WEEKDAYS.map((label, i) => {
-          const day = addDays(monday, i);
-          const done = doneDays.has(day);
-          const plan = plannedDays.has(day);
-          return (
-            <div
-              key={day}
-              className="flex flex-col items-center gap-1.5"
-              aria-label={`${fmtDate(day)}: ${done ? "силове виконано" : plan ? "заплановано" : "без силового"}${cardioByDay.has(day) ? ", було кардіо" : ""}`}
-            >
-              <span className={cx("text-[11px] font-semibold", day === today ? "text-accent" : "text-muted")}>{label}</span>
-              <span
-                className={cx(
-                  "num grid size-9 place-items-center rounded-full text-sm font-semibold",
-                  done ? "bg-accent text-accent-ink" : plan ? "text-ink ring-2 ring-accent/60" : "bg-surface-2 text-muted",
-                  day === today && !done && "text-ink",
-                )}
-              >
-                {done ? <Check size={17} strokeWidth={3} /> : Number(day.slice(8))}
-              </span>
-              <span className="size-1.5 rounded-full" style={{ background: cardioByDay.get(day) ?? "transparent" }} />
-            </div>
-          );
-        })}
-      </div>
-    ),
+    week: <WeekStrip weeks={stripWeeks} today={today} current={WEEKS_BACK} />,
+    mygoals: openGoals.length ? (
+      <Card title="Мої цілі" action={<Link href="/profile" className="text-xs text-accent">Профіль →</Link>}>
+        <ul className="space-y-3.5">
+          {openGoals.slice(0, 4).map((g) => (
+            <li key={g.id} className="space-y-1.5">
+              <div className="flex items-baseline justify-between gap-3">
+                <span className="truncate text-[15px] font-semibold">{g.title}</span>
+                {g.targetDate && <span className="shrink-0 text-xs text-muted">до {fmtDate(g.targetDate)}</span>}
+              </div>
+              <GoalBar goal={g} progress={progress[g.id]} />
+            </li>
+          ))}
+        </ul>
+      </Card>
+    ) : null,
     stats: (
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
         <Stat label="Тренувань" tone="text-strength" icon={<Dumbbell size={15} />} value={week.cur.workouts} hint={`минулого тижня: ${week.prev.workouts}`} />
@@ -151,14 +157,18 @@ async function Content() {
     ),
     muscles: muscles ? (
       <Card title="Мʼязи цього тижня">
-        <MuscleWeekCard data={muscles} sex={normalizeProfile(user.profile).sex} />
+        <MuscleWeekCard data={muscles} sex={profile.sex} />
       </Card>
     ) : null,
     plan: (
       <section>
         <SectionTitle action={<Link href="/workouts" className="text-sm text-accent">Усі</Link>}>За планом</SectionTitle>
         <div className="grid gap-3 lg:grid-cols-2">
-          {upcoming.length ? upcoming.slice(0, 4).map((w) => <WorkoutRow key={w.id} w={w} />) : <Empty>Запланованих тренувань немає.</Empty>}
+          {overdue.length + upcoming.length ? (
+            [...overdue.slice(0, 2), ...upcoming.slice(0, 4)].map((w) => <WorkoutRow key={w.id} w={w} />)
+          ) : (
+            <Empty>Запланованих тренувань немає.</Empty>
+          )}
         </div>
       </section>
     ),
