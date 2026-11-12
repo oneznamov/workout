@@ -353,6 +353,11 @@ export async function updateWorkout(
     .where(eq(workouts.id, id));
 }
 
+export async function setWorkoutProgram(userId: string, id: string, programId: string | null) {
+  await ownWorkout(userId, id);
+  await db.update(workouts).set({ programId, updatedAt: new Date() }).where(eq(workouts.id, id));
+}
+
 /** Replaces the whole exercise/set plan of a workout (used by Claude to rewrite a plan). */
 export async function replaceWorkoutPlan(userId: string, id: string, items: ExerciseInput[]) {
   await ownWorkout(userId, id);
@@ -538,6 +543,8 @@ export type SnapshotInput = {
       reps: number | null;
       durationSec: number | null;
       distanceM: number | null;
+      speedKmh?: number | null;
+      incline?: number | null;
       completed: boolean;
       completedAt: Date | null;
     }[];
@@ -627,6 +634,8 @@ export async function saveSnapshot(userId: string, id: string, snap: SnapshotInp
           reps: s.reps,
           durationSec: s.durationSec,
           distanceM: s.distanceM,
+          speedKmh: s.speedKmh ?? null,
+          incline: s.incline ?? null,
           completed: s.completed,
           completedAt: s.completed ? (s.completedAt ?? now) : null,
         })),
@@ -644,6 +653,8 @@ export async function saveSnapshot(userId: string, id: string, snap: SnapshotInp
             reps: sql`excluded.reps`,
             durationSec: sql`excluded.duration_sec`,
             distanceM: sql`excluded.distance_m`,
+            speedKmh: sql`excluded.speed_kmh`,
+            incline: sql`excluded.incline`,
             completed: sql`excluded.completed`,
             completedAt: sql`excluded.completed_at`,
           },

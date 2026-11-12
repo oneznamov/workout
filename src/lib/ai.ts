@@ -191,7 +191,7 @@ const SYSTEM = `You are the training coach inside Workout, a personal gym-tracki
 
 Write in Ukrainian and address the reader as «ви». Plain text only: short paragraphs, or lines starting with «•» — no markdown headings, bold or tables. Exercise names stay as they are in the data.
 
-The athlete's private goals and notes are the frame for every judgement: say how the data moves them toward a goal or away from it, and respect any limitation they mention (injury, schedule, equipment). Use only what is in the context; when there is too little history to judge something, say so in a few words rather than guessing. A finished workout may carry the athlete's own effort rating ("felt N/10" or effort_1_to_10: 1–3 easy, 4–6 moderate, 7–8 hard, 9–10 all out). Set it against the numbers: high effort with flat or falling results points to fatigue or too much load, low effort with every set done means there is room to add; several hard sessions in a row call for an easier one. You are not a doctor — for pain or injury suggest seeing a specialist instead of diagnosing. When the context says the athlete is ill right now (health.ill_now), recovery comes first: no pressure about missed sessions or weekly targets, advise rest and, once they are better, an easy return at lower weights.`;
+The athlete's private goals and notes are the frame for every judgement: say how the data moves them toward a goal or away from it, and respect any limitation they mention (injury, schedule, equipment). Use only what is in the context; when there is too little history to judge something, say so in a few words rather than guessing. A finished workout may carry the athlete's own effort rating ("felt N/10" or effort_1_to_10: 1–3 easy, 4–6 moderate, 7–8 hard, 9–10 all out). Set it against the numbers: high effort with flat or falling results points to fatigue or too much load, low effort with every set done means there is room to add; several hard sessions in a row call for an easier one. You are not a doctor — for pain or injury suggest seeing a specialist instead of diagnosing. When the context says training is on pause (health.paused_now), never press about missed sessions or weekly targets, and let the reason set the tone: illness — rest first, then an easy return at lower weights; injury — keep load off the injured area and suggest what can still be trained; period — lighter work by how they feel is fine, heavy sessions can wait, no fuss about it; mental (fatigue, stress) — fewer and easier sessions, sleep and walks count, nothing that adds pressure; travel — short bodyweight or hotel-gym options if they want them. Pauses that ended recently (health.recent_pauses) explain dips in the numbers and call for a gradual return rather than picking up where the plan left off.`;
 
 function workoutText(w: WorkoutFull | Awaited<ReturnType<typeof listWorkoutsFull>>[number], completedOnly = true) {
   const minutes = w.startedAt && w.endedAt ? Math.round(Math.max(0, (w.endedAt.getTime() - w.startedAt.getTime()) / 1000 - w.pausedSec) / 60) : null;
@@ -363,16 +363,27 @@ ${PLAN_SHAPE.slice(PLAN_SHAPE.indexOf('"exercises": [{') + '"exercises": ['.leng
  * ("three this week", "tomorrow legs", "Mon, Wed, Fri") how many and when — and plans a
  * single workout for today when the request says nothing about days.
  */
-export async function planProgram(userId: string, input: { wish?: string; days?: string[] }) {
+export type ProgramFrame = { name: string; description: string; forecast: string; startsOn: string; endsOn: string };
+
+export async function planProgram(userId: string, input: { wish?: string; days?: string[]; program?: ProgramFrame }) {
   const cfg = await getAiConfig(userId);
   const isDay = (d: unknown): d is string => typeof d === "string" && /^\d{4}-\d{2}-\d{2}$/.test(d);
   const today = dayOf();
   const picked = [...new Set((input.days ?? []).filter(isDay))].filter((d) => d >= today).sort().slice(0, PROGRAM_MAX_WORKOUTS);
-  const horizon = Array.from({ length: 49 }, (_, i) => addDays(today, i));
+  // A programme the athlete has framed by hand (name, dates, purpose): the model fills it with workouts.
+  const frame = input.program && isDay(input.program.startsOn) && isDay(input.program.endsOn) ? input.program : null;
+  const horizon = Array.from({ length: 49 }, (_, i) => addDays(today, i)).filter((d) => !frame || (d >= frame.startsOn && d <= frame.endsOn));
+  if (frame && horizon.length === 0) throw new AiError("Програма має починатися не пізніше ніж за сім тижнів і закінчуватися не раніше ніж сьогодні.");
   const allowed = picked.length ? picked : horizon;
   const [context, lib] = await Promise.all([athleteContext(userId), libraryText(userId)]);
   const wish = input.wish?.trim().slice(0, 800);
-  const task = picked.length
+  const task = frame
+    ? `The athlete is setting up a training programme and asks you to fill it with workouts.
+Name: "${frame.name}". It runs from ${frame.startsOn} to ${frame.endsOn}; plan workouts on dates from ${horizon[0]} to ${horizon.at(-1)} (at most ${PROGRAM_MAX_WORKOUTS}).
+Purpose, in their words: ${frame.description.trim() || "not written down — work it out from their goals"}.
+Expected result, in their words: ${frame.forecast.trim() || "not written down — state a realistic one in \"forecast\""}.
+Decide how many sessions a week fit their experience, goals and schedule (usually two to four), keep the same weekdays from week to week, and build progression across the weeks. Keep the programme's name as given.`
+    : picked.length
     ? `Plan one workout for each of these days: ${picked.join(", ")}.`
     : `The athlete did not tick any days. Work out from their request how many workouts they want and on which dates — any day from ${today} to ${horizon.at(-1)} (at most ${PROGRAM_MAX_WORKOUTS} workouts). "This week" runs up to the coming Sunday, "next week" is the Monday–Sunday after it, "a month" is four weeks from today. If the request says nothing about days, plan a single workout for today, ${today}. Unless asked otherwise, skip days that already have a planned workout and leave recovery between hard sessions.`;
   const prompt = `${context}
@@ -385,8 +396,13 @@ ${wish ? `The athlete's request, in their own words: ${wish}` : "The athlete gav
   const program = resolveProgram(await askJson(cfg, { system: PROGRAM_SYSTEM, prompt }, programSchema), lib.library, allowed);
   if (program.workouts.length === 0) throw new AiError("Модель не запропонувала жодного тренування з вправами з бібліотеки. Спробуйте ще раз.");
   // Several workouts are a programme: a stage with a purpose and an expected result that can be followed and revised.
-  const programme =
-    program.workouts.length > 1
+  const programme = frame
+    ? await createProgram(
+        userId,
+        { name: frame.name.trim() || program.name || "Програма", description: frame.description.trim() || program.notes, forecast: frame.forecast.trim() || program.forecast, startsOn: frame.startsOn, endsOn: frame.endsOn },
+        "ai",
+      )
+    : program.workouts.length > 1
       ? await createProgram(
           userId,
           { name: program.name || "Програма", description: program.notes, forecast: program.forecast, startsOn: program.workouts[0].date, endsOn: program.workouts.at(-1)!.date },
@@ -399,7 +415,7 @@ ${wish ? `The athlete's request, in their own words: ${wish}` : "The athlete gav
     created.push({ id, name: w.name, date: w.date });
   }
   if (programme) await addRevision(userId, programme.id, "ai", `Програму склав ШІ${wish ? ` за запитом: «${wish.slice(0, 200)}»` : ""}`);
-  return { created, why: program.notes, programId: programme?.id ?? null, programName: programme ? program.name || "Програма" : null };
+  return { created, why: program.notes, programId: programme?.id ?? null, programName: programme ? frame?.name.trim() || program.name || "Програма" : null };
 }
 
 /**

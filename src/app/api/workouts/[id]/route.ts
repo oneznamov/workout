@@ -36,6 +36,8 @@ const snapshotSchema = z.object({
                 reps: z.number().int().min(0).max(100000).nullable(),
                 durationSec: z.number().int().min(0).nullable(),
                 distanceM: num,
+                speedKmh: z.number().min(0).max(100).nullable().optional(),
+                incline: z.number().min(-30).max(60).nullable().optional(),
                 completed: z.boolean(),
                 completedAt: iso.optional(),
               }),

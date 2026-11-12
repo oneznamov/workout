@@ -15,7 +15,7 @@ import * as health from "./health";
 import { toClientWorkout } from "./shape";
 import { buildTimeline } from "./timeline";
 import { METRIC_INFO } from "./labels";
-import { normalizeProfile } from "./profile";
+import { endPause, normalizeProfile, PAUSE_REASONS, startPause } from "./profile";
 import * as programs from "./programs";
 import * as wk from "./workouts";
 import type { ExerciseInput, SetInput } from "./workouts";
@@ -637,22 +637,21 @@ export function registerWorkoutTools(server: McpServer, userId: string) {
   server.registerTool(
     "set_illness_mode",
     {
-      title: "Illness mode",
+      title: "Pause in training",
       description:
-        "Turns the athlete's illness mode on or off. While it is on, weekly targets are paused, streaks do not break and advice should focus on recovery. Use it when the athlete says they are ill or injured, or that they have recovered.",
-      inputSchema: z.object({ on: z.boolean(), note: z.string().max(200).optional().describe("What it is, in a few words.") }),
+        "Puts the athlete's training on pause or ends the pause. While it is on, weekly targets wait, streaks do not break and advice adapts to the reason: illness, injury, period, mental (fatigue, stress), travel, other. Use it when the athlete says they are ill, injured, on their period and not training, worn out, away — or that they are back.",
+      inputSchema: z.object({
+        on: z.boolean(),
+        reason: z.enum(PAUSE_REASONS).optional().describe("Why the pause; defaults to illness."),
+        note: z.string().max(200).optional().describe("What it is, in a few words."),
+      }),
     },
-    tool(async ({ on, note }) => {
+    tool(async ({ on, note, reason }) => {
       const [u] = await db.select({ profile: users.profile }).from(users).where(eq(users.id, userId));
       const current = normalizeProfile(u?.profile);
-      const today = dayOf();
-      const profile = normalizeProfile(
-        on
-          ? { ...current, sick: current.sick ?? { since: today, note: note ?? "" } }
-          : { ...current, sick: null, sickHistory: current.sick ? [...current.sickHistory, { from: current.sick.since, to: today }] : current.sickHistory },
-      );
+      const profile = normalizeProfile(on ? startPause(current, dayOf(), reason ?? "illness", note ?? "") : endPause(current, dayOf()));
       await db.update(users).set({ profile }).where(eq(users.id, userId));
-      return { ill_now: profile.sick, recent_illnesses: profile.sickHistory.slice(-3) };
+      return { paused_now: profile.sick, recent_pauses: profile.sickHistory.slice(-3) };
     }),
   );
 

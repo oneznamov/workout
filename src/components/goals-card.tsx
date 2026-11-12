@@ -61,7 +61,7 @@ export function GoalsCard({ values, goals: saved, ai = false, paused = false }: 
         )}
       </div>
 
-      {paused && !editing && <p className="mb-2 text-xs text-warning">На паузі, поки триває режим хвороби.</p>}
+      {paused && !editing && <p className="mb-2 text-xs text-warning">Цілі чекають, поки тренування на паузі.</p>}
       {!editing ? (
         <div className={paused ? "opacity-45" : undefined}>
         <Rings

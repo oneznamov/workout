@@ -97,8 +97,9 @@ export async function getAthleteContext(userId: string, opts: { history?: number
       about_in_their_own_words: profile.about || null,
     },
     health: {
-      ill_now: profile.sick ? { since: profile.sick.since, note: profile.sick.note || undefined } : null,
-      recent_illnesses: profile.sickHistory.slice(-3),
+      // A pause in training and why: illness, injury, period, mental (fatigue, stress), travel, other.
+      paused_now: profile.sick ? { since: profile.sick.since, reason: profile.sick.reason, note: profile.sick.note || undefined } : null,
+      recent_pauses: profile.sickHistory.slice(-5).map((p) => ({ from: p.from, to: p.to, reason: p.reason, note: p.note || undefined })),
     },
     goals: profile.goals.map((g) => ({
       title: g.title,

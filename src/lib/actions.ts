@@ -251,6 +251,38 @@ export async function rescheduleWorkoutAction(id: string, inDays: number) {
   await wk.updateWorkout(userId, id, { scheduledFor: addDays(dayOf(), days) });
 }
 
+/** What a workout can be planned from: templates, workouts of the programmes, recent sessions. */
+export async function planSourcesAction() {
+  const userId = await requireUserId();
+  const [templates, all, recent] = await Promise.all([
+    wk.listWorkouts(userId, { status: "template", limit: 50 }),
+    programs.listPrograms(userId),
+    wk.listWorkouts(userId, { status: "completed", limit: 12 }),
+  ]);
+  const today = dayOf();
+  const active = all.filter((p) => p.endsOn >= addDays(today, -60)).slice(-4);
+  const inPrograms = await Promise.all(active.map((p) => wk.listWorkouts(userId, { programId: p.id, status: ["planned", "completed"], limit: 60 })));
+  const item = (w: wk.WorkoutListItem) => ({ id: w.id, name: w.name, exercises: w.exerciseCount, muscles: w.muscles });
+  // One entry per distinct workout name — a programme repeats its sessions week after week.
+  const distinct = (rows: wk.WorkoutListItem[]) => [...new Map(rows.map((w) => [w.name.trim().toLowerCase(), w])).values()].filter((w) => w.exerciseCount > 0);
+  return {
+    templates: templates.map(item),
+    programs: active.map((p, i) => ({ id: p.id, name: p.name, workouts: distinct(inPrograms[i]).map(item) })).filter((p) => p.workouts.length > 0),
+    recent: distinct(recent.filter((w) => !w.programId)).slice(0, 6).map(item),
+  };
+}
+export type PlanSources = Awaited<ReturnType<typeof planSourcesAction>>;
+
+/** Puts a copy of a template (or any earlier workout) on a day as a planned workout. */
+export async function planFromAction(sourceId: string, day: string) {
+  const userId = await requireUserId();
+  const src = await wk.getWorkout(userId, sourceId);
+  const id = await wk.duplicateWorkout(userId, sourceId, { status: "planned", scheduledFor: /^\d{4}-\d{2}-\d{2}$/.test(day) ? day : dayOf() });
+  // A workout copied from a programme stays in that programme.
+  if (src.programId) await wk.setWorkoutProgram(userId, id, src.programId);
+  return { id };
+}
+
 // ───────────────────────── Programmes ─────────────────────────
 
 const programFields = z.object({

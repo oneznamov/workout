@@ -2,13 +2,13 @@
 
 import { useRouter } from "next/navigation";
 import { useEffect, useState, useTransition } from "react";
-import { Check, Plus, Thermometer, Trash2 } from "lucide-react";
+import { Check, CirclePause, Plus, Trash2 } from "lucide-react";
 import { saveProfileAction, setSickAction } from "@/lib/ai-actions";
 import { cx } from "@/lib/format";
 import { saveMeasurementsAction } from "@/lib/actions";
 import { fmtDate, fmtNum } from "@/lib/format";
 import { MEASURES, type MeasureKey } from "@/lib/measurements";
-import { EXPERIENCE_LABEL, PROFILE_LIMITS, SEX_LABEL, type Experience, type Goal, type Profile, type Sex } from "@/lib/profile";
+import { EXPERIENCE_LABEL, PAUSE_LABEL, PAUSE_REASONS, PROFILE_LIMITS, SEX_LABEL, type Experience, type Goal, type Pause, type PauseReason, type Profile, type Sex } from "@/lib/profile";
 
 /** Private goals: what Claude and the AI coach read before planning or judging anything. */
 export type GoalProgressView = Record<string, { current: number | null; unit: string; fraction: number | null }>;
@@ -247,7 +247,7 @@ export function PersonForm({ initial }: { initial: Profile }) {
       <div className="grid grid-cols-2 gap-3">
         <label className="block space-y-1.5">
           <span className="text-sm text-ink-2">Дата народження</span>
-          <input type="date" value={p.birthDate ?? ""} onChange={(e) => edit({ birthDate: e.target.value || null })} className="field" />
+          <input type="date" value={p.birthDate ?? ""} onChange={(e) => edit({ birthDate: e.target.value || null })} className="field h-12" />
         </label>
         <label className="block space-y-1.5">
           <span className="text-sm text-ink-2">Зріст, см</span>
@@ -256,7 +256,7 @@ export function PersonForm({ initial }: { initial: Profile }) {
             value={p.heightCm ?? ""}
             onChange={(e) => edit({ heightCm: e.target.value ? Number(e.target.value.replace(/\D/g, "")) : null })}
             placeholder="180"
-            className="field num"
+            className="field num h-12"
           />
         </label>
       </div>
@@ -276,9 +276,9 @@ export function PersonForm({ initial }: { initial: Profile }) {
         <textarea
           value={p.about}
           onChange={(e) => edit({ about: e.target.value })}
-          rows={4}
+          rows={3}
           maxLength={PROFILE_LIMITS.about}
-          placeholder="Травми й обмеження, скільки разів на тиждень можу тренуватись, яке є обладнання, що не люблю робити"
+          placeholder="Травми, графік, обладнання, що не люблю"
           className="field resize-y text-[15px]"
         />
       </label>
@@ -418,48 +418,138 @@ export function MeasurementsForm({ today, latest }: { today: string; latest: Mea
   );
 }
 
-/** Illness mode: one button on, one button off. While it is on, nothing in the app nags. */
-export function SickMode({ sick, today, compact }: { sick: Profile["sick"]; today: string; compact?: boolean }) {
+/**
+ * A pause in training. On: one quiet line with the reason and a way to end it. Off: pick a
+ * reason and press one small button. Nothing in the app nags while it is on, and the AI
+ * adapts to the reason.
+ */
+export function SickMode({ sick, today, compact, history = [] }: { sick: Profile["sick"]; today: string; compact?: boolean; history?: Pause[] }) {
   const router = useRouter();
+  const [reason, setReason] = useState<PauseReason | null>(null);
   const [note, setNote] = useState("");
   const [pending, start] = useTransition();
   const set = (on: boolean) =>
     start(async () => {
-      await setSickAction(on, note);
+      await setSickAction(on, note, reason ?? "illness");
+      setReason(null);
+      setNote("");
       router.refresh();
     });
   if (sick) {
     const days = Math.round((Date.parse(`${today}T12:00:00Z`) - Date.parse(`${sick.since}T12:00:00Z`)) / 86400000) + 1;
     return (
-      <div className={cx("flex flex-wrap items-center justify-between gap-3", !compact && "rounded-2xl bg-warning/12 p-3.5 ring-1 ring-warning/40")}>
-        <div className="min-w-0 flex-1 basis-48">
-          <div className="flex items-center gap-2 text-[15px] font-semibold text-warning">
-            <Thermometer size={17} /> Режим хвороби · {days}-й день
+      <div className={cx("space-y-3", !compact && "rounded-2xl bg-warning/12 p-3.5 ring-1 ring-warning/40")}>
+        <div className="flex items-center justify-between gap-3">
+          <div className="min-w-0">
+            <div className="flex items-center gap-2 text-[15px] font-semibold text-warning">
+              <CirclePause size={17} /> Пауза · {PAUSE_LABEL[sick.reason]}
+            </div>
+            <p className="mt-0.5 truncate text-sm text-ink-2">
+              {days}-й день, з {fmtDate(sick.since).replace(/\.$/, "")}
+              {sick.note && ` · ${sick.note}`}
+            </p>
           </div>
-          <p className="mt-0.5 text-sm text-ink-2">
-            З {fmtDate(sick.since).replace(/\.$/, "")}
-            {sick.note && ` · ${sick.note}`}. Цілі тижня на паузі, серія тижнів не переривається, ШІ радить відновлення.
-          </p>
+          <button disabled={pending} onClick={() => set(false)} className="btn btn-primary btn-sm shrink-0">
+            <Check size={15} strokeWidth={3} /> Завершити
+          </button>
         </div>
-        <button disabled={pending} onClick={() => set(false)} className="btn btn-primary btn-sm">
-          <Check size={15} strokeWidth={3} /> Я одужую
-        </button>
+        {!compact && history.length > 0 && <PauseHistory history={history} />}
       </div>
     );
   }
   if (compact) return null;
   return (
     <div className="space-y-3">
-      <p className="text-sm text-ink-2">
-        Захворіли? Увімкніть режим хвороби: цілі тижня стануть на паузу, пропущені тренування не дорікатимуть, серія тижнів у команді не
-        перерветься, а ШІ радитиме відновлення й легке повернення.
-      </p>
-      <div className="flex flex-wrap gap-2">
-        <input value={note} onChange={(e) => setNote(e.target.value)} maxLength={200} placeholder="Що саме (необовʼязково): застуда, спина…" aria-label="Що саме" className="field min-w-0 flex-1 basis-52" />
-        <button disabled={pending} onClick={() => set(true)} className="btn btn-ghost">
-          <Thermometer size={17} /> Я хворію
-        </button>
+      <p className="text-sm text-ink-2">Цілі й серія тижнів зачекають, ШІ підлаштує поради під причину.</p>
+      <div className="flex flex-wrap gap-1.5" role="group" aria-label="Причина паузи">
+        {PAUSE_REASONS.map((r) => (
+          <button
+            key={r}
+            type="button"
+            onClick={() => setReason(reason === r ? null : r)}
+            aria-pressed={reason === r}
+            className={cx("rounded-full px-3 py-1.5 text-[13px] font-medium", reason === r ? "bg-warning text-black" : "bg-surface-2 text-ink-2")}
+          >
+            {PAUSE_LABEL[r]}
+          </button>
+        ))}
       </div>
+      {reason && (
+        <div className="flex items-center gap-2">
+          <input value={note} onChange={(e) => setNote(e.target.value)} maxLength={200} placeholder="Деталі, якщо хочете" aria-label="Деталі" className="field min-w-0 flex-1 py-2 text-[15px]" />
+          <button disabled={pending} onClick={() => set(true)} className="btn btn-primary btn-sm shrink-0">
+            <CirclePause size={15} /> На паузу
+          </button>
+        </div>
+      )}
+      {history.length > 0 && <PauseHistory history={history} />}
     </div>
+  );
+}
+
+/** Past pauses, newest first: dates and reason can be corrected, an entry can be removed. */
+function PauseHistory({ history }: { history: Pause[] }) {
+  const router = useRouter();
+  const [rows, setRows] = useState(history);
+  const [editing, setEditing] = useState<number | null>(null);
+  const [pending, start] = useTransition();
+  const save = (next: Pause[]) =>
+    start(async () => {
+      const p = await saveProfileAction({ sickHistory: next.filter((r) => r.from <= r.to) });
+      setRows(p.sickHistory);
+      setEditing(null);
+      router.refresh();
+    });
+  const patch = (i: number, change: Partial<Pause>) => setRows(rows.map((r, k) => (k === i ? { ...r, ...change } : r)));
+  return (
+    <details className="group">
+      <summary className="cursor-pointer list-none text-xs text-muted [&::-webkit-details-marker]:hidden">
+        Історія пауз · {rows.length} <span className="inline-block transition-transform group-open:rotate-90">›</span>
+      </summary>
+      <ul className="mt-2 divide-y divide-line">
+        {rows
+          .map((r, i) => ({ r, i }))
+          .reverse()
+          .map(({ r, i }) =>
+            editing === i ? (
+              <li key={i} className="space-y-2 py-2.5">
+                <div className="grid grid-cols-2 gap-2">
+                  <input type="date" value={r.from} max={r.to} onChange={(e) => e.target.value && patch(i, { from: e.target.value })} aria-label="Початок" className="field py-2 text-[15px]" />
+                  <input type="date" value={r.to} min={r.from} onChange={(e) => e.target.value && patch(i, { to: e.target.value })} aria-label="Кінець" className="field py-2 text-[15px]" />
+                </div>
+                <select value={r.reason} onChange={(e) => patch(i, { reason: e.target.value as PauseReason })} aria-label="Причина" className="field py-2 text-[15px]">
+                  {PAUSE_REASONS.map((x) => (
+                    <option key={x} value={x}>
+                      {PAUSE_LABEL[x]}
+                    </option>
+                  ))}
+                </select>
+                <div className="flex items-center gap-2">
+                  <button disabled={pending} onClick={() => save(rows)} className="btn btn-primary btn-sm">
+                    Зберегти
+                  </button>
+                  <button disabled={pending} onClick={() => save(rows.filter((_, k) => k !== i))} className="btn btn-danger btn-sm">
+                    <Trash2 size={14} /> Видалити
+                  </button>
+                </div>
+              </li>
+            ) : (
+              <li key={i} className="flex items-center justify-between gap-3 py-2 text-sm">
+                <span className="min-w-0">
+                  <span className="font-medium">{PAUSE_LABEL[r.reason]}</span>
+                  <span className="text-muted">
+                    {" "}
+                    · {fmtDate(r.from)} – {fmtDate(r.to)}
+                    {r.note && ` · ${r.note}`}
+                  </span>
+                </span>
+                <button onClick={() => setEditing(i)} className="shrink-0 text-xs text-accent">
+                  Змінити
+                </button>
+              </li>
+            ),
+          )}
+      </ul>
+    </details>
   );
 }

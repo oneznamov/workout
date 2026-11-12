@@ -11,6 +11,7 @@ import {
   listUnreviewed,
   periodReport,
   planProgram,
+  type ProgramFrame,
   removeAiSettings,
   reviseProgram,
   reviseWorkout,
@@ -24,7 +25,7 @@ import { requireUserId } from "./auth";
 import { logError } from "./errors";
 import { dayOf } from "./format";
 import { currentGoalValues } from "./goal-progress";
-import { normalizeProfile, type Profile } from "./profile";
+import { endPause, normalizeProfile, startPause, type PauseReason, type Profile } from "./profile";
 
 /** Runs an AI call and turns failures into a message the interface can show. */
 async function attempt<T extends object>(what: string, fn: (userId: string) => Promise<T>): Promise<AiResult<T>> {
@@ -71,7 +72,7 @@ export async function coachNoteAction(force = false): Promise<AiResult<{ note: A
 }
 
 /** One or several planned workouts from a free-form request; days are optional. */
-export async function planProgramAction(input: { wish?: string; days?: string[] }) {
+export async function planProgramAction(input: { wish?: string; days?: string[]; program?: ProgramFrame }) {
   return attempt("programme", (userId) => planProgram(userId, input));
 }
 
@@ -98,17 +99,12 @@ export async function supplementWorkoutAction(workoutId: string) {
   return attempt("supplement", (userId) => supplementWorkout(userId, workoutId));
 }
 
-/** Turns illness mode on (from today) or off (the period goes to the history). */
-export async function setSickAction(on: boolean, note = ""): Promise<Profile> {
+/** Puts training on pause (from today, with a reason) or ends the pause (it goes to the history). */
+export async function setSickAction(on: boolean, note = "", reason: PauseReason = "illness"): Promise<Profile> {
   const userId = await requireUserId();
   const [u] = await db.select({ profile: users.profile }).from(users).where(eq(users.id, userId));
   const current = normalizeProfile(u?.profile);
-  const today = dayOf();
-  const profile = normalizeProfile(
-    on
-      ? { ...current, sick: current.sick ?? { since: today, note } }
-      : { ...current, sick: null, sickHistory: current.sick ? [...current.sickHistory, { from: current.sick.since, to: today }] : current.sickHistory },
-  );
+  const profile = normalizeProfile(on ? startPause(current, dayOf(), reason, note) : endPause(current, dayOf()));
   await db.update(users).set({ profile }).where(eq(users.id, userId));
   return profile;
 }

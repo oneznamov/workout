@@ -341,11 +341,11 @@ const WEEKDAYS = ["Пн", "Вт", "Ср", "Чт", "Пт", "Сб", "Нд"];
  * programme. Days can be ticked on a three-week calendar, but do not have to be: without them
  * the model reads the days from the request, and plans today when it says nothing.
  */
-export function PlanWithAi() {
+export function PlanWithAi({ startOpen = false, onClosed }: { /** opened by something else: no button of its own */ startOpen?: boolean; onClosed?: () => void }) {
   const router = useRouter();
-  const [open, setOpen] = useState(false);
+  const [open, setOpen] = useState(startOpen);
   const [wish, setWish] = useState("");
-  const [today, setToday] = useState("");
+  const [today, setToday] = useState(() => (startOpen ? dayOf() : ""));
   const [days, setDays] = useState<string[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [done, setDone] = useState<{ created: { id: string; name: string; date: string }[]; why: string; programId: string | null; programName: string | null } | null>(null);
@@ -355,23 +355,26 @@ export function PlanWithAi() {
     if (pending) return;
     setOpen(false);
     if (done) router.refresh();
+    onClosed?.();
   };
   const first = today ? weekStart(today) : "";
 
   return (
     <>
-      <button
-        onClick={() => {
-          setToday(dayOf());
-          setDays([]);
-          setError(null);
-          setDone(null);
-          setOpen(true);
-        }}
-        className="btn btn-ghost w-full px-3 sm:w-auto"
-      >
-        <Sparkles size={17} className="text-body" /> Скласти з ШІ
-      </button>
+      {!startOpen && (
+        <button
+          onClick={() => {
+            setToday(dayOf());
+            setDays([]);
+            setError(null);
+            setDone(null);
+            setOpen(true);
+          }}
+          className="btn btn-ghost w-full px-3 sm:w-auto"
+        >
+          <Sparkles size={17} className="text-body" /> Скласти з ШІ
+        </button>
+      )}
       {open && (
         <div className="fixed inset-0 z-50 flex items-end justify-center overflow-y-auto overscroll-contain bg-black/70 md:items-center md:p-6" onClick={close}>
           {done ? (

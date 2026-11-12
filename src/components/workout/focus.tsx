@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, type ReactNode } from "react";
-import { ArrowLeftRight, Check, ChevronsUpDown, Flag, ListOrdered, Minus, MoreHorizontal, Plus, StickyNote, Trash2, X } from "lucide-react";
+import { ArrowLeftRight, Check, ChevronRight, ChevronsUpDown, Flag, ListOrdered, Minus, MoreHorizontal, Plus, StickyNote, Trash2, Watch, X } from "lucide-react";
 import { cx, fmtDate } from "@/lib/format";
 import { MUSCLE_LABEL, SET_TYPE_LABEL } from "@/lib/labels";
 import { suggestWeight } from "@/lib/progression";
@@ -64,6 +64,11 @@ export function FocusView({
   // "Went well last time → a little more today", for weighted sets only.
   const suggested = current && set && current.exercise.tracking === "weight_reps" ? suggestWeight(set, prev?.sets[index]) : null;
   const cols = current ? columnsFor(current.exercise.tracking) : [];
+  // Cardio on a machine: the watch records the session, here it only needs ticking off.
+  const cardio = current?.exercise.muscle === "cardio";
+  // What comes after this exercise — the next unfinished one in the workout's order.
+  const at = current ? pending.indexOf(current) : -1;
+  const nextUp = current && pending.length > 1 ? pending[(at + 1) % pending.length] : undefined;
 
   const upNext = current && set && (
     <div className="flex w-full items-center gap-3 rounded-2xl bg-surface-2/90 p-3 text-left">
@@ -81,7 +86,7 @@ export function FocusView({
   return (
     <>
       <div className="fixed inset-0 z-30 flex touch-none flex-col overflow-hidden overscroll-none bg-plane md:left-60">
-        <div className="mx-auto flex min-h-0 w-full max-w-xl flex-1 flex-col px-5 pt-[calc(env(safe-area-inset-top)+1.5rem)] pb-[calc(env(safe-area-inset-bottom)+1rem)]">
+        <div className="mx-auto flex min-h-0 w-full max-w-xl flex-1 flex-col px-5 pt-[calc(env(safe-area-inset-top)+1.5rem)] pb-[max(env(safe-area-inset-bottom),0.75rem)]">
           {bar}
           <div
             className="mt-3 h-1.5 shrink-0 overflow-hidden rounded-full bg-surface-2"
@@ -126,7 +131,30 @@ export function FocusView({
               </div>
               {set.type !== "normal" && <span className="mt-2 self-start rounded-full bg-warning/20 px-2.5 py-0.5 text-xs font-semibold text-warning">{SET_TYPE_LABEL[set.type]}</span>}
 
-              {/* The numbers of this set, as big as the rest countdown. */}
+              {cardio ? (
+                <div className="flex min-h-0 flex-1 flex-col justify-center gap-4">
+                  <p className="text-center text-sm text-ink-2">
+                    <Watch size={15} className="-mt-0.5 mr-1.5 inline text-heart" />
+                    Пульс, дистанцію й калорії візьмемо з Apple Watch. Тут досить натиснути «Готово» — решта за бажанням.
+                  </p>
+                  <div className="grid grid-cols-3 gap-2">
+                    {(
+                      [
+                        { label: "Час", unit: "хв", value: set.durationSec != null ? Math.round(set.durationSec / 6) / 10 : null, patch: (v: number | null) => ({ durationSec: v != null ? Math.round(v * 60) : null }) },
+                        { label: "Швидкість", unit: "км/год", value: set.speedKmh ?? null, patch: (v: number | null) => ({ speedKmh: v }) },
+                        { label: "Нахил", unit: "%", value: set.incline ?? null, patch: (v: number | null) => ({ incline: v }) },
+                      ] as const
+                    ).map((f) => (
+                      <label key={f.label} className="flex flex-col items-center gap-1.5 rounded-2xl bg-surface px-2 py-3">
+                        <span className="caps">{f.label}</span>
+                        <NumInput label={`${f.label}, ${f.unit}`} decimal value={f.value} placeholder="—" onChange={(v) => onPatchSet(current.id, set.id, f.patch(v))} />
+                        <span className="text-xs text-muted">{f.unit}</span>
+                      </label>
+                    ))}
+                  </div>
+                </div>
+              ) : (
+              /* The numbers of this set, as big as the rest countdown. */
               <div className="flex min-h-0 flex-1 flex-col justify-center gap-1">
                 {cols.map((c) => {
                   const fallback = (prev?.sets[index] ? c.get(prev.sets[index] as CSet) : null) ?? (index > 0 ? c.get(current.sets[index - 1]) : null) ?? 0;
@@ -158,6 +186,7 @@ export function FocusView({
                   );
                 })}
               </div>
+              )}
 
               {suggested != null ? (
                 <button
@@ -169,6 +198,7 @@ export function FocusView({
                 </button>
               ) : (
                 prev &&
+                !cardio &&
                 prev.sets.length > 0 && (
                   <p className="truncate text-center text-xs text-muted">
                     Минулого разу{prev.date ? ` (${fmtDate(prev.date)})` : ""}: {prev.sets.map((s) => describeSet(current.exercise.tracking, s)).join(", ")}
@@ -177,17 +207,32 @@ export function FocusView({
               )}
               {current.notes && <p className="mt-2 line-clamp-2 text-center text-sm text-ink-2">{current.notes}</p>}
 
-              <button onClick={() => onToggleSet(current, set, index)} className="btn btn-primary mt-3 h-16 w-full shrink-0 text-[19px]">
+              {/* A glance at what comes next; a tap opens the whole list. */}
+              {nextUp && (
+                <button onClick={() => setSheet("queue")} className="mt-3 flex w-full shrink-0 items-center gap-2.5 rounded-2xl bg-surface px-3 py-2 text-left">
+                  <ExerciseThumb name={nextUp.exercise.name} muscle={nextUp.exercise.muscle} size={34} />
+                  <span className="min-w-0 flex-1">
+                    <span className="caps block">Далі</span>
+                    <span className="block truncate text-[15px] font-semibold">{nextUp.exercise.name}</span>
+                  </span>
+                  <span className="num shrink-0 text-sm text-muted">
+                    {nextUp.sets.filter((s) => !s.completed).length} × {describeSet(nextUp.exercise.tracking, nextUp.sets.find((s) => !s.completed) ?? nextUp.sets[0], true)}
+                  </span>
+                  <ChevronRight size={17} className="shrink-0 text-muted" />
+                </button>
+              )}
+
+              <button onClick={() => onToggleSet(current, set, index)} className="btn btn-primary mt-4 h-16 w-full shrink-0 text-[19px]">
                 <Check size={24} strokeWidth={3} /> Готово
               </button>
-              <div className="mt-2 grid shrink-0 grid-cols-3 gap-2">
-                <button onClick={() => setSheet("queue")} className="btn btn-ghost h-12 px-2 text-sm">
+              <div className="mt-3 grid shrink-0 grid-cols-3 gap-2.5">
+                <button onClick={() => setSheet("queue")} className="btn btn-ghost h-13 px-2 text-sm">
                   <ListOrdered size={17} /> Вправи
                 </button>
-                <button onClick={() => onAddSet(current)} className="btn btn-ghost h-12 px-2 text-sm">
+                <button onClick={() => onAddSet(current)} className="btn btn-ghost h-13 px-2 text-sm">
                   <Plus size={17} /> Підхід
                 </button>
-                <button onClick={() => setSheet("menu")} aria-label="Інші дії з вправою" className="btn btn-ghost h-12 px-2 text-sm">
+                <button onClick={() => setSheet("menu")} aria-label="Інші дії з вправою" className="btn btn-ghost h-13 px-2 text-sm">
                   <MoreHorizontal size={19} /> Ще
                 </button>
               </div>

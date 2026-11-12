@@ -1,10 +1,24 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useRef } from "react";
 import { Check } from "lucide-react";
 import { cx, fmtDate } from "@/lib/format";
 
-export type StripDay = { day: string; done: boolean; planned: boolean; cardio: string | null };
+/** `sessions` — everything done that day, strength and cardio together. */
+export type StripDay = { day: string; done: boolean; planned: boolean; sessions: number };
+
+/** One dot per session of the day; from three on the dots turn hot, so a heavy day stands out. */
+export function SessionDots({ count, dim }: { count: number; dim?: boolean }) {
+  const n = Math.min(3, Math.max(0, count));
+  return (
+    <span className={cx("flex h-1.5 items-center justify-center gap-0.5", dim && "opacity-60")} aria-hidden="true">
+      {Array.from({ length: n }, (_, i) => (
+        <span key={i} className={cx("size-1.5 rounded-full", count >= 3 ? "bg-heart" : "bg-accent")} />
+      ))}
+    </span>
+  );
+}
 const WEEKDAYS = ["Пн", "Вт", "Ср", "Чт", "Пт", "Сб", "Нд"];
 
 /**
@@ -51,11 +65,12 @@ export function WeekStrip({ weeks, today, current }: { weeks: StripDay[][]; toda
               const past = d.day < today;
               const isToday = d.day === today;
               return (
-              <div
+              <Link
                 key={d.day}
+                href={`/calendar?d=${d.day}`}
                 // Saturday and Sunday sit on a slightly lighter column, so the week reads at a glance.
                 className={cx("flex flex-col items-center gap-1.5 rounded-xl py-1.5", j >= 5 && "bg-white/[0.045]")}
-                aria-label={`${fmtDate(d.day)}: ${d.done ? "силове виконано" : d.planned ? "заплановано" : "без силового"}${d.cardio ? ", було кардіо" : ""}`}
+                aria-label={`${fmtDate(d.day)}: ${d.done ? "силове виконано" : d.planned ? "заплановано" : "без силового"}${d.sessions ? `, сесій за день: ${d.sessions}` : ""}. Відкрити в календарі`}
               >
                 <span className={cx("text-[11px] font-semibold", isToday ? "text-accent" : past ? "text-muted/60" : "text-muted")}>{WEEKDAYS[j]}</span>
                 <span
@@ -75,8 +90,8 @@ export function WeekStrip({ weeks, today, current }: { weeks: StripDay[][]; toda
                 >
                   {d.done ? <Check size={17} strokeWidth={3} /> : Number(d.day.slice(8))}
                 </span>
-                <span className={cx("size-1.5 rounded-full", past && "opacity-60")} style={{ background: d.cardio ?? "transparent" }} />
-              </div>
+                <SessionDots count={d.sessions} dim={past} />
+              </Link>
               );
             })}
           </div>

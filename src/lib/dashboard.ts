@@ -6,7 +6,8 @@ export const WIDGETS = [
   { id: "goals", label: "Цілі тижня (кільця)", shown: true, wide: false },
   { id: "muscles", label: "Мʼязи цього тижня", shown: true, wide: false },
   { id: "coach", label: "Порада тренера (ШІ)", shown: true, wide: true },
-  { id: "week", label: "Календар тижнів", shown: true, wide: true },
+  { id: "week", label: "Тижнева стрічка", shown: true, wide: true },
+  { id: "calendar", label: "Календар місяця", shown: true, wide: false },
   { id: "stats", label: "Показники тижня", shown: true, wide: true },
   { id: "mygoals", label: "Мої цілі: прогрес", shown: true, wide: false },
   { id: "friends", label: "Команда: рейтинг тижня", shown: true, wide: false },
@@ -26,8 +27,15 @@ export type WidgetState = { id: WidgetId; label: string; visible: boolean; wide:
 export function resolveDashboard(config: Partial<DashboardConfig> | null | undefined): WidgetState[] {
   const known = new Map(WIDGETS.map((w) => [w.id as string, w]));
   const order = (config?.order ?? []).filter((id) => known.has(id));
-  const ids = [...new Set([...order, ...WIDGETS.map((w) => w.id)])];
   const hidden = new Set(config?.hidden ?? []);
+  // A layout saved before the month calendar existed: the calendar takes the place of
+  // "minutes by day", which steps aside until the layout is saved again.
+  if (order.length > 0 && !order.includes("calendar")) {
+    const at = order.indexOf("minutes");
+    order.splice(at >= 0 ? at : order.length, 0, "calendar");
+    hidden.add("minutes");
+  }
+  const ids = [...new Set([...order, ...WIDGETS.map((w) => w.id)])];
   const seen = new Set(order);
   return ids.map((id) => {
     const w = known.get(id)!;

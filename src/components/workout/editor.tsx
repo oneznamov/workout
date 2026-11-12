@@ -407,16 +407,20 @@ export function WorkoutEditor({
       return { endsAt: r.endsAt + d * 1000, total: Math.max(MIN_REST, r.total + d) };
     });
 
-  // A rest that ends while the phone is locked is announced by a push; one that ends on screen is not.
+  // The end of a rest is announced by a push — on a locked phone and on screen alike. It is called
+  // off only when the athlete moves on before the time is up; a rest that runs out is left to ring
+  // (a phone that is "locked" may still run this page for a while, so it must not cancel its own signal).
   const restEndsAt = rest?.endsAt ?? null;
   const pushArmed = useRef(false);
+  const ranOut = useRef(false);
   useEffect(() => {
     if (restEndsAt != null) {
       pushArmed.current = true;
+      ranOut.current = false;
       armRestPush(restEndsAt, `Час наступного підходу · ${wRef.current.name || "тренування"}`);
     } else if (pushArmed.current) {
       pushArmed.current = false;
-      cancelRestPush();
+      if (!ranOut.current) cancelRestPush();
     }
   }, [restEndsAt]);
   useEffect(
@@ -441,6 +445,7 @@ export function WorkoutEditor({
   };
   const endRest = (natural: boolean) => {
     if (natural) beep(audio.current);
+    ranOut.current = natural;
     setRest(null);
   };
 

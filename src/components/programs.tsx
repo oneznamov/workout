@@ -4,7 +4,7 @@ import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 import { History, Pencil, Plus, Route, Sparkles, Trash2, X } from "lucide-react";
 import { addProgramWorkoutAction, createProgramAction, deleteProgramAction, saveProgramVersionAction, updateProgramAction } from "@/lib/actions";
-import { reviseProgramAction } from "@/lib/ai-actions";
+import { planProgramAction, reviseProgramAction } from "@/lib/ai-actions";
 import { useLockScroll } from "@/lib/client/lock-scroll";
 import { addDays, dayOf } from "@/lib/format";
 import { AiPromptDialog } from "./ai";
@@ -41,18 +41,35 @@ function ProgramFields({ value, onChange }: { value: Fields; onChange: (v: Field
   );
 }
 
-/** "New programme" by hand: a name, dates and what it is for; workouts are added on its page. */
-export function NewProgramButton() {
+/**
+ * "New programme": a name, dates and what it is for. Then either an empty one, to be filled with
+ * workouts by hand, or — with AI connected — one filled with workouts for the whole period.
+ */
+export function NewProgramButton({ ai = false }: { ai?: boolean }) {
+  const router = useRouter();
   const [open, setOpen] = useState(false);
   const [fields, setFields] = useState<Fields>({ name: "", description: "", forecast: "", startsOn: "", endsOn: "" });
+  const [filling, setFilling] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const [pending, start] = useTransition();
   useLockScroll(open);
+  const fill = () => {
+    setError(null);
+    setFilling(true);
+    start(async () => {
+      const r = await planProgramAction({ program: fields });
+      setFilling(false);
+      if (!r.ok) return setError(r.error);
+      if (r.programId) router.push(`/programs/${r.programId}`);
+    });
+  };
   return (
     <>
       <button
         onClick={() => {
           const today = dayOf();
           setFields({ name: "", description: "", forecast: "", startsOn: today, endsOn: addDays(today, 27) });
+          setError(null);
           setOpen(true);
         }}
         className="flex items-center gap-1.5 text-sm text-accent"
@@ -79,9 +96,20 @@ export function NewProgramButton() {
               </button>
             </div>
             <ProgramFields value={fields} onChange={setFields} />
-            <button type="submit" disabled={pending} className="btn btn-primary w-full">
-              <Route size={17} /> {pending ? "Створюю…" : "Створити програму"}
+            {error && (
+              <p role="alert" className="text-sm text-critical">
+                {error}
+              </p>
+            )}
+            {ai && (
+              <button type="button" disabled={pending || !fields.name.trim()} onClick={fill} className="btn btn-primary w-full">
+                <Sparkles size={17} /> {filling ? "ШІ складає тренування…" : "Створити й заповнити з ШІ"}
+              </button>
+            )}
+            <button type="submit" disabled={pending} className={ai ? "btn btn-ghost w-full" : "btn btn-primary w-full"}>
+              <Route size={17} /> {pending && !filling ? "Створюю…" : ai ? "Створити порожню" : "Створити програму"}
             </button>
+            {ai && <p className="text-xs text-muted">ШІ розкладе тренування на весь період з огляду на ваші цілі, показники й минулі тренування. Порожню програму наповнюєте самі.</p>}
           </form>
         </div>
       )}

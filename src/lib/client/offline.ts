@@ -2,6 +2,7 @@
 
 import { useSyncExternalStore } from "react";
 import { dayOf } from "@/lib/format";
+import { noteServerBuild } from "./update";
 import type { CExerciseInfo, CLast, CWorkout, OfflineBundle, WorkoutSnapshot } from "@/lib/shape";
 import type { WorkoutStatus } from "@/db/schema";
 
@@ -258,6 +259,7 @@ export async function checkConnection() {
   try {
     const res = await request("/api/ping", {}, 6000);
     setConn({ online: res.ok || res.status < 500 });
+    if (res.ok) noteServerBuild(((await res.json().catch(() => null)) as { build?: string } | null)?.build);
   } catch {
     setConn({ online: false });
   }

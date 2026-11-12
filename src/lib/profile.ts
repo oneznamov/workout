@@ -23,11 +23,39 @@ export type Profile = {
   birthDate: string | null;
   heightCm: number | null;
   experience: Experience | null;
-  /** Illness mode: on while set. Weekly targets pause and the coach switches to recovery. */
-  sick: { since: string; note: string } | null;
-  /** Finished illnesses, newest last — weeks touched by them do not break streaks. */
-  sickHistory: { from: string; to: string }[];
+  /**
+   * A pause in training: on while set. Weekly targets wait, streaks do not break and the coach
+   * adapts to the reason. (Stored under the old name: it began as "illness mode".)
+   */
+  sick: { since: string; note: string; reason: PauseReason } | null;
+  /** Finished pauses, newest last — weeks touched by them do not break streaks. */
+  sickHistory: Pause[];
 };
+
+export const PAUSE_REASONS = ["illness", "injury", "period", "mental", "travel", "other"] as const;
+export type PauseReason = (typeof PAUSE_REASONS)[number];
+export type Pause = { from: string; to: string; reason: PauseReason; note: string };
+export const PAUSE_LABEL: Record<PauseReason, string> = {
+  illness: "Хвороба",
+  injury: "Травма",
+  period: "Менструація",
+  mental: "Втома, стрес",
+  travel: "Поїздка",
+  other: "Інше",
+};
+const reasonOf = (v: unknown): PauseReason => (PAUSE_REASONS as readonly unknown[]).includes(v) ? (v as PauseReason) : "illness";
+
+/** Starts a pause today (an already running one is left as it is). */
+export function startPause(p: Profile, today: string, reason: PauseReason, note = ""): Profile {
+  return p.sick ? p : { ...p, sick: { since: today, note: note.trim().slice(0, 200), reason } };
+}
+
+/** Ends the running pause: it moves to the history. */
+export function endPause(p: Profile, today: string): Profile {
+  if (!p.sick) return p;
+  const done: Pause = { from: p.sick.since, to: today < p.sick.since ? p.sick.since : today, reason: p.sick.reason, note: p.sick.note };
+  return { ...p, sick: null, sickHistory: [...p.sickHistory, done] };
+}
 
 export const EMPTY_PROFILE: Profile = { about: "", goals: [], sex: null, birthDate: null, heightCm: null, experience: null, sick: null, sickHistory: [] };
 export const SEX_LABEL: Record<Sex, string> = { male: "Чоловік", female: "Жінка" };
@@ -108,9 +136,10 @@ export function normalizeProfile(input: unknown): Profile {
     sickHistory: (Array.isArray(src.sickHistory) ? src.sickHistory : [])
       .flatMap((p) => {
         const r = (p && typeof p === "object" ? p : {}) as Record<string, unknown>;
-        return isDay(r.from) && isDay(r.to) && r.from <= r.to ? [{ from: r.from, to: r.to }] : [];
+        return isDay(r.from) && isDay(r.to) && r.from <= r.to ? [{ from: r.from, to: r.to, reason: reasonOf(r.reason), note: text(r.note, 200) }] : [];
       })
-      .slice(-12),
+      .sort((a, b) => a.from.localeCompare(b.from))
+      .slice(-24),
   };
 }
 
@@ -118,7 +147,7 @@ const isDay = (v: unknown): v is string => typeof v === "string" && /^\d{4}-\d{2
 function sickNow(raw: unknown): Profile["sick"] {
   if (!raw || typeof raw !== "object") return null;
   const r = raw as Record<string, unknown>;
-  return isDay(r.since) ? { since: r.since, note: text(r.note, 200) } : null;
+  return isDay(r.since) ? { since: r.since, note: text(r.note, 200), reason: reasonOf(r.reason) } : null;
 }
 
 /** Mondays of every week touched by an illness (finished ones and the current one, up to `today`). */

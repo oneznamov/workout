@@ -3,13 +3,14 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useState, type ReactNode } from "react";
-import { Activity, BarChart3, CircleUser, Dumbbell, Home, Settings, Users } from "lucide-react";
+import { Activity, BarChart3, CalendarDays, CircleUser, Dumbbell, Home, Settings, Users } from "lucide-react";
 import { cx } from "@/lib/format";
 import { ConnectionBadge } from "./connection";
 
 const items = [
   { href: "/", label: "Головна", icon: Home },
-  { href: "/workouts", label: "Тренування", icon: Activity, also: ["/train", "/exercises", "/cardio", "/programs"], mobileAlso: true },
+  { href: "/workouts", label: "Тренування", icon: Activity, also: ["/train", "/exercises", "/cardio", "/programs", "/calendar"], mobileAlso: true },
+  { href: "/calendar", label: "Календар", icon: CalendarDays, desktopOnly: true },
   { href: "/exercises", label: "Вправи", icon: Dumbbell, desktopOnly: true },
   { href: "/analytics", label: "Аналітика", icon: BarChart3 },
   { href: "/team", label: "Команда", icon: Users, desktopOnly: true },
@@ -63,8 +64,8 @@ export function Nav({ teamBadge }: { teamBadge?: ReactNode }) {
   const active = (i: (typeof items)[number], mobile = false) => {
     if (i.href === "/") return pathname === "/";
     if (pathname.startsWith(i.href)) return true;
-    // On the phone "Вправи" has no tab of its own — it lives under "Тренування".
-    return (i.also ?? []).some((p) => pathname.startsWith(p) && (mobile || p !== "/exercises"));
+    // On the phone "Вправи" and "Календар" have no tabs of their own — they live under "Тренування".
+    return (i.also ?? []).some((p) => pathname.startsWith(p) && (mobile || (p !== "/exercises" && p !== "/calendar")));
   };
   const tabs = items.filter((i) => !i.desktopOnly);
   return (

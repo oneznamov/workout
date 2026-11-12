@@ -4,6 +4,7 @@ import { Dumbbell, Flame, Footprints, Heart, Moon, Play, Scale, Timer, Weight, A
 import { CoachCard } from "@/components/ai";
 import { CardioRow } from "@/components/cardio/cardio-row";
 import { StackedBars } from "@/components/charts";
+import { MonthGrid } from "@/components/calendar";
 import { DashboardCustomizer } from "@/components/dashboard-customizer";
 import { Leaderboard } from "@/components/team";
 import { GoalsCard } from "@/components/goals-card";
@@ -17,6 +18,7 @@ import { WorkoutRow } from "@/components/workout/workout-row";
 import { getAiState, getCoachNote } from "@/lib/ai";
 import { getMuscleBalance, getWeekSummary } from "@/lib/analytics";
 import { getUser } from "@/lib/auth";
+import { mark, monthTitle, type DayMark } from "@/lib/calendar-logic";
 import { listCardio } from "@/lib/cardio";
 import { CARDIO_COLOR } from "@/lib/cardio-kinds";
 import { resolveDashboard, type WidgetId } from "@/lib/dashboard";
@@ -87,12 +89,15 @@ async function Content() {
 
   // Six weeks back and two ahead for the week strip.
   const WEEKS_BACK = 6;
-  const cardioDayColor = new Map<string, string>();
-  for (const c of cardio) if (!cardioDayColor.has(dayOf(c.startAt))) cardioDayColor.set(dayOf(c.startAt), CARDIO_COLOR[c.kind]);
+  // What is on each day: finished strength workouts, planned ones, cardio not already inside a workout.
+  const marks: Record<string, DayMark> = {};
+  for (const w of recent) if (w.startedAt) mark(marks, dayOf(w.startedAt), "done");
+  for (const w of planned) if (w.scheduledFor) mark(marks, w.scheduledFor, "planned");
+  for (const c of cardio) if (!c.workoutId) mark(marks, dayOf(c.startAt), "cardio");
   const stripWeeks: StripDay[][] = Array.from({ length: WEEKS_BACK + 3 }, (_, w) =>
     Array.from({ length: 7 }, (_, d) => {
       const day = addDays(monday, (w - WEEKS_BACK) * 7 + d);
-      return { day, done: doneDays.has(day), planned: plannedDays.has(day), cardio: cardioDayColor.get(day) ?? null };
+      return { day, done: doneDays.has(day), planned: plannedDays.has(day), sessions: (marks[day]?.done ?? 0) + (marks[day]?.cardio ?? 0) };
     }),
   );
   const openGoals = profile.goals.filter((g) => !g.done);
@@ -124,6 +129,11 @@ async function Content() {
       </Card>
     ),
     week: <WeekStrip weeks={stripWeeks} today={today} current={WEEKS_BACK} />,
+    calendar: (
+      <Card title={<span className="first-letter:uppercase">{monthTitle(today.slice(0, 7))}</span>} action={<Link href="/calendar" className="text-xs text-accent">Календар →</Link>}>
+        <MonthGrid month={today.slice(0, 7)} today={today} marks={marks} linkBase="/calendar" />
+      </Card>
+    ),
     mygoals: openGoals.length ? (
       <Card title="Мої цілі" action={<Link href="/profile" className="text-xs text-accent">Профіль →</Link>}>
         <ul className="space-y-3.5">

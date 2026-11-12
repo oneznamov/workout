@@ -1,5 +1,4 @@
 import { Suspense } from "react";
-import { PlanWithAi } from "@/components/ai";
 import { NewWorkoutButtons } from "@/components/workout/new-workout";
 import { CalendarDays, History, LayoutTemplate, Route } from "lucide-react";
 import { ProgramCard } from "@/components/program-card";
@@ -18,6 +17,17 @@ import { getUser } from "@/lib/auth";
 import { listWorkouts } from "@/lib/workouts";
 
 export const metadata = { title: "Тренування" };
+
+const HEADER_LINKS = (
+  <span className="flex gap-4">
+    <Link href="/calendar" className="text-accent">
+      Календар →
+    </Link>
+    <Link href="/exercises" className="text-accent">
+      Бібліотека вправ →
+    </Link>
+  </span>
+);
 
 const TYPES = [
   { value: "all", label: "Усі" },
@@ -59,17 +69,8 @@ async function Content({ searchParams }: PageProps<"/workouts">) {
     <>
       <PageHeader
         title="Тренування"
-        subtitle={
-          <Link href="/exercises" className="text-accent">
-            Бібліотека вправ →
-          </Link>
-        }
-        actions={
-          <>
-            <NewWorkoutButtons />
-            {ai && <PlanWithAi />}
-          </>
-        }
+        subtitle={HEADER_LINKS}
+        actions={<NewWorkoutButtons ai={Boolean(ai)} />}
       />
       <div className="space-y-8">
         {active.length > 0 && (
@@ -81,7 +82,7 @@ async function Content({ searchParams }: PageProps<"/workouts">) {
         )}
         {/* Programmes: stages the planned workouts belong to. */}
         <section>
-          <SectionTitle action={<NewProgramButton />}>
+          <SectionTitle action={<NewProgramButton ai={Boolean(ai)} />}>
             <span className="flex items-center gap-2">
               <Route size={20} className="text-accent" /> Програми
             </span>
@@ -200,16 +201,7 @@ function Section({ title, children }: { title: string; children: React.ReactNode
 export default function Page(props: PageProps<"/workouts">) {
   return (
     <Suspense
-      fallback={
-        <PageSkeleton
-          title="Тренування"
-          subtitle={
-            <Link href="/exercises" className="text-accent">
-              Бібліотека вправ →
-            </Link>
-          }
-        />
-      }
+      fallback={<PageSkeleton title="Тренування" subtitle={HEADER_LINKS} />}
     >
       <Content {...props} />
     </Suspense>

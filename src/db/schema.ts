@@ -326,6 +326,9 @@ export const sets = pgTable(
     reps: integer("reps"),
     durationSec: integer("duration_sec"),
     distanceM: doublePrecision("distance_m"),
+    /** Cardio machines: belt or pedalling speed, km/h, and incline, %. */
+    speedKmh: doublePrecision("speed_kmh"),
+    incline: doublePrecision("incline"),
     rpe: doublePrecision("rpe"),
     completed: boolean("completed").notNull().default(false),
     completedAt: timestamp("completed_at", { withTimezone: true }),

@@ -58,9 +58,13 @@ export type PushMessage = { title: string; body: string; tag: string; url: strin
 /** Sends a notification to every device of the user; devices that no longer accept it are forgotten. */
 export async function sendPush(userId: string, message: PushMessage, origin: string) {
   const subs = await db.select().from(pushSubscriptions).where(eq(pushSubscriptions.userId, userId));
-  if (subs.length === 0) return 0;
+  if (subs.length === 0) {
+    await notePush(userId, { event: "no devices", tag: message.tag });
+    return 0;
+  }
   const keys = await vapid();
   let sent = 0;
+  const failed: (number | string)[] = [];
   await Promise.all(
     subs.map(async (s) => {
       try {
@@ -72,11 +76,24 @@ export async function sendPush(userId: string, message: PushMessage, origin: str
         sent++;
       } catch (e) {
         const status = (e as { statusCode?: number }).statusCode;
+        failed.push(status ?? "network");
         if (status === 404 || status === 410) await removePushSubscription(s.endpoint);
       }
     }),
   );
+  await notePush(userId, { event: "sent", tag: message.tag, devices: subs.length, sent, failed });
   return sent;
+}
+
+/** The last thing that happened to a user's notifications — kept to tell "not sent" from "not shown". */
+async function notePush(userId: string, what: Record<string, unknown>) {
+  const value = JSON.stringify({ at: new Date().toISOString(), ...what });
+  console.log(`[push] ${value}`);
+  await db
+    .insert(appConfig)
+    .values({ key: `push-last:${userId}`, value })
+    .onConflictDoUpdate({ target: appConfig.key, set: { value } })
+    .catch(() => undefined);
 }
 
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
@@ -103,10 +120,10 @@ export async function disarmRestPush(userId: string) {
  * changed the rest in the app (then this countdown is no longer the armed one).
  */
 export async function fireRestPush(userId: string, id: string, at: number, next: string, url: string, origin: string) {
-  // A moment of slack: when the app is on screen it cancels the push itself the instant the rest ends.
-  await sleep(Math.max(0, at - Date.now()) + 1500);
+  // A moment of slack for a "next" tapped at the very last second.
+  await sleep(Math.max(0, at - Date.now()) + 400);
   const [u] = await db.select({ restPush: users.restPush }).from(users).where(eq(users.id, userId));
-  if (u?.restPush?.id !== id) return;
+  if (u?.restPush?.id !== id) return void (await notePush(userId, { event: "called off", tag: "rest" }));
   await db.update(users).set({ restPush: null }).where(eq(users.id, userId));
   await sendPush(userId, { title: "Відпочинок закінчився", body: next || "Час наступного підходу", tag: "rest", url }, origin);
 }

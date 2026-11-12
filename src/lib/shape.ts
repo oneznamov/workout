@@ -9,6 +9,9 @@ export type CSet = {
   reps: number | null;
   durationSec: number | null;
   distanceM: number | null;
+  /** cardio machines: speed, km/h, and incline, % (absent in copies saved by an older app version) */
+  speedKmh?: number | null;
+  incline?: number | null;
   completed: boolean;
   /** ISO time the set was ticked off (drives the workout timeline). */
   completedAt: string | null;
@@ -130,6 +133,8 @@ export function toClientWorkout(w: ServerWorkout): CWorkout {
         reps: s.reps,
         durationSec: s.durationSec,
         distanceM: s.distanceM,
+        speedKmh: s.speedKmh ?? null,
+        incline: s.incline ?? null,
         completed: s.completed,
         completedAt: s.completedAt?.toISOString() ?? null,
       })),

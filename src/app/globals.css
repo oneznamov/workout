@@ -78,6 +78,30 @@ html {
     opacity: 1;
   }
 }
+/*
+ * iPhone, installed app: while a page is too short to scroll, iOS measures the screen without
+ * the status-bar strip, so everything pinned to the bottom sits that much higher — and drops
+ * when the page grows. Making the page always fill the real screen keeps the bottom in place.
+ */
+@media (display-mode: standalone) {
+  @supports (-webkit-touch-callout: none) {
+    html {
+      min-height: calc(100% + env(safe-area-inset-top));
+    }
+  }
+}
+
+/* iOS draws date fields at their own size; make them obey the layout like any other field. */
+input[type="date"] {
+  -webkit-appearance: none;
+  appearance: none;
+  min-width: 0;
+  min-height: 3rem;
+}
+input[type="date"]::-webkit-date-and-time-value {
+  text-align: left;
+}
+
 .skeleton-body {
   animation: skeleton-in 0.3s ease-out 0.45s both;
 }

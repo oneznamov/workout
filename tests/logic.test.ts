@@ -320,7 +320,7 @@ import { sickWeeks } from "@/lib/profile";
 
 describe("illness mode", () => {
   it("lists the weeks an illness touched", () => {
-    const weeks = sickWeeks({ sick: { since: "2026-11-11", note: "" }, sickHistory: [{ from: "2026-10-22", to: "2026-10-27" }] }, "2026-11-12");
+    const weeks = sickWeeks({ sick: { since: "2026-11-11", note: "", reason: "illness" }, sickHistory: [{ from: "2026-10-22", to: "2026-10-27", reason: "illness", note: "" }] }, "2026-11-12");
     expect([...weeks].sort()).toEqual(["2026-10-19", "2026-10-26", "2026-11-09"]);
   });
   it("does not let a sick week break the streak", () => {
@@ -368,5 +368,63 @@ describe("effort rating", () => {
     expect([1, 3, 4, 6, 7, 8, 9, 10].map((n) => effortLevel(n).key)).toEqual(["easy", "easy", "moderate", "moderate", "hard", "hard", "max", "max"]);
     expect(averageEffort([8, null, 5, undefined])).toBe(6.5);
     expect(averageEffort([null])).toBeNull();
+  });
+});
+
+describe("calendar", () => {
+  it("lays a month out as six Monday-first weeks and steps between months", async () => {
+    const { monthGrid, shiftMonth, isDay, isMonth } = await import("@/lib/calendar-logic");
+    const grid = monthGrid("2026-11");
+    expect(grid).toHaveLength(42);
+    expect(grid[0]).toBe("2026-10-26");
+    expect(grid[41]).toBe("2026-12-06");
+    expect(shiftMonth("2026-12", 1)).toBe("2027-01");
+    expect(shiftMonth("2026-01", -1)).toBe("2025-12");
+    expect(isDay("2026-11-12")).toBe(true);
+    expect(isDay("12.11.2026")).toBe(false);
+    expect(isMonth("2026-13")).toBe(false);
+  });
+
+  it("counts what is on a day", async () => {
+    const { mark, sessionsOn } = await import("@/lib/calendar-logic");
+    const marks = {};
+    mark(marks, "2026-11-12", "done");
+    mark(marks, "2026-11-12", "cardio");
+    mark(marks, "2026-11-12", "cardio");
+    mark(marks, "2026-11-13", "planned");
+    expect(sessionsOn((marks as Record<string, never>)["2026-11-12"])).toBe(3);
+    expect(sessionsOn((marks as Record<string, never>)["2026-11-13"])).toBe(0);
+    expect(sessionsOn(undefined)).toBe(0);
+  });
+});
+
+describe("pause in training", () => {
+  it("starts with a reason, ends into the history, and reads old illness records", async () => {
+    const { endPause, normalizeProfile, startPause } = await import("@/lib/profile");
+    const base = normalizeProfile(null);
+    const paused = startPause(base, "2026-11-10", "period", "  болить  ");
+    expect(paused.sick).toEqual({ since: "2026-11-10", note: "болить", reason: "period" });
+    // A second "start" does not move the beginning of a running pause.
+    expect(startPause(paused, "2026-11-11", "travel").sick?.since).toBe("2026-11-10");
+    const back = endPause(paused, "2026-11-12");
+    expect(back.sick).toBeNull();
+    expect(back.sickHistory).toEqual([{ from: "2026-11-10", to: "2026-11-12", reason: "period", note: "болить" }]);
+    // Saved before reasons existed: counts as illness.
+    const old = normalizeProfile({ sick: { since: "2026-11-01", note: "" }, sickHistory: [{ from: "2026-10-01", to: "2026-10-03" }] });
+    expect(old.sick?.reason).toBe("illness");
+    expect(old.sickHistory[0]).toMatchObject({ reason: "illness", note: "" });
+  });
+});
+
+describe("home widgets", () => {
+  it("puts the month calendar where minutes-by-day was in a layout saved before it existed", async () => {
+    const { resolveDashboard } = await import("@/lib/dashboard");
+    const saved = resolveDashboard({ order: ["goals", "minutes", "week"], hidden: [] });
+    expect(saved.slice(0, 3).map((w) => w.id)).toEqual(["goals", "calendar", "minutes"]);
+    expect(saved.find((w) => w.id === "calendar")?.visible).toBe(true);
+    expect(saved.find((w) => w.id === "minutes")?.visible).toBe(false);
+    // Once the layout is saved with the calendar in it, the athlete's choice stands.
+    const kept = resolveDashboard({ order: ["minutes", "calendar"], hidden: [] });
+    expect(kept.find((w) => w.id === "minutes")?.visible).toBe(true);
   });
 });

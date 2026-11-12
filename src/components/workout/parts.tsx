@@ -221,7 +221,7 @@ export function RestScreen({
         className={cx("absolute inset-x-0 bottom-0 transition-[height] duration-150 ease-linear", ending ? "bg-warning/20" : "bg-accent/[0.14]")}
         style={{ height: `${(1 - p) * 100}%` }}
       />
-      <div className="relative mx-auto flex min-h-0 w-full max-w-xl flex-1 flex-col px-5 pt-[calc(env(safe-area-inset-top)+2rem)] pb-[calc(env(safe-area-inset-bottom)+1.25rem)]">
+      <div className="relative mx-auto flex min-h-0 w-full max-w-xl flex-1 flex-col px-5 pt-[calc(env(safe-area-inset-top)+2rem)] pb-[max(env(safe-area-inset-bottom),0.75rem)]">
         <div className="flex items-baseline justify-between gap-3">
           <span className="flex items-baseline gap-2">
             <span className="text-[1.6rem] leading-none font-bold">Відпочинок</span>

@@ -14,7 +14,7 @@ const dayNumber = (day: string) => Date.parse(`${day}T12:00:00Z`) / 86400000;
 function whenPlanned(day: string, today: string, sick: boolean) {
   const diff = Math.round(dayNumber(day) - dayNumber(today));
   // While the athlete is ill a missed day is not a failure — it just waits.
-  if (diff < 0 && sick) return { text: "чекає на одужання", tone: "text-muted" };
+  if (diff < 0 && sick) return { text: "на паузі", tone: "text-muted" };
   if (diff === 0) return { text: "сьогодні", tone: "text-accent" };
   if (diff === 1) return { text: "завтра", tone: "text-ink-2" };
   if (diff > 1) return { text: `через ${plural(diff, DAY_FORMS)}`, tone: "text-muted" };
