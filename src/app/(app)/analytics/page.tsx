@@ -78,9 +78,14 @@ async function Content({ searchParams }: PageProps<"/analytics">) {
           </div>
         </section>
 
-        <Card title="Календар активності" action={<span className="text-xs text-muted">{activeDays} днів з тренуванням</span>}>
-          <ActivityCalendar from={a.from} weeks={weeks} today={dayOf()} days={days} />
-        </Card>
+        <div className="grid gap-4 lg:grid-cols-2">
+          <Card title="Календар активності" action={<span className="text-xs text-muted">{activeDays} днів з тренуванням</span>}>
+            <ActivityCalendar from={a.from} weeks={weeks} today={dayOf()} days={days} />
+          </Card>
+          <Card title="Тренувань на тиждень">
+            <TrendChart kind="bar" integer data={a.weekly.map((w) => ({ ...weekLabel(w.week), value: w.workouts }))} />
+          </Card>
+        </div>
 
         <section>
           <SectionTitle>Навантаження по мʼязах</SectionTitle>
@@ -91,10 +96,7 @@ async function Content({ searchParams }: PageProps<"/analytics">) {
 
         <section>
           <SectionTitle>Силові</SectionTitle>
-          <div className="grid gap-4 lg:grid-cols-3">
-            <Card title="Тренувань на тиждень">
-              <TrendChart kind="bar" integer data={a.weekly.map((w) => ({ ...weekLabel(w.week), value: w.workouts }))} />
-            </Card>
+          <div className="grid gap-4 lg:grid-cols-2">
             <Card title="Тоннаж на тиждень, кг">
               <TrendChart kind="bar" unit="кг" data={a.weekly.map((w) => ({ ...weekLabel(w.week), value: Math.round(w.volume) }))} />
             </Card>

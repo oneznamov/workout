@@ -2,8 +2,8 @@
 
 import { useRouter } from "next/navigation";
 import { useActionState, useState, useTransition } from "react";
-import { Check, Copy, KeyRound, LogOut, Trash2 } from "lucide-react";
-import { changePasswordAction, createTokenAction, deleteTokenAction, logoutAction } from "@/lib/actions";
+import { Check, Copy, Download, KeyRound, LogOut, ShieldCheck, Trash2 } from "lucide-react";
+import { changePasswordAction, createTokenAction, deleteTokenAction, logoutAction, signOutOthersAction } from "@/lib/actions";
 import { fmtDate } from "@/lib/format";
 
 export type TokenRow = { id: string; name: string; prefix: string; createdAt: string; lastUsedAt: string | null };
@@ -130,5 +130,41 @@ export function LogoutButton() {
         <LogOut size={16} /> Вийти
       </button>
     </form>
+  );
+}
+
+/** Download a copy of everything, and sign every other device out. */
+export function DataAndSecurity() {
+  const [done, setDone] = useState(false);
+  const [pending, start] = useTransition();
+  return (
+    <div className="space-y-4">
+      <div>
+        <p className="mb-2 text-sm text-ink-2">Копія всіх ваших даних — зберігайте час від часу як резерв.</p>
+        <div className="grid gap-2 sm:flex">
+          <a href="/api/export" download className="btn btn-ghost">
+            <Download size={17} /> Усі дані (JSON)
+          </a>
+          <a href="/api/export?format=csv" download className="btn btn-ghost">
+            <Download size={17} /> Підходи таблицею (CSV)
+          </a>
+        </div>
+      </div>
+      <div>
+        <p className="mb-2 text-sm text-ink-2">Якщо телефон загубився або ви входили на чужому пристрої:</p>
+        <button
+          disabled={pending}
+          onClick={() =>
+            start(async () => {
+              await signOutOthersAction();
+              setDone(true);
+            })
+          }
+          className="btn btn-ghost w-full sm:w-auto"
+        >
+          <ShieldCheck size={17} /> {done ? "Інші пристрої вийшли" : "Вийти на всіх інших пристроях"}
+        </button>
+      </div>
+    </div>
   );
 }

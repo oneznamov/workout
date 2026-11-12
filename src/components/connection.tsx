@@ -12,6 +12,26 @@ export function OfflineBoot() {
     if (process.env.NODE_ENV === "production" && "serviceWorker" in navigator) {
       navigator.serviceWorker.register("/sw.js").catch(() => undefined);
     }
+    // Tell the server about crashes in the browser so they show up in the admin's error list.
+    let sent = 0;
+    const report = (message: string, detail?: string) => {
+      if (sent++ >= 5 || !navigator.onLine) return;
+      void fetch("/api/client-error", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ message: message.slice(0, 900), detail: detail?.slice(0, 5000), path: location.pathname }),
+        keepalive: true,
+      }).catch(() => undefined);
+    };
+    const onError = (e: ErrorEvent) => report(e.message || "Script error", e.error?.stack);
+    const onRejection = (e: PromiseRejectionEvent) =>
+      report(e.reason instanceof Error ? e.reason.message : String(e.reason), e.reason instanceof Error ? e.reason.stack : undefined);
+    window.addEventListener("error", onError);
+    window.addEventListener("unhandledrejection", onRejection);
+    return () => {
+      window.removeEventListener("error", onError);
+      window.removeEventListener("unhandledrejection", onRejection);
+    };
   }, []);
   return null;
 }

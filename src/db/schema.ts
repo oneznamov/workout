@@ -26,8 +26,47 @@ export const users = pgTable("users", {
   dashboard: jsonb("dashboard").$type<{ order: string[]; hidden: string[] }>(),
   /** Can manage users and invitations. The first account is the admin. */
   isAdmin: boolean("is_admin").notNull().default(false),
+  /** Bumped to sign the account out everywhere (password change, reset, "sign out all"). */
+  sessionVersion: integer("session_version").notNull().default(0),
   createdAt: createdAt(),
 });
+
+/** One-time links an admin hands out so a user can set a new password. */
+export const passwordResets = pgTable("password_resets", {
+  id: id(),
+  tokenHash: text("token_hash").notNull().unique(),
+  userId: uuid("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  createdAt: createdAt(),
+  expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+  usedAt: timestamp("used_at", { withTimezone: true }),
+});
+
+/** Failed sign-ins, kept briefly to slow down password guessing. */
+export const loginAttempts = pgTable(
+  "login_attempts",
+  {
+    id: id(),
+    /** "u:<login>" or "ip:<address>" */
+    key: text("key").notNull(),
+    createdAt: createdAt(),
+  },
+  (t) => [index("login_attempts_key_idx").on(t.key, t.createdAt)],
+);
+
+/** Server and browser errors, shown to the admin. */
+export const errorLog = pgTable(
+  "error_log",
+  {
+    id: id(),
+    source: text("source").$type<"server" | "client">().notNull(),
+    message: text("message").notNull(),
+    detail: text("detail"),
+    path: text("path"),
+    userId: uuid("user_id").references(() => users.id, { onDelete: "set null" }),
+    createdAt: createdAt(),
+  },
+  (t) => [index("error_log_time_idx").on(t.createdAt)],
+);
 
 /** One-time sign-up links. Registration is closed; an invite is the only way in. */
 export const invites = pgTable("invites", {

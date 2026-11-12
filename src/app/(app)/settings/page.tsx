@@ -4,7 +4,7 @@ import { desc, eq } from "drizzle-orm";
 import { headers } from "next/headers";
 import Link from "next/link";
 import { InstallCard } from "@/components/install";
-import { CopyField, LogoutButton, PasswordForm, TokensManager } from "@/components/settings";
+import { CopyField, DataAndSecurity, LogoutButton, PasswordForm, TokensManager } from "@/components/settings";
 import { Card, Disclosure, PageHeader } from "@/components/ui";
 import { db } from "@/db";
 import { apiTokens } from "@/db/schema";
@@ -26,7 +26,7 @@ async function Content() {
   return (
     <>
       <PageHeader title="Налаштування" subtitle={`Акаунт: ${user.username}`} actions={<LogoutButton />} />
-      <div className="space-y-5">
+      <div className="max-w-3xl space-y-5">
         {user.isAdmin && (
           <Link href="/admin" className="card flex items-center justify-between gap-3 p-4 hover:bg-surface-2">
             <span>
@@ -99,6 +99,10 @@ async function Content() {
             вони перетинаються в часі: запустіть «Силове тренування» на годиннику й тренування тут — пульс і калорії
             зʼявляться в записі після синхронізації.
           </p>
+        </Disclosure>
+
+        <Disclosure title="Резервна копія та безпека" hint="Завантажити дані, вийти на інших пристроях">
+          <DataAndSecurity />
         </Disclosure>
 
         <Disclosure title="Змінити пароль">

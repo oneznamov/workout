@@ -4,7 +4,7 @@ import { cache } from "react";
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { SignJWT, jwtVerify } from "jose";
-import { eq } from "drizzle-orm";
+import { eq, sql } from "drizzle-orm";
 import { db } from "@/db";
 import { apiTokens, users } from "@/db/schema";
 
@@ -17,8 +17,9 @@ function secret() {
   return new TextEncoder().encode(s);
 }
 
-export async function createSession(userId: string) {
-  const token = await new SignJWT({ sub: userId })
+/** Signs the device in. `sessionVersion` ties the cookie to the account's current "generation". */
+export async function createSession(userId: string, sessionVersion = 0) {
+  const token = await new SignJWT({ sub: userId, sv: sessionVersion })
     .setProtectedHeader({ alg: "HS256" })
     .setIssuedAt()
     .setExpirationTime(`${SESSION_DAYS}d`)
@@ -36,17 +37,41 @@ export async function destroySession() {
   (await cookies()).delete(SESSION_COOKIE);
 }
 
-/** Returns the signed-in user id, or null. Deduplicated per request. */
-export const getUserId = cache(async (): Promise<string | null> => {
+async function readSession(): Promise<{ userId: string; version: number } | null> {
   const token = (await cookies()).get(SESSION_COOKIE)?.value;
   if (!token) return null;
   try {
     const { payload } = await jwtVerify(token, secret(), { algorithms: ["HS256"] });
-    return typeof payload.sub === "string" ? payload.sub : null;
+    if (typeof payload.sub !== "string") return null;
+    return { userId: payload.sub, version: typeof payload.sv === "number" ? payload.sv : 0 };
   } catch {
     return null;
   }
+}
+
+/**
+ * The signed-in user, verified against the database. A session stops working when the
+ * account is deleted or its session version was bumped (password change/reset, "sign out everywhere").
+ */
+export const getSessionUser = cache(async () => {
+  const session = await readSession();
+  if (!session) return null;
+  const [u] = await db
+    .select({
+      id: users.id,
+      username: users.username,
+      goals: users.goals,
+      dashboard: users.dashboard,
+      isAdmin: users.isAdmin,
+      sessionVersion: users.sessionVersion,
+    })
+    .from(users)
+    .where(eq(users.id, session.userId));
+  return u && u.sessionVersion === session.version ? u : null;
 });
+
+/** Returns the signed-in user id, or null. Deduplicated per request. */
+export const getUserId = cache(async (): Promise<string | null> => (await getSessionUser())?.id ?? null);
 
 export async function requireUserId(): Promise<string> {
   const id = await getUserId();
@@ -54,19 +79,21 @@ export async function requireUserId(): Promise<string> {
   return id;
 }
 
-/** The signed-in user, verified against the database (a session of a deleted user counts as signed out). */
-export const getSessionUser = cache(async () => {
-  const id = await getUserId();
-  if (!id) return null;
-  const [u] = await db.select({ id: users.id, username: users.username, goals: users.goals, dashboard: users.dashboard, isAdmin: users.isAdmin }).from(users).where(eq(users.id, id));
-  return u ?? null;
-});
-
 export const getUser = cache(async () => {
   const u = await getSessionUser();
   if (!u) redirect("/login");
   return u;
 });
+
+/** Invalidates every existing session of the account and returns the new version. */
+export async function bumpSessionVersion(userId: string) {
+  const [row] = await db
+    .update(users)
+    .set({ sessionVersion: sql`${users.sessionVersion} + 1` })
+    .where(eq(users.id, userId))
+    .returning({ v: users.sessionVersion });
+  return row?.v ?? 0;
+}
 
 // ---- API tokens (Claude MCP + Apple Health export) ----
 

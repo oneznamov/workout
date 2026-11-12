@@ -62,7 +62,8 @@ export function TrendChart({
   integer?: boolean;
   color?: ChartColor;
 }) {
-  const hasData = data.some((d) => d.value != null);
+  // Bars that are all zero say nothing — show the empty state instead of a blank grid.
+  const hasData = data.some((d) => d.value != null && (kind !== "bar" || d.value !== 0));
   if (!hasData) {
     return (
       <div className="grid place-items-center text-sm text-muted" style={{ height }}>

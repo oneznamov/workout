@@ -49,7 +49,7 @@ export default function TrainPage() {
   const by = (status: string) => local.filter((l) => l.workout.status === status);
   const unsent = local.filter((l) => l.dirty && l.workout.status === "completed");
   return (
-    <div className="space-y-6">
+    <div className="mx-auto max-w-2xl space-y-6">
       <header>
         <p className="flex items-center gap-2 text-sm text-muted">
           <Smartphone size={15} /> Збережено на цьому пристрої

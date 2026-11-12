@@ -26,12 +26,21 @@ export function ActivityCalendar({
 }) {
   const used = new Set<keyof typeof COLORS>();
   for (const a of Object.values(days)) for (const k of Object.keys(COLORS) as (keyof typeof COLORS)[]) if (a[k]) used.add(k);
-  const columns = Array.from({ length: weeks }, (_, w) => {
+  const raw = Array.from({ length: weeks }, (_, w) => {
     const monday = addDays(from, w * 7);
     const cells = Array.from({ length: 7 }, (_, d) => addDays(monday, d));
-    const first = cells.find((c) => c.endsWith("-01"));
-    return { monday, cells, label: w === 0 || first ? fmtDate(first ?? monday, { month: "short" }) : "" };
+    return { monday, cells, first: cells.find((c) => c.endsWith("-01")) };
   });
+  // A month is labelled at the week it starts in. The very first column gets a label
+  // only when the next month does not begin right after it (the two would overlap).
+  const columns = raw.map((c, w) => ({
+    ...c,
+    label: c.first
+      ? fmtDate(c.first, { month: "short" })
+      : w === 0 && !raw.slice(1, 4).some((n) => n.first)
+        ? fmtDate(c.monday, { month: "short" })
+        : "",
+  }));
   return (
     <div>
       <div

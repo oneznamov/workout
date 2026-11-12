@@ -2,8 +2,8 @@
 
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
-import { Link2, Trash2, UserPlus } from "lucide-react";
-import { createInviteAction, deleteUserAction, revokeInviteAction } from "@/lib/actions";
+import { KeyRound, Link2, Trash2, UserPlus } from "lucide-react";
+import { clearErrorsAction, createInviteAction, createResetLinkAction, deleteUserAction, revokeInviteAction } from "@/lib/actions";
 import { fmtDate } from "@/lib/format";
 import { CopyField } from "./settings";
 
@@ -94,13 +94,15 @@ export function InviteManager({ invites, origin }: { invites: AdminInvite[]; ori
   );
 }
 
-export function UserList({ users, selfId }: { users: AdminUser[]; selfId: string }) {
+export function UserList({ users, selfId, origin }: { users: AdminUser[]; selfId: string; origin: string }) {
   const router = useRouter();
   const [pending, start] = useTransition();
+  const [reset, setReset] = useState<{ userId: string; link: string } | null>(null);
   return (
     <ul className="divide-y divide-line">
       {users.map((u) => (
-        <li key={u.id} className="flex items-center justify-between gap-3 py-3">
+        <li key={u.id} className="py-3">
+          <div className="flex items-center justify-between gap-3">
           <span className="min-w-0">
             <span className="flex items-center gap-2">
               <span className="truncate text-[15px] font-medium">{u.username}</span>
@@ -112,6 +114,21 @@ export function UserList({ users, selfId }: { users: AdminUser[]; selfId: string
               {u.lastWorkoutAt ? ` · останнє ${fmtDate(u.lastWorkoutAt)}` : ""}
             </span>
           </span>
+          <span className="flex shrink-0 items-center">
+            <button
+              aria-label={`Посилання для нового пароля: ${u.username}`}
+              title="Створити посилання для нового пароля"
+              disabled={pending}
+              onClick={() =>
+                start(async () => {
+                  const token = await createResetLinkAction(u.id);
+                  setReset({ userId: u.id, link: `${origin}/reset/${token}` });
+                })
+              }
+              className="icon-btn size-9"
+            >
+              <KeyRound size={17} />
+            </button>
           {!u.isAdmin && (
             <button
               aria-label={`Видалити користувача ${u.username}`}
@@ -128,8 +145,61 @@ export function UserList({ users, selfId }: { users: AdminUser[]; selfId: string
               <Trash2 size={17} />
             </button>
           )}
+          </span>
+          </div>
+          {reset?.userId === u.id && (
+            <div className="mt-3 space-y-2 rounded-2xl bg-accent/10 p-3">
+              <p className="text-sm">
+                Посилання для нового пароля — одноразове, діє 24 години, більше не буде показане. Після зміни пароля всі пристрої
+                цього акаунта вийдуть із системи.
+              </p>
+              <CopyField value={reset.link} label="Посилання для нового пароля" />
+            </div>
+          )}
         </li>
       ))}
     </ul>
+  );
+}
+
+export type AdminError = { id: string; source: string; message: string; detail: string | null; path: string | null; createdAt: string; username: string | null };
+
+export function ErrorList({ errors }: { errors: AdminError[] }) {
+  const router = useRouter();
+  const [pending, start] = useTransition();
+  if (errors.length === 0) return <p className="text-sm text-muted">За останній місяць помилок не зафіксовано.</p>;
+  return (
+    <div className="space-y-3">
+      <ul className="divide-y divide-line">
+        {errors.map((e) => (
+          <li key={e.id} className="py-2.5 text-sm">
+            <details>
+              <summary className="cursor-pointer list-none [&::-webkit-details-marker]:hidden">
+                <span className="mr-2 rounded-full bg-surface-2 px-2 py-0.5 text-[11px] font-semibold text-ink-2">{e.source === "server" ? "сервер" : "браузер"}</span>
+                <span className="break-words">{e.message}</span>
+                <span className="block text-xs text-muted">
+                  {fmtDate(e.createdAt, { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}
+                  {e.path ? ` · ${e.path}` : ""}
+                  {e.username ? ` · ${e.username}` : ""}
+                </span>
+              </summary>
+              {e.detail && <pre className="mt-2 max-h-60 overflow-auto rounded-xl bg-plane p-3 font-mono text-[11px] whitespace-pre-wrap text-ink-2">{e.detail}</pre>}
+            </details>
+          </li>
+        ))}
+      </ul>
+      <button
+        disabled={pending}
+        onClick={() =>
+          start(async () => {
+            await clearErrorsAction();
+            router.refresh();
+          })
+        }
+        className="btn btn-sm btn-ghost"
+      >
+        Очистити список
+      </button>
+    </div>
   );
 }

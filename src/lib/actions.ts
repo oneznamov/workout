@@ -5,13 +5,15 @@ import { and, eq, sql } from "drizzle-orm";
 import { redirect } from "next/navigation";
 import { z } from "zod";
 import { db } from "@/db";
-import { apiTokens, EQUIPMENT, MUSCLE_GROUPS, TRACKING, users, type WorkoutStatus } from "@/db/schema";
-import { createSession, destroySession, generateApiToken, getAdmin, requireUserId } from "./auth";
+import { apiTokens, EQUIPMENT, errorLog, MUSCLE_GROUPS, TRACKING, users, type WorkoutStatus } from "@/db/schema";
+import { bumpSessionVersion, createSession, destroySession, generateApiToken, getAdmin, requireUserId } from "./auth";
 import { dayOf } from "./format";
 import { addManualCardio, deleteManualCardio } from "./cardio";
 import { WIDGETS } from "./dashboard";
 import { normalizeGoals, type Goals } from "./goals";
 import { acceptInvite, createInvite, deleteUser, revokeInvite } from "./invites";
+import { clearFailedLogins, clientIp, loginBlockedFor, recordFailedLogin } from "./rate-limit";
+import { completePasswordReset, createPasswordReset } from "./resets";
 import * as health from "./health";
 import * as wk from "./workouts";
 import type { ExerciseInput, SetInput } from "./workouts";
@@ -35,13 +37,20 @@ export async function loginAction(_prev: AuthState, formData: FormData): Promise
   if (!parsed.success) return { error: parsed.error.issues[0].message };
   const { username, password } = parsed.data;
 
+  // Slow down password guessing: a few misses per login (or many per address) pause sign-in.
+  const ip = await clientIp();
+  const wait = await loginBlockedFor(username, ip);
+  if (wait > 0) return { error: `Забагато невдалих спроб. Спробуйте ще раз через ${Math.ceil(wait / 60)} хв.` };
+
   const [user] = await db.select().from(users).where(eq(users.username, username));
   const ok = user ? await bcrypt.compare(password, user.passwordHash) : false;
   if (!user || !ok) {
+    await recordFailedLogin(username, ip);
     await new Promise((r) => setTimeout(r, 600));
     return { error: "Невірний логін або пароль" };
   }
-  await createSession(user.id);
+  await clearFailedLogins(username);
+  await createSession(user.id, user.sessionVersion);
   redirect("/");
 }
 
@@ -85,7 +94,26 @@ export async function changePasswordAction(_prev: PasswordState, formData: FormD
   const [user] = await db.select().from(users).where(eq(users.id, userId));
   if (!user || !(await bcrypt.compare(current, user.passwordHash))) return { error: "Поточний пароль невірний" };
   await db.update(users).set({ passwordHash: await bcrypt.hash(next, 12) }).where(eq(users.id, userId));
+  // A new password signs every other device out; this one gets a fresh session.
+  await createSession(userId, await bumpSessionVersion(userId));
   return { ok: true };
+}
+
+/** "Sign out everywhere else": every other device loses its session, this one stays in. */
+export async function signOutOthersAction() {
+  const userId = await requireUserId();
+  await createSession(userId, await bumpSessionVersion(userId));
+}
+
+/** Setting a new password through a one-time link from the admin. */
+export async function resetPasswordAction(token: string, _prev: AuthState, formData: FormData): Promise<AuthState> {
+  const password = String(formData.get("password") ?? "");
+  if (password.length < 8) return { error: "Пароль має містити щонайменше 8 символів" };
+  if (password !== formData.get("confirm")) return { error: "Паролі не збігаються" };
+  const result = await completePasswordReset(token, password);
+  if (!result) return { error: "Посилання недійсне або вже використане" };
+  await createSession(result.userId, result.sessionVersion);
+  redirect("/");
 }
 
 // ───────────────────────── Workouts ─────────────────────────
@@ -311,4 +339,15 @@ export async function saveDashboardAction(input: { order: string[]; hidden: stri
   const known = new Set<string>(WIDGETS.map((w) => w.id));
   const clean = (ids: string[]) => [...new Set(ids)].filter((id) => known.has(id));
   await db.update(users).set({ dashboard: { order: clean(input.order), hidden: clean(input.hidden) } }).where(eq(users.id, userId));
+}
+
+/** Admin: a one-time link with which the user sets a new password (valid for 24 hours). */
+export async function createResetLinkAction(userId: string) {
+  await requireAdmin();
+  return createPasswordReset(userId);
+}
+
+export async function clearErrorsAction() {
+  await requireAdmin();
+  await db.delete(errorLog);
 }

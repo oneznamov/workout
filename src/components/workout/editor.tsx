@@ -401,7 +401,7 @@ export function WorkoutEditor({
   );
 
   return (
-    <div className="space-y-4">
+    <div className="mx-auto max-w-2xl space-y-4">
       {/* ── Header ── */}
       <header className="space-y-3">
         <div className="flex items-center gap-2">

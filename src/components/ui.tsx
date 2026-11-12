@@ -95,7 +95,7 @@ export function Badge({ children, tone = "neutral" }: { children: ReactNode; ton
 }
 
 export function Empty({ children }: { children: ReactNode }) {
-  return <div className="card p-8 text-center text-sm text-muted">{children}</div>;
+  return <div className="card col-span-full p-8 text-center text-sm text-muted">{children}</div>;
 }
 
 export function Segmented({

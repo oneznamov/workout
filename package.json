@@ -12,7 +12,8 @@
     "db:seed": "tsx scripts/seed.ts",
     "db:setup": "drizzle-kit migrate && tsx scripts/seed.ts",
     "user:create": "tsx scripts/create-user.ts",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
   },
   "dependencies": {
     "@modelcontextprotocol/server": "^2.4.0",
@@ -41,7 +42,8 @@
     "eslint-config-next": "16.4.6",
     "tailwindcss": "4.3.3",
     "tsx": "^4.23.15",
-    "typescript": "^5"
+    "typescript": "^5",
+    "vitest": "^5.1.0"
   },
   "packageManager": "pnpm@11.4.0"
 }
