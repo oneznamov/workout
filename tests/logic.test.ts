@@ -330,3 +330,23 @@ describe("illness mode", () => {
     expect(weekStreak(["2026-10-28"], "2026-11-12", new Set(["2026-11-02", "2026-11-09"]))).toBe(1);
   });
 });
+
+import { programStatus, programWeek, programWeeks } from "@/lib/program-logic";
+
+describe("programmes", () => {
+  it("knows where a programme stands and which week a day is", () => {
+    const p = { startsOn: "2026-11-09", endsOn: "2026-12-06" };
+    expect(programStatus(p, "2026-11-08")).toBe("upcoming");
+    expect(programStatus(p, "2026-11-12")).toBe("active");
+    expect(programStatus(p, "2026-12-07")).toBe("finished");
+    expect(programWeek(p.startsOn, "2026-11-09")).toBe(1);
+    expect(programWeek(p.startsOn, "2026-11-16")).toBe(2);
+    expect(programWeeks(p)).toBe(4);
+  });
+  it("carries the programme name and forecast and tolerates their absence", () => {
+    const library = [{ id: "1", name: "Back Squat", nameUk: null, tracking: "weight_reps" }];
+    const w = { date: "2026-11-14", name: "A", notes: "", exercises: [{ exercise: "Back Squat", rest_seconds: 90, notes: null, sets: [{ weight: 50, reps: 8, duration_sec: null }] }] };
+    expect(resolveProgram({ name: " Вступна ", notes: "ідея", forecast: "присід 60×8", workouts: [w] }, library, ["2026-11-14"])).toMatchObject({ name: "Вступна", forecast: "присід 60×8" });
+    expect(resolveProgram({ workouts: [w] }, library, ["2026-11-14"])).toMatchObject({ name: "", forecast: "", notes: "" });
+  });
+});

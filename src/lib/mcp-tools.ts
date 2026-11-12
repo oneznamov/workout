@@ -16,6 +16,7 @@ import { toClientWorkout } from "./shape";
 import { buildTimeline } from "./timeline";
 import { METRIC_INFO } from "./labels";
 import { normalizeProfile } from "./profile";
+import * as programs from "./programs";
 import * as wk from "./workouts";
 import type { ExerciseInput, SetInput } from "./workouts";
 
@@ -277,17 +278,20 @@ export function registerWorkoutTools(server: McpServer, userId: string) {
         started_at: z.string().optional().describe("ISO datetime — only for status=completed."),
         ended_at: z.string().optional().describe("ISO datetime — only for status=completed."),
         notes: z.string().optional(),
+        program_id: z.string().optional().describe("Put the workout into this programme (see list_programs / save_program)."),
         exercises: z.array(exerciseSchema).default([]),
       }),
     },
     tool(async (a) => {
       const completed = a.status === "completed";
+      if (a.program_id) await programs.getProgram(userId, a.program_id);
       if (completed && (!a.started_at || !a.ended_at)) throw new Error("started_at and ended_at are required for a completed workout");
       const id = await wk.createWorkout(userId, {
         name: a.name,
         status: a.status,
         scheduledFor: a.status === "planned" ? (a.date ?? dayOf()) : null,
         notes: a.notes ?? null,
+        programId: a.program_id ?? null,
         exercises: await toExerciseInputs(userId, a.exercises, completed),
       });
       if (completed) {
@@ -565,6 +569,57 @@ export function registerWorkoutTools(server: McpServer, userId: string) {
       });
       await db.update(users).set({ profile }).where(eq(users.id, userId));
       return profile;
+    }),
+  );
+
+  server.registerTool(
+    "list_programs",
+    {
+      title: "Training programmes",
+      description: "The athlete's training programmes (stages such as an introductory month followed by a harder one): name, dates, purpose, expected result, and how many of their workouts are done.",
+      inputSchema: z.object({}),
+    },
+    tool(async () => (await programs.listPrograms(userId)).map((p) => ({ id: p.id, name: p.name, from: p.startsOn, to: p.endsOn, purpose: p.description, expected_result: p.forecast, workouts_done: p.done, workouts_in_total: p.total, next_workout: p.next }))),
+  );
+
+  server.registerTool(
+    "get_program",
+    {
+      title: "Programme details",
+      description: "One programme in full: purpose, expected result, the workouts done in it with their sets, the workouts still planned, and the history of how the programme was changed.",
+      inputSchema: z.object({ program_id: z.string() }),
+    },
+    tool(async ({ program_id }) => {
+      const p = await programs.getProgram(userId, program_id);
+      return { text: await programs.programText(userId, program_id), history: p.revisions.map((r) => ({ at: r.createdAt, by: r.source, what: r.summary })) };
+    }),
+  );
+
+  server.registerTool(
+    "save_program",
+    {
+      title: "Create or change a programme",
+      description:
+        "Creates a programme (omit program_id) or changes an existing one's name, dates, purpose or expected result. To put workouts into it, pass its id as `program_id` to create_workout; to change them use the workout tools. After changing a programme's workouts call this tool again with a `change_note` — every call records a version in the programme's history, so the athlete can see how it evolved.",
+      inputSchema: z.object({
+        program_id: z.string().optional(),
+        name: z.string().min(1).max(80).optional(),
+        starts_on: day.optional(),
+        ends_on: day.optional(),
+        purpose: z.string().max(2000).optional(),
+        expected_result: z.string().max(2000).optional().describe("What the athlete should reach by the end, with numbers where possible."),
+        change_note: z.string().max(300).optional().describe("One sentence for the history: what changed and why."),
+      }),
+    },
+    tool(async (a) => {
+      if (a.program_id) {
+        await programs.updateProgram(userId, a.program_id, { name: a.name, startsOn: a.starts_on, endsOn: a.ends_on, description: a.purpose, forecast: a.expected_result }, "claude", a.change_note ?? "Claude оновив програму");
+        return { id: a.program_id };
+      }
+      if (!a.name || !a.starts_on || !a.ends_on) throw new Error("name, starts_on and ends_on are required for a new programme");
+      const { id } = await programs.createProgram(userId, { name: a.name, startsOn: a.starts_on, endsOn: a.ends_on, description: a.purpose, forecast: a.expected_result }, "claude");
+      await programs.addRevision(userId, id, "claude", a.change_note ?? "Програму створив Claude");
+      return { id };
     }),
   );
 

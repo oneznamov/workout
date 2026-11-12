@@ -78,6 +78,13 @@
       "when": 1794501511473,
       "tag": "0010_many_hardball",
       "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1794502908058,
+      "tag": "0011_strong_micromacro",
+      "breakpoints": true
     }
   ]
 }

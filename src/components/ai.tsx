@@ -348,7 +348,7 @@ export function PlanWithAi() {
   const [today, setToday] = useState("");
   const [days, setDays] = useState<string[]>([]);
   const [error, setError] = useState<string | null>(null);
-  const [done, setDone] = useState<{ created: { id: string; name: string; date: string }[]; why: string } | null>(null);
+  const [done, setDone] = useState<{ created: { id: string; name: string; date: string }[]; why: string; programId: string | null; programName: string | null } | null>(null);
   const [pending, start] = useTransition();
   useLockScroll(open);
   const close = () => {
@@ -376,7 +376,7 @@ export function PlanWithAi() {
         <div className="fixed inset-0 z-50 flex items-end justify-center overflow-y-auto overscroll-contain bg-black/70 md:items-center md:p-6" onClick={close}>
           {done ? (
             <div role="dialog" aria-modal="true" aria-label="Програму складено" className={DIALOG} onClick={(e) => e.stopPropagation()}>
-              <h2 className="text-xl font-bold">Готово: {done.created.length} у плані</h2>
+              <h2 className="text-xl font-bold">{done.programName ? `Програма «${done.programName}»` : `Готово: ${done.created.length} у плані`}</h2>
               {done.why && <p className="text-sm text-ink-2">{done.why}</p>}
               <ul className="divide-y divide-line rounded-2xl bg-surface-2">
                 {done.created.map((w) => (
@@ -388,7 +388,12 @@ export function PlanWithAi() {
                   </li>
                 ))}
               </ul>
-              <button onClick={close} className="btn btn-primary w-full">
+              {done.programId && (
+                <Link href={`/programs/${done.programId}`} className="btn btn-primary w-full">
+                  Відкрити програму
+                </Link>
+              )}
+              <button onClick={close} className={cx("btn w-full", done.programId ? "btn-ghost" : "btn-primary")}>
                 <Check size={17} strokeWidth={3} /> Добре
               </button>
             </div>
@@ -406,7 +411,7 @@ export function PlanWithAi() {
                   const r = await planProgramAction({ wish, days });
                   if (!r.ok) return setError(r.error);
                   if (r.created.length === 1) router.push(`/workouts/${r.created[0].id}`);
-                  else setDone({ created: r.created, why: r.why });
+                  else setDone({ created: r.created, why: r.why, programId: r.programId, programName: r.programName });
                 });
               }}
             >

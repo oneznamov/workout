@@ -47,6 +47,7 @@ export type WorkoutInput = {
   scheduledFor?: string | null;
   notes?: string | null;
   exercises?: ExerciseInput[];
+  programId?: string | null;
 };
 
 // ───────────────────────── Exercises ─────────────────────────
@@ -151,9 +152,10 @@ export type WorkoutFull = Awaited<ReturnType<typeof getWorkout>>;
 
 export async function listWorkouts(
   userId: string,
-  opts: { status?: WorkoutStatus | WorkoutStatus[]; from?: string; to?: string; limit?: number } = {},
+  opts: { status?: WorkoutStatus | WorkoutStatus[]; from?: string; to?: string; limit?: number; programId?: string } = {},
 ) {
   const where = [eq(workouts.userId, userId)];
+  if (opts.programId) where.push(eq(workouts.programId, opts.programId));
   if (opts.status) where.push(inArray(workouts.status, Array.isArray(opts.status) ? opts.status : [opts.status]));
   const when = sql`coalesce(${workouts.startedAt}, ${workouts.scheduledFor}::timestamptz, ${workouts.createdAt})`;
   // `when` is a raw expression, so the bounds are passed as text and cast in SQL.
@@ -163,6 +165,7 @@ export async function listWorkouts(
   return db
     .select({
       id: workouts.id,
+      programId: workouts.programId,
       name: workouts.name,
       status: workouts.status,
       scheduledFor: workouts.scheduledFor,
@@ -329,6 +332,7 @@ export async function createWorkout(userId: string, input: WorkoutInput) {
       status,
       scheduledFor: input.scheduledFor ?? null,
       notes: input.notes ?? null,
+      programId: input.programId ?? null,
       startedAt: status === "in_progress" ? now : null,
     })
     .returning({ id: workouts.id });

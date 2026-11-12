@@ -9,6 +9,8 @@ import { normalizeGoals } from "./goals";
 import { getMetricSeries, listHealthWorkouts } from "./health";
 import { MEASURES } from "./measurements";
 import { ageOn, normalizeProfile } from "./profile";
+import { programsForContext } from "./programs";
+import { setText } from "./set-text";
 import { displayName } from "./team-logic";
 import { notableVitals } from "./vitals";
 import { workoutKind } from "./workout-kind";
@@ -24,15 +26,6 @@ const VITALS: [string, string][] = [
 ];
 const round1 = (n: number) => Math.round(n * 10) / 10;
 
-type SetLike = { weight: number | null; reps: number | null; durationSec: number | null; distanceM: number | null };
-/** "60kg×8", "12" (bodyweight reps), "45s", "400m" */
-export const setText = (s: SetLike) =>
-  s.durationSec != null && s.reps == null
-    ? `${s.durationSec}s`
-    : s.distanceM != null && s.reps == null
-      ? `${Math.round(s.distanceM)}m`
-      : `${s.weight != null && s.weight > 0 ? `${s.weight}kg×` : ""}${s.reps ?? "?"}`;
-
 /**
  * One document with everything the app knows about the athlete — who they are, what they
  * want, their body and recovery, and what they have been doing. It is the single source for
@@ -41,7 +34,7 @@ export const setText = (s: SetLike) =>
  */
 export async function getAthleteContext(userId: string, opts: { history?: number } = {}) {
   const today = dayOf();
-  const [[u], recent, planned, muscles, weight, vitals, measures, watch, records] = await Promise.all([
+  const [[u], recent, planned, muscles, weight, vitals, measures, watch, records, programmes] = await Promise.all([
     db.select({ username: users.username, profile: users.profile, goals: users.goals }).from(users).where(eq(users.id, userId)),
     listWorkoutsFull(userId, ["completed"], opts.history ?? 12),
     listWorkoutsFull(userId, ["planned"], 10),
@@ -58,6 +51,7 @@ export async function getAthleteContext(userId: string, opts: { history?: number
     ),
     listHealthWorkouts(userId, { from: addDays(today, -21), limit: 30 }),
     getRecords(userId, addDays(today, -30), 8),
+    programsForContext(userId),
   ]);
   const profile = normalizeProfile(u?.profile);
   const targets = normalizeGoals(u?.goals);
@@ -119,6 +113,7 @@ export async function getAthleteContext(userId: string, opts: { history?: number
           }
         : {}),
     })),
+    training_programmes: programmes,
     weekly_targets: { strength_workouts: targets.workouts, cardio_minutes: targets.cardioMin, muscle_groups_trained_enough: targets.muscles },
     body: {
       weight_kg: lastWeight
@@ -164,3 +159,5 @@ export async function getAthleteContext(userId: string, opts: { history?: number
 }
 
 export type AthleteContext = Awaited<ReturnType<typeof getAthleteContext>>;
+
+export { setText };

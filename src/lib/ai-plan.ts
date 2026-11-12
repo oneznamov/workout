@@ -34,12 +34,17 @@ export const PLAN_SHAPE = `{
 
 /** Several workouts at once: a week's programme or a set of chosen days. */
 export const programSchema = z.object({
+  name: z.string(),
   notes: z.string(),
+  forecast: z.string(),
   workouts: z.array(planSchema.extend({ date: z.string() })),
 });
+export const PROGRAM_MAX_WORKOUTS = 20;
 
 export const PROGRAM_SHAPE = `{
-  "notes": string,                // two or three sentences: the idea of the programme, in Ukrainian
+  "name": string,                 // short name of the programme in Ukrainian, e.g. "Вступна: 4 тижні"
+  "notes": string,                // two or three sentences: what the programme is for and how it is built, in Ukrainian
+  "forecast": string,             // what the athlete should reach by its end, with numbers where possible, in Ukrainian ("" for a single workout)
   "workouts": [{
     "date": "YYYY-MM-DD",         // one of the allowed days
     "name": string,
@@ -112,7 +117,8 @@ export function resolvePlan(raw: unknown, library: LibraryItem[], skipIds: strin
 
 /** A programme draft made safe to store: only allowed days, one workout per day, each resolved like a single plan. */
 export function resolveProgram(raw: unknown, library: LibraryItem[], allowedDays: string[]) {
-  const draft = programSchema.parse(raw);
+  // Providers without a strict output format may leave the optional texts out.
+  const draft = programSchema.parse({ name: "", notes: "", forecast: "", ...(raw && typeof raw === "object" ? raw : {}) });
   const allowed = new Set(allowedDays);
   const taken = new Set<string>();
   const workouts: (ReturnType<typeof resolvePlan> & { date: string })[] = [];
@@ -123,8 +129,8 @@ export function resolveProgram(raw: unknown, library: LibraryItem[], allowedDays
     if (plan.exercises.length === 0) continue;
     taken.add(date);
     workouts.push({ ...plan, date });
-    if (workouts.length >= 7) break;
+    if (workouts.length >= PROGRAM_MAX_WORKOUTS) break;
   }
   workouts.sort((a, b) => a.date.localeCompare(b.date));
-  return { notes: draft.notes.trim().slice(0, 800), workouts };
+  return { name: draft.name.trim().slice(0, 80), notes: draft.notes.trim().slice(0, 1500), forecast: draft.forecast.trim().slice(0, 1500), workouts };
 }

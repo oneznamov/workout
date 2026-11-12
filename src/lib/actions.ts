@@ -15,6 +15,7 @@ import { acceptInvite, createInvite, deleteUser, revokeInvite } from "./invites"
 import { clearFailedLogins, clientIp, loginBlockedFor, recordFailedLogin } from "./rate-limit";
 import { completePasswordReset, createPasswordReset } from "./resets";
 import * as health from "./health";
+import * as programs from "./programs";
 import { isMeasure } from "./measurements";
 import * as team from "./team";
 import * as wk from "./workouts";
@@ -248,6 +249,48 @@ export async function rescheduleWorkoutAction(id: string, inDays: number) {
   const userId = await requireUserId();
   const days = Math.min(14, Math.max(0, Math.round(inDays)));
   await wk.updateWorkout(userId, id, { scheduledFor: addDays(dayOf(), days) });
+}
+
+// ───────────────────────── Programmes ─────────────────────────
+
+const programFields = z.object({
+  name: z.string().trim().min(1).max(80),
+  description: z.string().max(2000).default(""),
+  forecast: z.string().max(2000).default(""),
+  startsOn: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+  endsOn: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+});
+
+export async function createProgramAction(input: z.input<typeof programFields>) {
+  const userId = await requireUserId();
+  const { id } = await programs.createProgram(userId, programFields.parse(input), "manual");
+  await programs.addRevision(userId, id, "manual", "Програму створено вручну");
+  redirect(`/programs/${id}`);
+}
+
+export async function updateProgramAction(id: string, input: z.input<typeof programFields>, note = "") {
+  const userId = await requireUserId();
+  await programs.updateProgram(userId, id, programFields.parse(input), "manual", note.trim() || "Змінено опис програми");
+}
+
+/** Saves a point in the programme's history after editing its workouts by hand. */
+export async function saveProgramVersionAction(id: string, note: string) {
+  const userId = await requireUserId();
+  await programs.addRevision(userId, id, "manual", note.trim() || "Збережено версію після ручних змін");
+}
+
+export async function deleteProgramAction(id: string, keepPlanned: boolean) {
+  const userId = await requireUserId();
+  await programs.deleteProgram(userId, id, keepPlanned);
+  redirect("/workouts");
+}
+
+/** A new planned workout inside a programme; opens it for filling in. */
+export async function addProgramWorkoutAction(programId: string, day: string) {
+  const userId = await requireUserId();
+  await programs.getProgram(userId, programId);
+  const id = await wk.createWorkout(userId, { name: "Тренування", status: "planned", scheduledFor: /^\d{4}-\d{2}-\d{2}$/.test(day) ? day : dayOf(), programId });
+  redirect(`/workouts/${id}`);
 }
 
 // ───────────────────────── Health & body ─────────────────────────

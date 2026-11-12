@@ -9,7 +9,7 @@ import { ConnectionBadge } from "./connection";
 
 const items = [
   { href: "/", label: "Головна", icon: Home },
-  { href: "/workouts", label: "Тренування", icon: Activity, also: ["/train", "/exercises", "/cardio"], mobileAlso: true },
+  { href: "/workouts", label: "Тренування", icon: Activity, also: ["/train", "/exercises", "/cardio", "/programs"], mobileAlso: true },
   { href: "/exercises", label: "Вправи", icon: Dumbbell, desktopOnly: true },
   { href: "/analytics", label: "Аналітика", icon: BarChart3 },
   { href: "/team", label: "Команда", icon: Users },

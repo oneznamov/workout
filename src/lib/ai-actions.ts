@@ -12,6 +12,7 @@ import {
   periodReport,
   planProgram,
   removeAiSettings,
+  reviseProgram,
   reviseWorkout,
   saveAiSettings,
   suggestWeeklyTargets,
@@ -72,6 +73,11 @@ export async function coachNoteAction(force = false): Promise<AiResult<{ note: A
 /** One or several planned workouts from a free-form request; days are optional. */
 export async function planProgramAction(input: { wish?: string; days?: string[] }) {
   return attempt("programme", (userId) => planProgram(userId, input));
+}
+
+/** Lays out the rest of a programme again from what the athlete says; the change is kept in its history. */
+export async function reviseProgramAction(programId: string, instruction: string) {
+  return attempt("programme revision", (userId) => reviseProgram(userId, programId, instruction));
 }
 
 /** Rebuilds an already planned workout following what the athlete says has changed. */

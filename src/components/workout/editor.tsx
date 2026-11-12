@@ -17,6 +17,7 @@ import {
   Play,
   Plus,
   RotateCcw,
+  Route,
   Save,
   Smartphone,
   Sparkles,
@@ -57,7 +58,10 @@ export function WorkoutEditor({
   localOnly = false,
   ai,
   records = [],
+  program,
 }: {
+  /** The programme this workout belongs to, if any. */
+  program?: { id: string; name: string };
   /** Personal records beaten in this (finished) workout. */
   records?: { name: string; now: string; before: string }[];
   /** Present when an AI key is connected: enables the review and "complete with AI". */
@@ -524,6 +528,11 @@ export function WorkoutEditor({
             <MoreHorizontal size={19} />
           </button>
         </div>
+        {program && !focused && (
+          <Link href={`/programs/${program.id}`} className="inline-flex items-center gap-1.5 rounded-full bg-surface-2 px-3 py-1 text-xs font-medium text-ink-2 hover:bg-surface-3">
+            <Route size={13} className="text-accent" /> Програма: {program.name}
+          </Link>
+        )}
         {focused ? null : readOnly ? (
           <h1 className="text-[1.75rem] leading-tight font-bold tracking-tight">{w.name || "Тренування"}</h1>
         ) : (

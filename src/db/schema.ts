@@ -205,11 +205,58 @@ export const exercises = pgTable(
 export const WORKOUT_STATUS = ["template", "planned", "in_progress", "completed"] as const;
 export type WorkoutStatus = (typeof WORKOUT_STATUS)[number];
 
+/**
+ * A training programme: a stage with a purpose, dates and an expected result, made of planned
+ * workouts ("introductory month", then "something harder"…).
+ */
+export const programs = pgTable(
+  "programs",
+  {
+    id: id(),
+    userId: uuid("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+    name: text("name").notNull(),
+    /** What the stage is for and how it is built. */
+    description: text("description").notNull().default(""),
+    /** What the athlete should reach by the end — lets progress be compared with the plan. */
+    forecast: text("forecast").notNull().default(""),
+    startsOn: date("starts_on").notNull(),
+    endsOn: date("ends_on").notNull(),
+    createdAt: createdAt(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index("programs_user_idx").on(t.userId, t.startsOn)],
+);
+
+export type ProgramSnapshot = {
+  name: string;
+  description: string;
+  forecast: string;
+  startsOn: string;
+  endsOn: string;
+  workouts: { date: string | null; name: string; status: string; exercises: string[] }[];
+};
+
+/** How a programme changed over time: who changed it, what they said, and what it looked like then. */
+export const programRevisions = pgTable(
+  "program_revisions",
+  {
+    id: id(),
+    programId: uuid("program_id").notNull().references(() => programs.id, { onDelete: "cascade" }),
+    source: text("source").$type<"manual" | "ai" | "claude">().notNull(),
+    summary: text("summary").notNull(),
+    snapshot: jsonb("snapshot").$type<ProgramSnapshot>().notNull(),
+    createdAt: createdAt(),
+  },
+  (t) => [index("program_revisions_idx").on(t.programId, t.createdAt)],
+);
+
 export const workouts = pgTable(
   "workouts",
   {
     id: id(),
     userId: uuid("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+    /** The programme this workout belongs to, if any. */
+    programId: uuid("program_id").references(() => programs.id, { onDelete: "set null" }),
     name: text("name").notNull(),
     status: text("status").$type<WorkoutStatus>().notNull().default("planned"),
     scheduledFor: date("scheduled_for"),

@@ -4,6 +4,7 @@ import { notFound } from "next/navigation";
 import { WorkoutEditor } from "@/components/workout/editor";
 import { getAiState, getWorkoutNote } from "@/lib/ai";
 import { getWorkoutRecords } from "@/lib/analytics";
+import { getProgram } from "@/lib/programs";
 import { requireUserId } from "@/lib/auth";
 import { addDays, dayOf } from "@/lib/format";
 import { listHealthWorkouts } from "@/lib/health";
@@ -21,7 +22,7 @@ async function Content({ params }: PageProps<"/workouts/[id]">) {
   });
 
   const day = dayOf(workout.startedAt ?? new Date());
-  const [exercises, last, candidates, ai, note, records] = await Promise.all([
+  const [exercises, last, candidates, ai, note, records, program] = await Promise.all([
     listExercises(userId),
     lastPerformance(userId, undefined, workout.id),
     workout.status === "completed"
@@ -30,12 +31,14 @@ async function Content({ params }: PageProps<"/workouts/[id]">) {
     getAiState(userId),
     getWorkoutNote(userId, workout.id),
     workout.status === "completed" ? getWorkoutRecords(userId, workout.id) : [],
+    workout.programId ? getProgram(userId, workout.programId).catch(() => null) : null,
   ]);
 
   return (
     <WorkoutEditor
       key={workout.id}
       ai={ai ? { auto: ai.auto, note } : undefined}
+      program={program ? { id: program.id, name: program.name } : undefined}
       records={records.map((r) => ({ name: r.name, now: `${r.weight} кг × ${r.reps}`, before: `${r.before.weight} кг × ${r.before.reps}` }))}
       initial={toClientWorkout(workout)}
       last={toClientLast(last)}

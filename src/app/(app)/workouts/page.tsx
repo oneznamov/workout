@@ -1,7 +1,10 @@
 import { Suspense } from "react";
 import { PlanWithAi } from "@/components/ai";
 import { NewWorkoutButtons } from "@/components/workout/new-workout";
-import { CalendarDays, History, LayoutTemplate } from "lucide-react";
+import { CalendarDays, History, LayoutTemplate, Route } from "lucide-react";
+import { ProgramCard } from "@/components/program-card";
+import { NewProgramButton } from "@/components/programs";
+import { listPrograms } from "@/lib/programs";
 import { PlannedCard, WorkoutList, WorkoutRow, WorkoutTable } from "@/components/workout/workout-row";
 import Link from "next/link";
 import { CardioForm } from "@/components/cardio/cardio-form";
@@ -28,7 +31,15 @@ async function Content({ searchParams }: PageProps<"/workouts">) {
   const sick = Boolean(normalizeProfile(user.profile).sick);
   const sp = await searchParams;
   const type = TYPES.some((t) => t.value === sp.t) ? String(sp.t) : "all";
-  const [all, ai, cardioAll] = await Promise.all([listWorkouts(userId, { limit: 300 }), getAiState(userId), listCardio(userId, { limit: 200 })]);
+  const [all, ai, cardioAll, programs] = await Promise.all([
+    listWorkouts(userId, { limit: 300 }),
+    getAiState(userId),
+    listCardio(userId, { limit: 200 }),
+    listPrograms(userId),
+  ]);
+  const today = dayOf();
+  const currentPrograms = programs.filter((p) => p.endsOn >= today);
+  const pastPrograms = programs.filter((p) => p.endsOn < today).reverse();
   const active = all.filter((w) => w.status === "in_progress");
   const planned = all
     .filter((w) => w.status === "planned")
@@ -68,6 +79,38 @@ async function Content({ searchParams }: PageProps<"/workouts">) {
             ))}
           </Section>
         )}
+        {/* Programmes: stages the planned workouts belong to. */}
+        <section>
+          <SectionTitle action={<NewProgramButton />}>
+            <span className="flex items-center gap-2">
+              <Route size={20} className="text-accent" /> Програми
+            </span>
+          </SectionTitle>
+          {currentPrograms.length ? (
+            <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
+              {currentPrograms.map((p) => (
+                <ProgramCard key={p.id} p={p} today={today} />
+              ))}
+            </div>
+          ) : (
+            <div className="rounded-[20px] border border-dashed border-line p-5 text-center text-sm text-muted">
+              Програма — це етап із метою й очікуваним результатом: наприклад, вступний місяць, а далі складніший.
+              {ai ? " Попросіть у «Скласти з ШІ» програму на кілька тижнів або створіть свою." : " Створіть свою або попросіть Claude."}
+            </div>
+          )}
+          {pastPrograms.length > 0 && (
+            <div className="mt-3">
+              <Disclosure title={`Минулі програми · ${pastPrograms.length}`} hint="Що було раніше і чим закінчилось">
+                <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
+                  {pastPrograms.map((p) => (
+                    <ProgramCard key={p.id} p={p} today={today} />
+                  ))}
+                </div>
+              </Disclosure>
+            </div>
+          )}
+        </section>
+
         {/* Ahead: outlined date cards. Behind: a filled table (cards on the phone). The two never look alike. */}
         <section>
           <SectionTitle>

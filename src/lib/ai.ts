@@ -4,7 +4,7 @@ import { and, desc, eq, gte, notInArray } from "drizzle-orm";
 import { z } from "zod";
 import { db } from "@/db";
 import { aiNotes, users, workouts as workoutsTable } from "@/db/schema";
-import { extractJson, PLAN_SHAPE, planSchema, PROGRAM_SHAPE, programSchema, resolvePlan, resolveProgram } from "./ai-plan";
+import { extractJson, PLAN_SHAPE, planSchema, PROGRAM_MAX_WORKOUTS, PROGRAM_SHAPE, programSchema, resolvePlan, resolveProgram } from "./ai-plan";
 import { AI_PROVIDERS, type AiNote, type AiProvider, type AiState } from "./ai-providers";
 import { getAthleteContext, setText } from "./athlete-context";
 import { getTrainingAnalytics } from "./analytics";
@@ -12,6 +12,7 @@ import { seal, unseal } from "./crypto";
 import { addDays, dayOf } from "./format";
 import { normalizeGoals } from "./goals";
 import { linkHealthWorkouts } from "./health";
+import { addRevision, clearUpcoming, createProgram, getProgram, programText, updateProgram } from "./programs";
 import { toClientWorkout } from "./shape";
 import { buildTimeline } from "./timeline";
 import {
@@ -348,7 +349,7 @@ Return only the exercises to ADD (usually one to three; none if the workout is a
   return { added: Math.min(4, plan.exercises.length), why: plan.notes };
 }
 
-const PROGRAM_SYSTEM = `${PLAN_SYSTEM.slice(0, PLAN_SYSTEM.indexOf("Reply with a single JSON object"))}You may be planning one session or several. When there are several, think of them as one programme: spread the muscle groups so each gets enough work across the days and none is trained hard on two days in a row, vary the sessions instead of repeating one workout, and count what the athlete does outside the gym (Apple Watch sessions, things they mention in their wish) as load that needs recovery. Give each workout a short distinct name.
+const PROGRAM_SYSTEM = `${PLAN_SYSTEM.slice(0, PLAN_SYSTEM.indexOf("Reply with a single JSON object"))}You may be planning one session or several. When there are several, think of them as one programme: spread the muscle groups so each gets enough work across the days and none is trained hard on two days in a row, vary the sessions instead of repeating one workout, build in progression from week to week (a little more weight or volume where the athlete has been coping, a lighter week after three hard ones in a long programme), and count what the athlete does outside the gym (Apple Watch sessions, things they mention in their wish) as load that needs recovery. Give each workout a short distinct name.
 
 Reply with a single JSON object and nothing else, in this shape:
 ${PROGRAM_SHAPE}
@@ -366,14 +367,14 @@ export async function planProgram(userId: string, input: { wish?: string; days?:
   const cfg = await getAiConfig(userId);
   const isDay = (d: unknown): d is string => typeof d === "string" && /^\d{4}-\d{2}-\d{2}$/.test(d);
   const today = dayOf();
-  const picked = [...new Set((input.days ?? []).filter(isDay))].filter((d) => d >= today).sort().slice(0, 7);
-  const horizon = Array.from({ length: 28 }, (_, i) => addDays(today, i));
+  const picked = [...new Set((input.days ?? []).filter(isDay))].filter((d) => d >= today).sort().slice(0, PROGRAM_MAX_WORKOUTS);
+  const horizon = Array.from({ length: 49 }, (_, i) => addDays(today, i));
   const allowed = picked.length ? picked : horizon;
   const [context, lib] = await Promise.all([athleteContext(userId), libraryText(userId)]);
   const wish = input.wish?.trim().slice(0, 800);
   const task = picked.length
     ? `Plan one workout for each of these days: ${picked.join(", ")}.`
-    : `The athlete did not tick any days. Work out from their request how many workouts they want and on which dates — any day from ${today} to ${horizon[27]} (at most 7 workouts). "This week" runs up to the coming Sunday, "next week" is the Monday–Sunday after it. If the request says nothing about days, plan a single workout for today, ${today}. Unless asked otherwise, skip days that already have a planned workout and leave recovery between hard sessions.`;
+    : `The athlete did not tick any days. Work out from their request how many workouts they want and on which dates — any day from ${today} to ${horizon.at(-1)} (at most ${PROGRAM_MAX_WORKOUTS} workouts). "This week" runs up to the coming Sunday, "next week" is the Monday–Sunday after it, "a month" is four weeks from today. If the request says nothing about days, plan a single workout for today, ${today}. Unless asked otherwise, skip days that already have a planned workout and leave recovery between hard sessions.`;
   const prompt = `${context}
 
 Exercise library — name [muscle, equipment, tracking]:
@@ -383,12 +384,63 @@ ${task}
 ${wish ? `The athlete's request, in their own words: ${wish}` : "The athlete gave no further wishes."}`;
   const program = resolveProgram(await askJson(cfg, { system: PROGRAM_SYSTEM, prompt }, programSchema), lib.library, allowed);
   if (program.workouts.length === 0) throw new AiError("Модель не запропонувала жодного тренування з вправами з бібліотеки. Спробуйте ще раз.");
+  // Several workouts are a programme: a stage with a purpose and an expected result that can be followed and revised.
+  const programme =
+    program.workouts.length > 1
+      ? await createProgram(
+          userId,
+          { name: program.name || "Програма", description: program.notes, forecast: program.forecast, startsOn: program.workouts[0].date, endsOn: program.workouts.at(-1)!.date },
+          "ai",
+        )
+      : null;
   const created: { id: string; name: string; date: string }[] = [];
   for (const w of program.workouts) {
-    const id = await createWorkout(userId, { name: w.name, status: "planned", scheduledFor: w.date, notes: w.notes || null, exercises: w.exercises });
+    const id = await createWorkout(userId, { name: w.name, status: "planned", scheduledFor: w.date, notes: w.notes || null, exercises: w.exercises, programId: programme?.id ?? null });
     created.push({ id, name: w.name, date: w.date });
   }
-  return { created, why: program.notes };
+  if (programme) await addRevision(userId, programme.id, "ai", `Програму склав ШІ${wish ? ` за запитом: «${wish.slice(0, 200)}»` : ""}`);
+  return { created, why: program.notes, programId: programme?.id ?? null, programName: programme ? program.name || "Програма" : null };
+}
+
+/**
+ * Revises a programme from what the athlete says: everything already done stays, the planned
+ * remainder is laid out again, and the change goes into the programme's history.
+ */
+export async function reviseProgram(userId: string, programId: string, instruction: string) {
+  const cfg = await getAiConfig(userId);
+  const p = await getProgram(userId, programId);
+  const today = dayOf();
+  const end = p.endsOn > today ? p.endsOn : addDays(today, 27);
+  const allowed: string[] = [];
+  for (let d = today; d <= addDays(end, 28) && allowed.length < 84; d = addDays(d, 1)) allowed.push(d);
+  const [context, lib, current] = await Promise.all([athleteContext(userId), libraryText(userId), programText(userId, programId)]);
+  const what = instruction.trim().slice(0, 800);
+  const prompt = `${context}
+
+Exercise library — name [muscle, equipment, tracking]:
+${lib.text}
+
+The athlete follows this programme and wants it revised:
+${current}
+
+${what ? `What should change, in the athlete's words: ${what}` : "Nothing specific was asked — compare what has been done with the expected result and adjust the remainder so the programme stays realistic."}
+
+Lay out the rest of the programme again: every workout from ${today} on (dates between ${today} and ${allowed.at(-1)}; it normally ends on ${end}, extend or shorten it only if the request calls for it). What is already done cannot be changed. Keep the planned workouts that still make sense as they are, and change, move, add or drop the others. Return the programme's name, purpose ("notes") and expected result ("forecast") — updated if the change affects them, unchanged otherwise — and start "forecast" with one sentence saying what you changed and why.`;
+  const program = resolveProgram(await askJson(cfg, { system: PROGRAM_SYSTEM, prompt }, programSchema), lib.library, allowed);
+  if (program.workouts.length === 0) throw new AiError("Модель не запропонувала жодного тренування з вправами з бібліотеки. Спробуйте ще раз.");
+  await clearUpcoming(userId, programId, today);
+  for (const w of program.workouts) {
+    await createWorkout(userId, { name: w.name, status: "planned", scheduledFor: w.date, notes: w.notes || null, exercises: w.exercises, programId });
+  }
+  const lastDay = program.workouts.at(-1)!.date;
+  await updateProgram(
+    userId,
+    programId,
+    { name: program.name || p.name, description: program.notes || p.description, forecast: program.forecast || p.forecast, endsOn: lastDay >= p.startsOn ? lastDay : p.endsOn },
+    "ai",
+    `ШІ оновив програму${what ? `: «${what.slice(0, 300)}»` : " за підсумками виконаного"}`,
+  );
+  return { workouts: program.workouts.length, why: program.forecast || program.notes };
 }
 
 /**
