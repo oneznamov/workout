@@ -9,7 +9,7 @@ import { apiTokens, EQUIPMENT, errorLog, MUSCLE_GROUPS, TRACKING, users, type Wo
 import { bumpSessionVersion, createSession, destroySession, generateApiToken, getAdmin, requireUserId } from "./auth";
 import { addDays, dayOf } from "./format";
 import { addManualCardio, deleteManualCardio } from "./cardio";
-import { WIDGETS } from "./dashboard";
+import { DASHBOARD_VERSION, WIDGETS } from "./dashboard";
 import { normalizeGoals, type Goals } from "./goals";
 import { acceptInvite, createInvite, deleteUser, revokeInvite } from "./invites";
 import { clearFailedLogins, clientIp, loginBlockedFor, recordFailedLogin } from "./rate-limit";
@@ -434,7 +434,7 @@ export async function saveDashboardAction(input: { order: string[]; hidden: stri
   const userId = await requireUserId();
   const known = new Set<string>(WIDGETS.map((w) => w.id));
   const clean = (ids: string[]) => [...new Set(ids)].filter((id) => known.has(id));
-  await db.update(users).set({ dashboard: { order: clean(input.order), hidden: clean(input.hidden) } }).where(eq(users.id, userId));
+  await db.update(users).set({ dashboard: { order: clean(input.order), hidden: clean(input.hidden), v: DASHBOARD_VERSION } }).where(eq(users.id, userId));
 }
 
 /** Admin: a one-time link with which the user sets a new password (valid for 24 hours). */

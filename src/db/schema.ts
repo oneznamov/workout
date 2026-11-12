@@ -26,7 +26,7 @@ export const users = pgTable("users", {
   /** Weekly targets for the dashboard rings; null = defaults. */
   goals: jsonb("goals").$type<{ workouts: number; cardioMin: number; muscles: number }>(),
   /** Home-screen layout: widget order and hidden widgets; null = defaults. */
-  dashboard: jsonb("dashboard").$type<{ order: string[]; hidden: string[] }>(),
+  dashboard: jsonb("dashboard").$type<{ order: string[]; hidden: string[]; v?: number }>(),
   /** Can manage users and invitations. The first account is the admin. */
   isAdmin: boolean("is_admin").notNull().default(false),
   /** Bumped to sign the account out everywhere (password change, reset, "sign out all"). */
@@ -37,6 +37,8 @@ export const users = pgTable("users", {
   ai: jsonb("ai").$type<{ provider: AiProvider; model: string; key: string; hint: string; auto: boolean }>(),
   /** The rest countdown a push is waiting to announce: its id and the moment it ends (ms). Null when none. */
   restPush: jsonb("rest_push").$type<{ id: string; at: number }>(),
+  /** The account photo: a small square JPEG as a data URL. Read only where it is shown. */
+  avatar: text("avatar"),
   createdAt: createdAt(),
 });
 
@@ -291,6 +293,8 @@ export const workouts = pgTable(
     notes: text("notes"),
     /** How hard the finished workout felt to the athlete: 1 (very easy) – 10 (all out). */
     effort: integer("effort"),
+    /** How hard whoever planned it (the AI, Claude) expected it to feel, on the same scale. */
+    expectedEffort: integer("expected_effort"),
     createdAt: createdAt(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   },

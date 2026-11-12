@@ -17,6 +17,7 @@ import {
   revokeTeamLinkAction,
   type TeamResult,
 } from "@/lib/actions";
+import { Avatar } from "./avatar";
 import { cx, fmtDate, fmtNum } from "@/lib/format";
 import { BOARD_METRICS, CHALLENGE_METRICS, challengeProgress, rank, REACTIONS, type BoardMetric, type BoardRow, type TeamChallenge } from "@/lib/team-logic";
 import { CopyField } from "./settings";
@@ -60,6 +61,7 @@ export function Leaderboard({ rows, initial = "workouts", compact }: { rows: Boa
             >
               {r.place}
             </span>
+            {r.photo && <Avatar name={r.name} photo={r.photo} size={32} />}
             <div className="min-w-0 flex-1">
               <div className="flex items-baseline justify-between gap-2">
                 <span className="truncate text-[15px] font-semibold">
@@ -82,9 +84,6 @@ export function Leaderboard({ rows, initial = "workouts", compact }: { rows: Boa
   );
 }
 
-const Avatar = ({ name, tone = "bg-surface-2" }: { name: string; tone?: string }) => (
-  <span className={cx("grid size-9 shrink-0 place-items-center rounded-full text-sm font-bold uppercase", tone)}>{name.slice(0, 1)}</span>
-);
 
 /** Runs a team change, shows a refusal if there is one, then reloads what the server knows. */
 function useTeamChange() {
@@ -137,7 +136,7 @@ export function TeamInvites({ invites, currentTeam }: { invites: { id: string; t
   );
 }
 
-export type Person = { id: string; name: string; status: "member" | "invited" | "free"; otherTeam: string | null; invitesMe: boolean };
+export type Person = { id: string; name: string; photo?: string | null; status: "member" | "invited" | "free"; otherTeam: string | null; invitesMe: boolean };
 
 /** Everyone registered in the app: one tap sends an invitation they confirm on their side. */
 export function PeoplePicker({ people }: { people: Person[] }) {
@@ -149,7 +148,7 @@ export function PeoplePicker({ people }: { people: Person[] }) {
       <ul className="divide-y divide-line">
         {others.map((p) => (
           <li key={p.id} className="flex items-center gap-3 py-2.5">
-            <Avatar name={p.name} />
+            <Avatar name={p.name} photo={p.photo} />
             <span className="min-w-0 flex-1">
               <span className="block truncate text-[15px] font-medium">{p.name}</span>
               <span className="block truncate text-xs text-muted">
@@ -179,7 +178,7 @@ export function PeoplePicker({ people }: { people: Person[] }) {
   );
 }
 
-type Member = { id: string; name: string; captain: boolean; me: boolean };
+type Member = { id: string; name: string; photo?: string | null; captain: boolean; me: boolean };
 
 export function MemberList({ members, isCaptain }: { members: Member[]; isCaptain: boolean }) {
   const { pending, error, run } = useTeamChange();
@@ -188,7 +187,7 @@ export function MemberList({ members, isCaptain }: { members: Member[]; isCaptai
       <ul className="divide-y divide-line">
         {members.map((m) => (
           <li key={m.id} className="flex items-center gap-3 py-2.5">
-            <Avatar name={m.name} tone={m.me ? "bg-accent text-accent-ink" : "bg-surface-2"} />
+            <Avatar name={m.name} photo={m.photo} tone={m.me ? "bg-accent text-accent-ink" : "bg-surface-2"} />
             <span className="min-w-0 flex-1 truncate text-[15px] font-medium">
               {m.name}
               {m.me && <span className="ml-1.5 text-xs text-muted">ви</span>}

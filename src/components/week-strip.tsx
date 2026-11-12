@@ -1,33 +1,45 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useRef } from "react";
-import { Check } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
+import { CalendarDays, Check, Rows3 } from "lucide-react";
+import { monthTitle, type DayMark } from "@/lib/calendar-logic";
 import { cx, fmtDate } from "@/lib/format";
+import { MonthGrid } from "./calendar";
+import { SessionDots } from "./session-dots";
 
 /** `sessions` — everything done that day, strength and cardio together. */
 export type StripDay = { day: string; done: boolean; planned: boolean; sessions: number };
 
-/** One dot per session of the day; from three on the dots turn hot, so a heavy day stands out. */
-export function SessionDots({ count, dim }: { count: number; dim?: boolean }) {
-  const n = Math.min(3, Math.max(0, count));
-  return (
-    <span className={cx("flex h-1.5 items-center justify-center gap-0.5", dim && "opacity-60")} aria-hidden="true">
-      {Array.from({ length: n }, (_, i) => (
-        <span key={i} className={cx("size-1.5 rounded-full", count >= 3 ? "bg-heart" : "bg-accent")} />
-      ))}
-    </span>
-  );
-}
 const WEEKDAYS = ["Пн", "Вт", "Ср", "Чт", "Пт", "Сб", "Нд"];
+const VIEW_KEY = "wk:weekview";
 
 /**
  * The week at a glance — and the weeks around it: swipe (or scroll) sideways to look back at
  * what was done and ahead at what is planned. Opens on the current week; a wide screen shows
  * the weeks before and after it as well. Weekends are tinted.
  */
-export function WeekStrip({ weeks, today, current }: { weeks: StripDay[][]; today: string; current: number }) {
+export function WeekStrip({ weeks, today, current, marks }: { weeks: StripDay[][]; today: string; current: number; /** with these the card can also show the month */ marks?: Record<string, DayMark> }) {
   const strip = useRef<HTMLDivElement>(null);
+  // Week or month: the athlete's choice, remembered on this device.
+  const [month, setMonth] = useState(false);
+  useEffect(() => {
+    void Promise.resolve().then(() => {
+      try {
+        setMonth(localStorage.getItem(VIEW_KEY) === "month");
+      } catch {
+        /* storage blocked — the week it is */
+      }
+    });
+  }, []);
+  const show = (next: boolean) => {
+    setMonth(next);
+    try {
+      localStorage.setItem(VIEW_KEY, next ? "month" : "week");
+    } catch {
+      /* ignore */
+    }
+  };
   // Start on the current week. The strip may still be hidden (zero width) when it mounts —
   // the page streams in — so wait for the first real size.
   useEffect(() => {
@@ -46,8 +58,33 @@ export function WeekStrip({ weeks, today, current }: { weeks: StripDay[][]; toda
     observer.observe(el);
     place();
     return () => observer.disconnect();
-  }, [current]);
+  }, [current, month]);
+  const toggle = marks && (
+    <button
+      onClick={() => show(!month)}
+      aria-label={month ? "Показати тиждень" : "Показати місяць"}
+      title={month ? "Показати тиждень" : "Показати місяць"}
+      className="absolute top-2 right-2 z-10 grid size-8 place-items-center rounded-full bg-surface-2 text-ink-2 hover:text-ink"
+    >
+      {month ? <Rows3 size={16} /> : <CalendarDays size={16} />}
+    </button>
+  );
+  if (month && marks) {
+    const m = today.slice(0, 7);
+    return (
+      <div className="card relative p-3">
+        {toggle}
+        <div className="caps mb-2 text-center text-accent first-letter:uppercase">{monthTitle(m)}</div>
+        <MonthGrid month={m} today={today} marks={marks} linkBase="/calendar" />
+        <Link href="/calendar" className="mt-2 block text-center text-xs text-accent">
+          Увесь календар →
+        </Link>
+      </div>
+    );
+  }
   return (
+    <div className="relative">
+    {toggle}
     <div
       ref={strip}
       className="card flex snap-x snap-mandatory overflow-x-auto overscroll-x-contain [scrollbar-width:none]"
@@ -97,6 +134,7 @@ export function WeekStrip({ weeks, today, current }: { weeks: StripDay[][]; toda
           </div>
         </div>
       ))}
+    </div>
     </div>
   );
 }

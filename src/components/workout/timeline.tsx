@@ -5,6 +5,7 @@ import { Sparkles } from "lucide-react";
 import { cx, fmtClock, fmtDuration } from "@/lib/format";
 import type { CWorkout } from "@/lib/shape";
 import { buildTimeline } from "@/lib/timeline";
+import { Fold } from "../fold";
 import { HrChart } from "../hr-chart";
 
 const ZONE_OPACITY = [0.22, 0.4, 0.58, 0.78, 1];
@@ -26,17 +27,18 @@ export function WorkoutTimeline({ workout, onApply }: { workout: CWorkout; onApp
         : "Груба оцінка за пульсом";
 
   return (
-    <section className="card p-4">
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <h2 className="flex items-center gap-2 text-[15px] font-semibold">
-          <Sparkles size={16} className="text-accent" /> Таймлайн тренування
-        </h2>
-        <span className={cx("rounded-full px-2.5 py-0.5 text-xs font-medium", tl.mode === "logged" ? "bg-good/15 text-good" : "bg-warning/15 text-warning")}>
+    <Fold
+      id="timeline"
+      title="Таймлайн тренування"
+      icon={<Sparkles size={16} className="shrink-0 text-accent" />}
+      summary={`робота ${fmtDuration(tl.workSec)} · відпочинок ${fmtDuration(tl.restSec)}`}
+      aside={
+        <span className={cx("shrink-0 rounded-full px-2.5 py-0.5 text-xs font-medium", tl.mode === "logged" ? "bg-good/15 text-good" : "bg-warning/15 text-warning")}>
           {modeText}
         </span>
-      </div>
-
-      <div className="mt-3 grid grid-cols-3 gap-3">
+      }
+    >
+      <div className="grid grid-cols-3 gap-3">
         <Figure label="Робота" value={fmtDuration(tl.workSec)} />
         <Figure label="Відпочинок" value={fmtDuration(tl.restSec)} />
         <Figure label="Між підходами" value={tl.avgRestSec != null ? fmtClock(tl.avgRestSec) : "—"} tone="text-accent" />
@@ -115,7 +117,7 @@ export function WorkoutTimeline({ workout, onApply }: { workout: CWorkout; onApp
           Записати цей час у тренування
         </button>
       )}
-    </section>
+    </Fold>
   );
 }
 

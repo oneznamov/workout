@@ -2,9 +2,9 @@ import { Suspense, type ReactNode } from "react";
 import Link from "next/link";
 import { Dumbbell, Flame, Footprints, Heart, Moon, Play, Scale, Timer, Weight, Activity } from "lucide-react";
 import { CoachCard } from "@/components/ai";
+import { Avatar } from "@/components/avatar";
 import { CardioRow } from "@/components/cardio/cardio-row";
 import { StackedBars } from "@/components/charts";
-import { MonthGrid } from "@/components/calendar";
 import { DashboardCustomizer } from "@/components/dashboard-customizer";
 import { Leaderboard } from "@/components/team";
 import { GoalsCard } from "@/components/goals-card";
@@ -18,7 +18,7 @@ import { WorkoutRow } from "@/components/workout/workout-row";
 import { getAiState, getCoachNote } from "@/lib/ai";
 import { getMuscleBalance, getWeekSummary } from "@/lib/analytics";
 import { getUser } from "@/lib/auth";
-import { mark, monthTitle, type DayMark } from "@/lib/calendar-logic";
+import { mark, type DayMark } from "@/lib/calendar-logic";
 import { listCardio } from "@/lib/cardio";
 import { CARDIO_COLOR } from "@/lib/cardio-kinds";
 import { resolveDashboard, type WidgetId } from "@/lib/dashboard";
@@ -27,7 +27,7 @@ import { getLeaderboard, listMyTeamInvites } from "@/lib/team";
 import { normalizeGoals } from "@/lib/goals";
 import { getMetricSeries } from "@/lib/health";
 import { goalProgress } from "@/lib/goal-progress";
-import { normalizeProfile } from "@/lib/profile";
+import { normalizeProfile, personName, photoUrl } from "@/lib/profile";
 import { BODY_MUSCLES, TARGET_MIN } from "@/lib/muscles";
 import { listWorkouts } from "@/lib/workouts";
 
@@ -128,12 +128,7 @@ async function Content() {
         />
       </Card>
     ),
-    week: <WeekStrip weeks={stripWeeks} today={today} current={WEEKS_BACK} />,
-    calendar: (
-      <Card title={<span className="first-letter:uppercase">{monthTitle(today.slice(0, 7))}</span>} action={<Link href="/calendar" className="text-xs text-accent">Календар →</Link>}>
-        <MonthGrid month={today.slice(0, 7)} today={today} marks={marks} linkBase="/calendar" />
-      </Card>
-    ),
+    week: <WeekStrip weeks={stripWeeks} today={today} current={WEEKS_BACK} marks={marks} />,
     mygoals: openGoals.length ? (
       <Card title="Мої цілі" action={<Link href="/profile" className="text-xs text-accent">Профіль →</Link>}>
         <ul className="space-y-3.5">
@@ -230,9 +225,16 @@ async function Content() {
 
   return (
     <div className="space-y-6">
-      <header>
-        <p className="caps first-letter:uppercase">{fmtDateLong(new Date())}</p>
-        <h1 className="truncate text-[2rem] leading-tight font-bold tracking-tight">Привіт, {user.username.split("@")[0]}</h1>
+      <header className="flex items-end justify-between gap-3">
+        <div className="min-w-0">
+          <p className="caps first-letter:uppercase">{fmtDateLong(new Date())}</p>
+          <h1 className="truncate text-[2rem] leading-tight font-bold tracking-tight">Привіт, {personName(user.username, profile)}</h1>
+        </div>
+        {photoUrl(user.id, profile) && (
+          <Link href="/profile" aria-label="Профіль" className="mb-1 shrink-0">
+            <Avatar name={personName(user.username, profile)} photo={photoUrl(user.id, profile)} size={44} />
+          </Link>
+        )}
       </header>
 
       {profile.sick && <SickMode sick={profile.sick} today={today} />}

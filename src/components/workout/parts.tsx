@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import Link from "next/link";
-import { Check, CirclePlay, StickyNote, X } from "lucide-react";
+import { Check, Info, StickyNote, X } from "lucide-react";
 import type { MuscleGroup, Tracking } from "@/db/schema";
 import { exerciseFrames } from "@/lib/exercise-media";
 import { PushBell } from "@/components/push-toggle";
@@ -303,7 +303,7 @@ export function ExerciseName({ name, exerciseId, className }: { name: string; ex
     <>
       <button onClick={() => setOpen(true)} title="Як виконувати" className={cx("text-left decoration-muted/60 underline-offset-4 hover:underline", className)}>
         {name}
-        <CirclePlay size={15} className="mb-0.5 ml-1.5 inline text-muted" aria-label="показати, як виконувати" />
+        <Info size={17} className="mb-0.5 ml-1.5 inline text-accent" aria-label="показати, як виконувати" />
       </button>
       {open && <ExerciseAnimation name={name} frames={frames} exerciseId={exerciseId} onClose={() => setOpen(false)} />}
     </>

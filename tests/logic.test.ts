@@ -127,7 +127,7 @@ describe("athlete profile", () => {
     expect(p.goals[1].id).not.toBe("a");
     expect(p.goals[1].targetDate).toBeNull();
     expect(profileText(p)).toContain("Жим 100 кг (by 2027-03-01) — зараз 80×5");
-    expect(normalizeProfile(null)).toEqual({ about: "", goals: [], sex: null, birthDate: null, heightCm: null, experience: null, sick: null, sickHistory: [] });
+    expect(normalizeProfile(null)).toEqual({ name: "", photoAt: null, about: "", goals: [], sex: null, birthDate: null, heightCm: null, experience: null, sick: null, sickHistory: [] });
   });
   it("keeps a goal that was typed only into the details field", () => {
     const p = normalizeProfile({ goals: [{ id: "x", title: "", details: "Схуднути до 80 кг", done: false }, { id: "y", title: "", details: "" }] });
@@ -417,14 +417,13 @@ describe("pause in training", () => {
 });
 
 describe("home widgets", () => {
-  it("puts the month calendar where minutes-by-day was in a layout saved before it existed", async () => {
-    const { resolveDashboard } = await import("@/lib/dashboard");
-    const saved = resolveDashboard({ order: ["goals", "minutes", "week"], hidden: [] });
-    expect(saved.slice(0, 3).map((w) => w.id)).toEqual(["goals", "calendar", "minutes"]);
-    expect(saved.find((w) => w.id === "calendar")?.visible).toBe(true);
-    expect(saved.find((w) => w.id === "minutes")?.visible).toBe(false);
-    // Once the layout is saved with the calendar in it, the athlete's choice stands.
-    const kept = resolveDashboard({ order: ["minutes", "calendar"], hidden: [] });
+  it("hides minutes-by-day in a layout saved before the week card could show the month", async () => {
+    const { resolveDashboard, DASHBOARD_VERSION } = await import("@/lib/dashboard");
+    const old = resolveDashboard({ order: ["goals", "minutes", "week"], hidden: [] });
+    expect(old.find((w) => w.id === "minutes")?.visible).toBe(false);
+    expect(old.some((w) => (w.id as string) === "calendar")).toBe(false);
+    // Once the layout is saved again, the athlete's choice stands.
+    const kept = resolveDashboard({ order: ["minutes", "week"], hidden: [], v: DASHBOARD_VERSION });
     expect(kept.find((w) => w.id === "minutes")?.visible).toBe(true);
   });
 });
@@ -463,5 +462,24 @@ describe("data import", () => {
     const { importSchema } = await import("@/lib/import-schema");
     expect(importSchema.safeParse({ format: "something-else", version: 1 }).success).toBe(false);
     expect(importSchema.safeParse({ format: "workout-export", version: 2, workouts: [{ name: "x", status: "flying", exercises: [] }] }).success).toBe(false);
+  });
+});
+
+describe("expected effort and names", () => {
+  it("keeps the planner's effort forecast within 1–10 and tolerates its absence", async () => {
+    const { resolvePlan } = await import("@/lib/ai-plan");
+    const library = [{ id: "sq", name: "Back Squat", nameUk: null, tracking: "weight_reps" }];
+    const item = { exercise: "Back Squat", rest_seconds: 90, notes: null, sets: [{ weight: 60, reps: 8, duration_sec: null }] };
+    expect(resolvePlan({ name: "A", notes: "", effort: 7.4, exercises: [item] }, library).effort).toBe(7);
+    expect(resolvePlan({ name: "A", notes: "", effort: 14, exercises: [item] }, library).effort).toBe(10);
+    expect(resolvePlan({ name: "A", notes: "", exercises: [item] }, library).effort).toBeNull();
+  });
+
+  it("shows the chosen name, else the login, and addresses a photo by the time it was saved", async () => {
+    const { normalizeProfile, personName, photoUrl } = await import("@/lib/profile");
+    expect(personName("olena@example.com", normalizeProfile({ name: "  Олена " }))).toBe("Олена");
+    expect(personName("olena@example.com", null)).toBe("olena");
+    expect(photoUrl("u1", normalizeProfile({ photoAt: 1700000000000 }))).toBe("/api/avatar/u1?v=1700000000000");
+    expect(photoUrl("u1", normalizeProfile({}))).toBeNull();
   });
 });

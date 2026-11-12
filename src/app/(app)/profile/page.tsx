@@ -4,14 +4,14 @@ import Link from "next/link";
 import { Activity, AlertTriangle, Droplet, Flame, Footprints, Heart, Moon, PersonStanding, Ruler, Scale, Sparkles, Target, CirclePause, Timer, TrendingUp, UserRound, Wind } from "lucide-react";
 import { TrendChart } from "@/components/charts";
 import { DeleteMetricButton, WeightForm } from "@/components/metric-form";
-import { GoalsEditor, MeasurementsForm, PersonForm, SickMode, type MeasureState } from "@/components/profile";
+import { GoalsEditor, MeasurementsForm, PersonForm, PhotoEditor, SickMode, type MeasureState } from "@/components/profile";
 import { Card, Disclosure, PageHeader, Segmented } from "@/components/ui";
 import { getUser } from "@/lib/auth";
 import { addDays, dayOf, fmtDate, fmtDuration, fmtNum, fmtTime } from "@/lib/format";
 import { getMetricSeries, listAvailableMetrics, listHealthWorkouts } from "@/lib/health";
 import { METRIC_INFO } from "@/lib/labels";
 import { MEASURE_KEYS } from "@/lib/measurements";
-import { ageOn, EXPERIENCE_LABEL, normalizeProfile, SEX_LABEL } from "@/lib/profile";
+import { ageOn, EXPERIENCE_LABEL, normalizeProfile, personName, photoUrl, SEX_LABEL } from "@/lib/profile";
 import { notableVitals } from "@/lib/vitals";
 import { goalProgress } from "@/lib/goal-progress";
 import { listExercises } from "@/lib/workouts";
@@ -178,7 +178,10 @@ async function Content({ searchParams }: PageProps<"/profile">) {
             <SickMode sick={profile.sick} today={today} history={profile.sickHistory} />
           </Card>
 
-          <Card title="Про мене" icon={<UserRound size={16} />} action={<span className="text-xs text-muted">бачите лише ви та ШІ</span>}>
+          <Card title="Про мене" icon={<UserRound size={16} />} action={<span className="text-xs text-muted">імʼя й фото бачить команда</span>}>
+            <div className="mb-4 border-b border-line pb-4">
+              <PhotoEditor name={personName(user.username, profile)} photo={photoUrl(user.id, profile)} />
+            </div>
             <PersonForm initial={profile} />
           </Card>
 

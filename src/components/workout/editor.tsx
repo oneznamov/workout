@@ -21,10 +21,12 @@ import {
   Save,
   Smartphone,
   Sparkles,
+  Square,
   Target,
   Trash2,
   Trophy,
   Watch,
+  X,
 } from "lucide-react";
 import type { WorkoutStatus } from "@/db/schema";
 import { AiPromptDialog, AiWorkoutNote } from "@/components/ai";
@@ -37,7 +39,8 @@ import { cloneWorkout, hardNavigate, pushWorkout, readLocal, removeLocal, writeL
 import { addDays, cx, dayOf, EXERCISES_FORMS, fmtClock, fmtDate, fmtDateLong, fmtDuration, fmtNum, fmtTime, plural } from "@/lib/format";
 import { STATUS_LABEL } from "@/lib/labels";
 import { activeSeconds, type CExercise, type CExerciseInfo, type CLast, type CSet, type CWorkout } from "@/lib/shape";
-import { EffortCard, EffortScale } from "./effort";
+import { EffortCard, EffortScale, ExpectedEffort } from "./effort";
+import { Fold } from "../fold";
 import { DEFAULT_REST, ExerciseCard, ExerciseSummary } from "./exercise-card";
 import { ExercisePicker } from "./exercise-picker";
 import { FocusView } from "./focus";
@@ -481,9 +484,7 @@ export function WorkoutEditor({
         ]
       : []),
     ...(live ? [{ label: "Завершити тренування", icon: <Flag size={19} />, onSelect: () => setConfirmFinish(true) }] : []),
-    ...(ai && !localOnly && (w.status === "planned" || w.status === "template")
-      ? [{ label: "Оновити з ШІ", icon: <Sparkles size={19} />, onSelect: () => setReviseOpen(true) }]
-      : []),
+    ...(live && view === "focus" ? [{ label: "Усі вправи списком", icon: <LayoutList size={19} />, onSelect: () => setView("list") }] : []),
     ...(ai && !localOnly && live ? [{ label: "Доповнити з ШІ", icon: <Sparkles size={19} />, onSelect: supplement }] : []),
     ...(w.status !== "template" ? [{ label: "Зберегти як шаблон", icon: <Save size={19} />, onSelect: () => spawn("template") }] : []),
     { label: "Видалити тренування", icon: <Trash2 size={19} />, onSelect: remove, tone: "danger" as const },
@@ -586,6 +587,18 @@ export function WorkoutEditor({
           />
         )}
 
+        {/* Planned by the AI: how hard it expects the session to be — and a way to have it rebuilt. */}
+        {(w.status === "planned" || w.status === "template") && ((ai && !localOnly) || w.expectedEffort != null) && (
+          <div className="flex flex-wrap items-center gap-2">
+            {w.expectedEffort != null && <ExpectedEffort value={w.expectedEffort} />}
+            {ai && !localOnly && (
+              <button onClick={() => setReviseOpen(true)} className="btn btn-ghost btn-sm">
+                <Sparkles size={15} className="text-body" /> Оновити з ШІ
+              </button>
+            )}
+          </div>
+        )}
+
         {live && w.startedAt && (
           <div className={cx("card px-4 py-3", paused && "ring-2 ring-warning/60")}>
             <div className="flex items-center gap-3">
@@ -599,6 +612,14 @@ export function WorkoutEditor({
                 className={cx("grid size-12 shrink-0 place-items-center rounded-full transition active:scale-95", paused ? "bg-accent text-accent-ink" : "bg-surface-2 text-ink")}
               >
                 {paused ? <Play size={22} fill="currentColor" /> : <Pause size={22} fill="currentColor" />}
+              </button>
+              <button
+                onClick={() => setConfirmFinish(true)}
+                aria-label="Завершити тренування"
+                title="Завершити тренування"
+                className="grid size-12 shrink-0 place-items-center rounded-full bg-surface-2 text-critical transition active:scale-95"
+              >
+                <Square size={18} fill="currentColor" />
               </button>
               <div className="inline-flex shrink-0 rounded-full bg-surface-2 p-1" role="group" aria-label="Вигляд">
                 {(
@@ -690,6 +711,11 @@ export function WorkoutEditor({
           <p role="status" className="flex items-start gap-2 rounded-2xl bg-body/15 px-3.5 py-2.5 text-sm text-ink-2">
             {aiMsg.busy ? <Loader2 size={16} className="mt-0.5 shrink-0 animate-spin text-body" /> : <Sparkles size={16} className="mt-0.5 shrink-0 text-body" />}
             <span className="min-w-0 flex-1">{aiMsg.text}</span>
+            {!aiMsg.busy && (
+              <button onClick={() => setAiMsg(null)} aria-label="Сховати повідомлення" className="shrink-0 text-muted hover:text-ink">
+                <X size={16} />
+              </button>
+            )}
           </p>
         )}
 
@@ -700,14 +726,18 @@ export function WorkoutEditor({
         )}
       </header>
 
-      {done && <EffortCard value={w.effort ?? null} onChange={rate} />}
+      {done && <EffortCard value={w.effort ?? null} expected={w.expectedEffort} onChange={rate} />}
 
       {done && records.length > 0 && (
-        <section className="rounded-[20px] bg-activity/12 p-4 ring-1 ring-activity/40">
-          <h2 className="flex items-center gap-2 text-[17px] font-bold text-activity">
-            <Trophy size={19} /> {records.length === 1 ? "Новий рекорд" : `Нових рекордів: ${records.length}`}
-          </h2>
-          <ul className="mt-2 space-y-1.5">
+        <Fold
+          id="records"
+          className="rounded-[20px] bg-activity/12 ring-1 ring-activity/40"
+          tone="text-activity"
+          icon={<Trophy size={18} className="shrink-0" />}
+          title={records.length === 1 ? "Новий рекорд" : `Нових рекордів: ${records.length}`}
+          summary={records.map((r) => r.name).join(", ")}
+        >
+          <ul className="space-y-1.5">
             {records.map((r) => (
               <li key={r.name} className="flex flex-wrap items-baseline justify-between gap-x-3 text-[15px]">
                 <span className="font-semibold">{r.name}</span>
@@ -717,7 +747,7 @@ export function WorkoutEditor({
               </li>
             ))}
           </ul>
-        </section>
+        </Fold>
       )}
 
       {done && ai && !localOnly && <AiWorkoutNote workoutId={id} initial={ai.note} auto={ai.auto} ready={save === "saved"} />}
@@ -781,8 +811,8 @@ export function WorkoutEditor({
               <button onClick={togglePause} aria-label="Поставити на паузу" className="icon-btn size-10 bg-surface-2 text-ink">
                 <Pause size={18} fill="currentColor" />
               </button>
-              <button onClick={() => setView("list")} aria-label="Усі вправи списком" title="Усі вправи списком" className="icon-btn size-10 bg-surface-2 text-ink">
-                <LayoutList size={18} />
+              <button onClick={() => setConfirmFinish(true)} aria-label="Завершити тренування" title="Завершити тренування" className="icon-btn size-10 bg-surface-2 text-critical">
+                <Square size={16} fill="currentColor" />
               </button>
               <button onClick={() => setMenuOpen(true)} aria-label="Інші дії з тренуванням" className="icon-btn size-10 bg-surface-2 text-ink">
                 <MoreHorizontal size={19} />
@@ -1062,14 +1092,8 @@ function WatchCard({
   const [pick, setPick] = useState("");
   if (workout.health.length === 0) {
     return (
-      <section className="card p-4">
-        <h2 className="flex items-center gap-2 text-[15px] font-semibold">
-          <Watch size={17} className="text-heart" /> Apple Watch
-        </h2>
-        <p className="mt-2 text-sm text-muted">
-          Даних з годинника для цього тренування ще немає. Вони підтягнуться автоматично після наступної синхронізації
-          Apple Health, якщо час тренувань збігається.
-        </p>
+      <Fold id="watch-empty" title="Apple Watch" icon={<Watch size={17} className="shrink-0 text-heart" />} summary="даних ще немає">
+        <p className="text-sm text-muted">Даних з годинника ще немає — підтягнуться після синхронізації Apple Health, якщо час збігається.</p>
         {candidates.length > 0 && (
           <div className="mt-3 flex flex-wrap gap-2">
             <select value={pick} onChange={(e) => setPick(e.target.value)} className="field w-auto flex-1 text-sm" aria-label="Тренування з годинника">
@@ -1085,30 +1109,30 @@ function WatchCard({
             </button>
           </div>
         )}
-      </section>
+      </Fold>
     );
   }
   return (
     <>
       {workout.health.map((h) => (
-        <section key={h.id} className="card p-4">
-          <div className="flex items-center justify-between gap-2">
-            <h2 className="flex min-w-0 items-center gap-2 text-[15px] font-semibold">
-              <Watch size={17} className="shrink-0 text-heart" />
-              <span className="truncate">{h.activityType}</span>
-            </h2>
-            <button onClick={() => onLink(h.id, false)} className="shrink-0 text-xs text-muted hover:text-ink">
-              Відвʼязати
-            </button>
-          </div>
-          <div className="mt-3 grid grid-cols-2 gap-x-3 gap-y-3 sm:grid-cols-4">
+        <Fold
+          key={h.id}
+          id="watch"
+          title={h.activityType}
+          icon={<Watch size={17} className="shrink-0 text-heart" />}
+          summary={`${h.avgHr != null ? `♥ ${fmtNum(h.avgHr)} · ` : ""}${h.activeKcal != null ? `${fmtNum(h.activeKcal)} ккал` : fmtDuration(h.durationSec)}`}
+        >
+          <div className="grid grid-cols-2 gap-x-3 gap-y-3 sm:grid-cols-4">
             <WatchStat label="Середній пульс" value={fmtNum(h.avgHr)} unit="уд/хв" tone="text-heart" />
             <WatchStat label="Макс. пульс" value={fmtNum(h.maxHr)} unit="уд/хв" tone="text-heart" />
             <WatchStat label="Активні калорії" value={fmtNum(h.activeKcal)} unit="ккал" tone="text-activity" />
             <WatchStat label="Час на годиннику" value={fmtDuration(h.durationSec)} />
           </div>
           {/* The heart-rate curve itself is drawn once, in the timeline card below. */}
-        </section>
+          <button onClick={() => onLink(h.id, false)} className="mt-3 text-xs text-muted hover:text-ink">
+            Відвʼязати від цього тренування
+          </button>
+        </Fold>
       ))}
     </>
   );

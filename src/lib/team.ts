@@ -6,7 +6,7 @@ import { healthWorkouts, sets, teamInvites, teamMembers, teams, users, workoutEx
 import { hashToken } from "./auth";
 import { cardioKind } from "./cardio-kinds";
 import { addDays, dayOf, weekStart } from "./format";
-import { normalizeProfile, sickWeeks } from "./profile";
+import { normalizeProfile, personName, photoUrl, sickWeeks } from "./profile";
 import { displayName, normalizeChallenge, REACTIONS, weekStreak, type BoardRow } from "./team-logic";
 
 const LINK_DAYS = 14;
@@ -25,20 +25,20 @@ async function teamIdOf(userId: string): Promise<string | null> {
 /** Members in the order they joined — the first one is the captain. */
 async function membersOf(teamId: string) {
   const rows = await db
-    .select({ id: users.id, username: users.username })
+    .select({ id: users.id, username: users.username, profile: users.profile })
     .from(teamMembers)
     .innerJoin(users, eq(users.id, teamMembers.userId))
     .where(eq(teamMembers.teamId, teamId))
     .orderBy(asc(teamMembers.joinedAt), asc(teamMembers.id));
-  return rows.map((r) => ({ id: r.id, name: displayName(r.username) }));
+  return rows.map((r) => ({ id: r.id, name: personName(r.username, r.profile), photo: photoUrl(r.id, r.profile) }));
 }
 
 /** The user plus their teammates; just the user when they have no team. */
 async function teamPeople(userId: string) {
   const teamId = await teamIdOf(userId);
   if (teamId) return membersOf(teamId);
-  const [me] = await db.select({ username: users.username }).from(users).where(eq(users.id, userId));
-  return [{ id: userId, name: displayName(me?.username ?? "я") }];
+  const [me] = await db.select({ username: users.username, profile: users.profile }).from(users).where(eq(users.id, userId));
+  return [{ id: userId, name: personName(me?.username ?? "я", me?.profile), photo: photoUrl(userId, me?.profile) }];
 }
 
 /** Teams nobody is in any more (everyone left, or the last member's account was removed). */
@@ -101,7 +101,7 @@ export async function listPeople(userId: string) {
   const mine = await teamIdOf(userId);
   const [rows, invited, invitedMe] = await Promise.all([
     db
-      .select({ id: users.id, username: users.username, teamId: teamMembers.teamId, teamName: teams.name })
+      .select({ id: users.id, username: users.username, profile: users.profile, teamId: teamMembers.teamId, teamName: teams.name })
       .from(users)
       .leftJoin(teamMembers, eq(teamMembers.userId, users.id))
       .leftJoin(teams, eq(teams.id, teamMembers.teamId))
@@ -114,7 +114,8 @@ export async function listPeople(userId: string) {
   return rows
     .map((r) => ({
       id: r.id,
-      name: displayName(r.username),
+      name: personName(r.username, r.profile),
+      photo: photoUrl(r.id, r.profile),
       status: (mine && r.teamId === mine ? "member" : waiting.has(r.id) ? "invited" : "free") as "member" | "invited" | "free",
       otherTeam: r.teamId && r.teamId !== mine ? r.teamName : null,
       /** Their team has already invited the user — answering that is simpler than inviting back. */
@@ -294,6 +295,7 @@ export async function getLeaderboard(userId: string, period: BoardPeriod): Promi
     return {
       userId: m.id,
       name: m.name,
+      photo: m.photo,
       me: m.id === userId,
       workouts: done.length,
       activeMin: Math.round(

@@ -257,7 +257,7 @@ function NoteCard({
 /** Review of one finished workout. */
 export function AiWorkoutNote({ workoutId, initial, auto, ready }: { workoutId: string; initial: AiNote | null; auto: boolean; ready: boolean }) {
   const run = useCallback((force: boolean) => analyzeWorkoutAction(workoutId, force), [workoutId]);
-  return <NoteCard title="Аналіз ШІ" initial={initial} auto={auto} ready={ready} idle="Прогрес проти минулого разу й порада на наступне тренування." run={run} />;
+  return <NoteCard title="Аналіз ШІ" foldKey="wk:fold:review" initial={initial} auto={auto} ready={ready} idle="Прогрес проти минулого разу й порада на наступне тренування." run={run} />;
 }
 
 /** Today's coaching note on the home screen. */

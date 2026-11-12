@@ -128,3 +128,13 @@ export async function saveProfileAction(patch: Partial<Profile>): Promise<Profil
   await db.update(users).set({ profile }).where(eq(users.id, userId));
   return profile;
 }
+
+/** Stores the account photo (a small square image made on the device) or removes it with `null`. */
+export async function saveAvatarAction(dataUrl: string | null): Promise<Profile> {
+  const userId = await requireUserId();
+  if (dataUrl !== null && !(dataUrl.length <= 200_000 && /^data:image\/(jpeg|png|webp);base64,[A-Za-z0-9+/=]+$/.test(dataUrl))) throw new Error("Некоректне зображення");
+  const [u] = await db.select({ profile: users.profile }).from(users).where(eq(users.id, userId));
+  const profile = normalizeProfile({ ...normalizeProfile(u?.profile), photoAt: dataUrl ? Date.now() : null });
+  await db.update(users).set({ avatar: dataUrl, profile }).where(eq(users.id, userId));
+  return profile;
+}

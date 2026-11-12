@@ -8,10 +8,9 @@ import { goalProgress } from "./goal-progress";
 import { normalizeGoals } from "./goals";
 import { getMetricSeries, listHealthWorkouts } from "./health";
 import { MEASURES } from "./measurements";
-import { ageOn, normalizeProfile } from "./profile";
+import { ageOn, normalizeProfile, personName } from "./profile";
 import { programsForContext } from "./programs";
 import { setText } from "./set-text";
-import { displayName } from "./team-logic";
 import { notableVitals } from "./vitals";
 import { workoutKind } from "./workout-kind";
 import { listWorkoutsFull } from "./workouts";
@@ -69,6 +68,7 @@ export async function getAthleteContext(userId: string, opts: { history?: number
       minutes: w.startedAt && w.endedAt ? Math.round(Math.max(0, (w.endedAt.getTime() - w.startedAt.getTime()) / 1000 - w.pausedSec) / 60) : null,
       note: w.notes || undefined,
       effort_1_to_10: w.effort ?? undefined,
+      expected_effort_1_to_10: w.expectedEffort ?? undefined,
       exercises: w.exercises.map((e) => ({
         name: e.exercise.name,
         muscle: e.exercise.muscle,
@@ -84,12 +84,12 @@ export async function getAthleteContext(userId: string, opts: { history?: number
   return {
     schema: "workout/athlete-context@1",
     units: "dates YYYY-MM-DD, weights kg, lengths cm, durations as stated",
-    effort_scale: "effort_1_to_10 on a finished workout is the athlete's own rating of how hard it felt: 1–3 easy, 4–6 moderate, 7–8 hard, 9–10 all out; absent when they did not rate it",
+    effort_scale: "effort_1_to_10 on a finished workout is the athlete's own rating of how hard it felt: 1–3 easy, 4–6 moderate, 7–8 hard, 9–10 all out; absent when they did not rate it; expected_effort_1_to_10 is what the planner (the AI or Claude) predicted for that workout on the same scale",
     generated_at: new Date().toISOString(),
     today,
     weekday: new Intl.DateTimeFormat("en-GB", { weekday: "long", timeZone: TZ }).format(new Date()),
     person: {
-      name: displayName(u?.username ?? ""),
+      name: personName(u?.username ?? "", u?.profile),
       sex: profile.sex,
       age: ageOn(profile.birthDate, today),
       height_cm: profile.heightCm,

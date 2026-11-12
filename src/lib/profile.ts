@@ -16,6 +16,10 @@ export type Goal = {
 export type Sex = "male" | "female";
 export type Experience = "beginner" | "intermediate" | "advanced";
 export type Profile = {
+  /** How the athlete wants to be called; empty — the login is used. */
+  name: string;
+  /** Set when a photo is stored (the time it was saved — also makes its address change with it). */
+  photoAt: number | null;
   about: string;
   goals: Goal[];
   sex: Sex | null;
@@ -57,7 +61,7 @@ export function endPause(p: Profile, today: string): Profile {
   return { ...p, sick: null, sickHistory: [...p.sickHistory, done] };
 }
 
-export const EMPTY_PROFILE: Profile = { about: "", goals: [], sex: null, birthDate: null, heightCm: null, experience: null, sick: null, sickHistory: [] };
+export const EMPTY_PROFILE: Profile = { name: "", photoAt: null, about: "", goals: [], sex: null, birthDate: null, heightCm: null, experience: null, sick: null, sickHistory: [] };
 export const SEX_LABEL: Record<Sex, string> = { male: "Чоловік", female: "Жінка" };
 export const EXPERIENCE_LABEL: Record<Experience, string> = {
   beginner: "Новачок — до року",
@@ -125,7 +129,10 @@ export function normalizeProfile(input: unknown): Profile {
   }
   const birth = text(src.birthDate ?? src.birth_date, 10);
   const height = Number(src.heightCm ?? src.height_cm);
+  const photoAt = Number(src.photoAt);
   return {
+    name: text(src.name, 40),
+    photoAt: Number.isFinite(photoAt) && photoAt > 0 ? photoAt : null,
     about: text(src.about, PROFILE_LIMITS.about),
     goals,
     sex: src.sex === "male" || src.sex === "female" ? src.sex : null,
@@ -174,4 +181,16 @@ export function profileText(p: Profile): string {
   if (done.length) lines.push(`Already achieved: ${done.map((g) => g.title).join("; ")}`);
   if (p.about) lines.push(`About the athlete (their own words): ${p.about}`);
   return lines.join("\n");
+}
+
+/** The name to show for an account: the one they chose, else the login without its e-mail part. */
+export function personName(username: string, profile: unknown): string {
+  const chosen = profile && typeof profile === "object" ? (profile as { name?: unknown }).name : null;
+  return (typeof chosen === "string" && chosen.trim().slice(0, 40)) || username.split("@")[0];
+}
+
+/** Where an account's photo is served from; null when there is none. */
+export function photoUrl(userId: string, profile: unknown): string | null {
+  const at = profile && typeof profile === "object" ? Number((profile as { photoAt?: unknown }).photoAt) : NaN;
+  return Number.isFinite(at) && at > 0 ? `/api/avatar/${userId}?v=${at}` : null;
 }

@@ -191,11 +191,11 @@ const SYSTEM = `You are the training coach inside Workout, a personal gym-tracki
 
 Write in Ukrainian and address the reader as «ви». Plain text only: short paragraphs, or lines starting with «•» — no markdown headings, bold or tables. Exercise names stay as they are in the data.
 
-The athlete's private goals and notes are the frame for every judgement: say how the data moves them toward a goal or away from it, and respect any limitation they mention (injury, schedule, equipment). Use only what is in the context; when there is too little history to judge something, say so in a few words rather than guessing. A finished workout may carry the athlete's own effort rating ("felt N/10" or effort_1_to_10: 1–3 easy, 4–6 moderate, 7–8 hard, 9–10 all out). Set it against the numbers: high effort with flat or falling results points to fatigue or too much load, low effort with every set done means there is room to add; several hard sessions in a row call for an easier one. You are not a doctor — for pain or injury suggest seeing a specialist instead of diagnosing. When the context says training is on pause (health.paused_now), never press about missed sessions or weekly targets, and let the reason set the tone: illness — rest first, then an easy return at lower weights; injury — keep load off the injured area and suggest what can still be trained; period — lighter work by how they feel is fine, heavy sessions can wait, no fuss about it; mental (fatigue, stress) — fewer and easier sessions, sleep and walks count, nothing that adds pressure; travel — short bodyweight or hotel-gym options if they want them. Pauses that ended recently (health.recent_pauses) explain dips in the numbers and call for a gradual return rather than picking up where the plan left off.`;
+The athlete's private goals and notes are the frame for every judgement: say how the data moves them toward a goal or away from it, and respect any limitation they mention (injury, schedule, equipment). Use only what is in the context; when there is too little history to judge something, say so in a few words rather than guessing. A planned workout may carry the effort its planner expected ("planned as N/10" or expected_effort_1_to_10); when the athlete's own rating of the finished session is far from it, the plan misjudged them — say so and adjust what comes next. A finished workout may carry the athlete's own effort rating ("felt N/10" or effort_1_to_10: 1–3 easy, 4–6 moderate, 7–8 hard, 9–10 all out). Set it against the numbers: high effort with flat or falling results points to fatigue or too much load, low effort with every set done means there is room to add; several hard sessions in a row call for an easier one. You are not a doctor — for pain or injury suggest seeing a specialist instead of diagnosing. When the context says training is on pause (health.paused_now), never press about missed sessions or weekly targets, and let the reason set the tone: illness — rest first, then an easy return at lower weights; injury — keep load off the injured area and suggest what can still be trained; period — lighter work by how they feel is fine, heavy sessions can wait, no fuss about it; mental (fatigue, stress) — fewer and easier sessions, sleep and walks count, nothing that adds pressure; travel — short bodyweight or hotel-gym options if they want them. Pauses that ended recently (health.recent_pauses) explain dips in the numbers and call for a gradual return rather than picking up where the plan left off.`;
 
 function workoutText(w: WorkoutFull | Awaited<ReturnType<typeof listWorkoutsFull>>[number], completedOnly = true) {
   const minutes = w.startedAt && w.endedAt ? Math.round(Math.max(0, (w.endedAt.getTime() - w.startedAt.getTime()) / 1000 - w.pausedSec) / 60) : null;
-  const head = `${w.startedAt ? dayOf(w.startedAt) : (w.scheduledFor ?? "no date")} · ${w.name}${minutes != null ? ` · ${minutes} min` : ""}${w.effort != null ? ` · felt ${w.effort}/10` : ""}`;
+  const head = `${w.startedAt ? dayOf(w.startedAt) : (w.scheduledFor ?? "no date")} · ${w.name}${minutes != null ? ` · ${minutes} min` : ""}${w.effort != null ? ` · felt ${w.effort}/10` : ""}${w.expectedEffort != null ? ` · planned as ${w.expectedEffort}/10` : ""}`;
   const lines = w.exercises.map((e) => {
     const sets = e.sets.filter((s) => !completedOnly || s.completed);
     return `  ${e.exercise.name} [${e.exercise.muscle}]: ${sets.length ? sets.map(setText).join(", ") : "no sets"}${e.notes ? ` (note: ${e.notes})` : ""}`;
@@ -437,7 +437,7 @@ ${wish ? `The athlete's request, in their own words: ${wish}` : "The athlete gav
       : null;
   const created: { id: string; name: string; date: string }[] = [];
   for (const w of program.workouts) {
-    const id = await createWorkout(userId, { name: w.name, status: "planned", scheduledFor: w.date, notes: w.notes || null, exercises: w.exercises, programId: programme?.id ?? null });
+    const id = await createWorkout(userId, { name: w.name, status: "planned", scheduledFor: w.date, notes: w.notes || null, exercises: w.exercises, programId: programme?.id ?? null, expectedEffort: w.effort });
     created.push({ id, name: w.name, date: w.date });
   }
   if (programme) await addRevision(userId, programme.id, "ai", `Програму склав ШІ${wish ? ` за запитом: «${wish.slice(0, 200)}»` : ""}`);
@@ -472,7 +472,7 @@ Lay out the rest of the programme again: every workout from ${today} on (dates b
   if (program.workouts.length === 0) throw new AiError("Модель не запропонувала жодного тренування з вправами з бібліотеки. Спробуйте ще раз.");
   await clearUpcoming(userId, programId, today);
   for (const w of program.workouts) {
-    await createWorkout(userId, { name: w.name, status: "planned", scheduledFor: w.date, notes: w.notes || null, exercises: w.exercises, programId });
+    await createWorkout(userId, { name: w.name, status: "planned", scheduledFor: w.date, notes: w.notes || null, exercises: w.exercises, programId, expectedEffort: w.effort });
   }
   const lastDay = program.workouts.at(-1)!.date;
   await updateProgram(
@@ -509,7 +509,7 @@ Return the whole updated workout (every exercise it should now contain, not only
   const plan = resolvePlan(await askJson(cfg, { system: PLAN_SYSTEM, prompt }, planSchema), lib.library);
   if (plan.exercises.length === 0) throw new AiError("Модель не запропонувала жодної вправи з бібліотеки. Спробуйте ще раз.");
   await replaceWorkoutPlan(userId, workoutId, plan.exercises);
-  await updateWorkout(userId, workoutId, { name: plan.name, notes: plan.notes || null });
+  await updateWorkout(userId, workoutId, { name: plan.name, notes: plan.notes || null, expectedEffort: plan.effort });
   return { exercises: plan.exercises.length, why: plan.notes };
 }
 

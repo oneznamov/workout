@@ -8,7 +8,7 @@ import { monthGrid, monthTitle, NO_MARK, sessionsOn, shiftMonth, type DayMark } 
 import { cx, fmtDate } from "@/lib/format";
 import type { WorkoutListItem } from "@/lib/workouts";
 import { CardioRow } from "./cardio/cardio-row";
-import { SessionDots } from "./week-strip";
+import { SessionDots } from "./session-dots";
 import { PlanSheet } from "./workout/plan-sheet";
 import { WorkoutRow } from "./workout/workout-row";
 

@@ -48,6 +48,8 @@ export type WorkoutInput = {
   notes?: string | null;
   exercises?: ExerciseInput[];
   programId?: string | null;
+  /** how hard the planner expects it to feel, 1–10 */
+  expectedEffort?: number | null;
 };
 
 // ───────────────────────── Exercises ─────────────────────────
@@ -174,6 +176,7 @@ export async function listWorkouts(
       pausedSec: workouts.pausedSec,
       notes: workouts.notes,
       effort: workouts.effort,
+      expectedEffort: workouts.expectedEffort,
       exerciseCount: sql<number>`(select count(*)::int from workout_exercises we where we.workout_id = "workouts"."id")`,
       setCount: sql<number>`(select count(*)::int from sets s join workout_exercises we on we.id = s.workout_exercise_id
         where we.workout_id = "workouts"."id" and (s.completed or "workouts"."status" <> 'completed'))`,
@@ -334,6 +337,7 @@ export async function createWorkout(userId: string, input: WorkoutInput) {
       scheduledFor: input.scheduledFor ?? null,
       notes: input.notes ?? null,
       programId: input.programId ?? null,
+      expectedEffort: input.expectedEffort ?? null,
       startedAt: status === "in_progress" ? now : null,
     })
     .returning({ id: workouts.id });
@@ -344,7 +348,7 @@ export async function createWorkout(userId: string, input: WorkoutInput) {
 export async function updateWorkout(
   userId: string,
   id: string,
-  patch: { name?: string; notes?: string | null; scheduledFor?: string | null; startedAt?: Date; endedAt?: Date; effort?: number | null },
+  patch: { name?: string; notes?: string | null; scheduledFor?: string | null; startedAt?: Date; endedAt?: Date; effort?: number | null; expectedEffort?: number | null },
 ) {
   await ownWorkout(userId, id);
   await db
@@ -422,6 +426,7 @@ export async function duplicateWorkout(
     status: opts.status,
     scheduledFor: opts.scheduledFor ?? (opts.status === "planned" ? dayOf() : null),
     notes: src.notes,
+    expectedEffort: src.expectedEffort,
     exercises: src.exercises.map((we) => ({
       exerciseId: we.exerciseId,
       restSeconds: we.restSeconds,

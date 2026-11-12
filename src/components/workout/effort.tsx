@@ -46,7 +46,7 @@ export function EffortScale({ value, onChange }: { value: number | null; onChang
 }
 
 /** On a finished workout: asks for the rating once, then shows it with a way to change it. */
-export function EffortCard({ value, onChange }: { value: number | null; onChange: (value: number | null) => void }) {
+export function EffortCard({ value, expected, onChange }: { value: number | null; /** what the planner predicted */ expected?: number | null; onChange: (value: number | null) => void }) {
   const [editing, setEditing] = useState(false);
   const level = value != null ? effortLevel(value) : null;
   if (level && !editing) {
@@ -62,6 +62,12 @@ export function EffortCard({ value, onChange }: { value: number | null; onChange
             </span>
             <span className={cx("text-[15px] font-semibold", level.text)}>{level.label}</span>
           </div>
+          {expected != null && (
+            <div className="text-xs text-muted">
+              прогноз був {expected}/{EFFORT_MAX}
+              {value !== expected && (value! > expected ? " — вийшло важче" : " — вийшло легше")}
+            </div>
+          )}
         </div>
         <button onClick={() => setEditing(true)} className="btn btn-sm btn-ghost shrink-0">
           Змінити
@@ -94,16 +100,37 @@ export function EffortCard({ value, onChange }: { value: number | null; onChange
           setEditing(false);
         }}
       />
-      {value == null && <p className="text-xs text-muted">Оцінка зберігається разом із тренуванням — за нею видно, коли додати навантаження, а коли дати собі відпочити.</p>}
+      {value == null && (
+        <p className="text-xs text-muted">
+          {expected != null ? `Прогноз був ${expected}/${EFFORT_MAX} · ${effortLevel(expected).label.toLowerCase()}. ` : ""}
+          Оцінка зберігається з тренуванням — за нею видно, коли додати навантаження, а коли відпочити.
+        </p>
+      )}
     </section>
   );
 }
 
-/** A small "7/10" for lists. */
-export function EffortTag({ value }: { value: number }) {
+/** A small "7/10" for lists; with `forecast` it is the planner's prediction, not the athlete's rating. */
+export function EffortTag({ value, forecast }: { value: number; forecast?: boolean }) {
   return (
-    <span className="flex items-center gap-1" title={`Зусилля: ${effortLevel(value).label}`}>
-      <Gauge size={11} className={effortLevel(value).text} /> {value}/{EFFORT_MAX}
+    <span className="flex items-center gap-1" title={`${forecast ? "Очікувана складність" : "Зусилля"}: ${effortLevel(value).label}`}>
+      <Gauge size={11} className={effortLevel(value).text} /> {forecast ? "≈" : ""}
+      {value}/{EFFORT_MAX}
+    </span>
+  );
+}
+
+/** On a planned workout: how hard its planner expects it to be. */
+export function ExpectedEffort({ value }: { value: number }) {
+  const level = effortLevel(value);
+  return (
+    <span className="inline-flex items-center gap-1.5 rounded-full bg-surface-2 px-3 py-1.5 text-[13px] text-ink-2">
+      <Gauge size={15} className={level.text} />
+      Очікувана складність
+      <span className="num font-semibold text-ink">
+        {value}/{EFFORT_MAX}
+      </span>
+      <span className={cx("font-semibold", level.text)}>{level.label}</span>
     </span>
   );
 }

@@ -29,7 +29,7 @@ export const BOARD_METRICS = [
 ] as const;
 export type BoardMetric = (typeof BOARD_METRICS)[number]["key"];
 
-export type BoardRow = { userId: string; name: string; me: boolean } & Record<BoardMetric, number>;
+export type BoardRow = { userId: string; name: string; photo?: string | null; me: boolean } & Record<BoardMetric, number>;
 
 /** Rows ordered for one metric; ties share a place (1, 2, 2, 4). */
 export function rank(rows: BoardRow[], metric: BoardMetric) {

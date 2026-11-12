@@ -92,6 +92,7 @@ async function describeWorkout(userId: string, id: string, includeHeartRate = fa
     paused_min: Math.round(w.pausedSec / 60),
     notes: w.notes,
     effort: w.effort,
+    expected_effort: w.expectedEffort,
     exercises: w.exercises.map((we) => ({
       workout_exercise_id: we.id,
       exercise_id: we.exercise.id,
@@ -280,6 +281,7 @@ export function registerWorkoutTools(server: McpServer, userId: string) {
         started_at: z.string().optional().describe("ISO datetime — only for status=completed."),
         ended_at: z.string().optional().describe("ISO datetime — only for status=completed."),
         notes: z.string().optional(),
+        expected_effort: z.number().int().min(1).max(10).optional().describe("How hard you expect this workout to feel for the athlete: 1–3 easy, 4–6 moderate, 7–8 hard, 9–10 all out. Give it for every workout you plan — the app shows it and later compares it with the athlete's own rating."),
         program_id: z.string().optional().describe("Put the workout into this programme (see list_programs / save_program)."),
         exercises: z.array(exerciseSchema).default([]),
       }),
@@ -293,6 +295,7 @@ export function registerWorkoutTools(server: McpServer, userId: string) {
         status: a.status,
         scheduledFor: a.status === "planned" ? (a.date ?? dayOf()) : null,
         notes: a.notes ?? null,
+        expectedEffort: a.expected_effort ?? null,
         programId: a.program_id ?? null,
         exercises: await toExerciseInputs(userId, a.exercises, completed),
       });
@@ -323,6 +326,7 @@ export function registerWorkoutTools(server: McpServer, userId: string) {
           .nullable()
           .optional()
           .describe("How hard the finished workout felt to the athlete: 1–3 easy, 4–6 moderate, 7–8 hard, 9–10 all out. Set it only from what the athlete says; null clears it."),
+        expected_effort: z.number().int().min(1).max(10).nullable().optional().describe("Your forecast of how hard a planned workout will feel, same scale. Update it when you change the plan."),
         exercises: z.array(exerciseSchema).optional(),
       }),
     },
@@ -332,6 +336,7 @@ export function registerWorkoutTools(server: McpServer, userId: string) {
         ...(a.notes !== undefined ? { notes: a.notes } : {}),
         ...(a.date !== undefined ? { scheduledFor: a.date } : {}),
         ...(a.effort !== undefined ? { effort: a.effort } : {}),
+        ...(a.expected_effort !== undefined ? { expectedEffort: a.expected_effort } : {}),
       });
       if (a.exercises) await wk.replaceWorkoutPlan(userId, a.workout_id, await toExerciseInputs(userId, a.exercises));
       return describeWorkout(userId, a.workout_id);

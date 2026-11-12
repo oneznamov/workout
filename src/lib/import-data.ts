@@ -16,6 +16,7 @@ function mergeProfile(current: Profile, incoming: Profile): Profile {
   const pauses = new Set(current.sickHistory.map((p) => `${p.from}:${p.to}`));
   return normalizeProfile({
     ...current,
+    name: current.name || incoming.name,
     about: current.about || incoming.about,
     sex: current.sex ?? incoming.sex,
     birthDate: current.birthDate ?? incoming.birthDate,

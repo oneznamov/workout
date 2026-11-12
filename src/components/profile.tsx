@@ -2,8 +2,9 @@
 
 import { useRouter } from "next/navigation";
 import { useEffect, useState, useTransition } from "react";
-import { Check, CirclePause, Plus, Trash2 } from "lucide-react";
-import { saveProfileAction, setSickAction } from "@/lib/ai-actions";
+import { Camera, Check, CirclePause, Plus, Trash2 } from "lucide-react";
+import { saveAvatarAction, saveProfileAction, setSickAction } from "@/lib/ai-actions";
+import { Avatar } from "./avatar";
 import { cx } from "@/lib/format";
 import { saveMeasurementsAction } from "@/lib/actions";
 import { fmtDate, fmtNum } from "@/lib/format";
@@ -228,6 +229,10 @@ export function PersonForm({ initial }: { initial: Profile }) {
   };
   return (
     <div className="space-y-4">
+      <label className="block space-y-1.5">
+        <span className="text-sm text-ink-2">Імʼя</span>
+        <input value={p.name} onChange={(e) => edit({ name: e.target.value })} maxLength={40} placeholder="Як до вас звертатись" autoComplete="given-name" className="field" />
+      </label>
       <div className="space-y-1.5">
         <span className="block text-sm text-ink-2">Стать</span>
         <div className="flex rounded-full bg-surface-2 p-1" role="group" aria-label="Стать">
@@ -291,7 +296,7 @@ export function PersonForm({ initial }: { initial: Profile }) {
           start(async () => {
             setError(false);
             try {
-              setP(await saveProfileAction({ sex: p.sex, birthDate: p.birthDate, heightCm: p.heightCm, experience: p.experience, about: p.about }));
+              setP(await saveProfileAction({ name: p.name, sex: p.sex, birthDate: p.birthDate, heightCm: p.heightCm, experience: p.experience, about: p.about }));
               setSaved(true);
               router.refresh();
             } catch {
@@ -551,5 +556,74 @@ function PauseHistory({ history }: { history: Pause[] }) {
           )}
       </ul>
     </details>
+  );
+}
+
+/** Makes a small square JPEG out of whatever picture was chosen — centre-cropped, 256 px. */
+async function squarePhoto(file: File): Promise<string> {
+  const url = URL.createObjectURL(file);
+  try {
+    const img = new Image();
+    img.src = url;
+    await img.decode();
+    const side = Math.min(img.naturalWidth, img.naturalHeight);
+    const canvas = document.createElement("canvas");
+    canvas.width = canvas.height = 256;
+    canvas.getContext("2d")!.drawImage(img, (img.naturalWidth - side) / 2, (img.naturalHeight - side) / 2, side, side, 0, 0, 256, 256);
+    return canvas.toDataURL("image/jpeg", 0.85);
+  } finally {
+    URL.revokeObjectURL(url);
+  }
+}
+
+/** The account photo: shown big, changed with one tap; teammates see it next to the name. */
+export function PhotoEditor({ name, photo }: { name: string; photo: string | null }) {
+  const router = useRouter();
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState(false);
+  const save = async (make: () => Promise<string | null>) => {
+    setBusy(true);
+    setError(false);
+    try {
+      await saveAvatarAction(await make());
+      router.refresh();
+    } catch {
+      setError(true);
+    }
+    setBusy(false);
+  };
+  return (
+    <div className="flex items-center gap-4">
+      <Avatar name={name} photo={photo} size={72} tone="bg-surface-2 text-ink-2" />
+      <div className="min-w-0 space-y-1.5">
+        <div className="truncate text-[17px] font-bold">{name}</div>
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+          <label className={cx("btn btn-ghost btn-sm", busy && "pointer-events-none opacity-60")}>
+            <Camera size={15} /> {busy ? "Зберігаю…" : photo ? "Змінити фото" : "Додати фото"}
+            <input
+              type="file"
+              accept="image/*"
+              className="sr-only"
+              disabled={busy}
+              onChange={(e) => {
+                const file = e.target.files?.[0];
+                e.target.value = "";
+                if (file) void save(() => squarePhoto(file));
+              }}
+            />
+          </label>
+          {photo && (
+            <button disabled={busy} onClick={() => void save(async () => null)} className="text-sm text-muted">
+              Прибрати
+            </button>
+          )}
+        </div>
+        {error && (
+          <p role="alert" className="text-xs text-critical">
+            Не вдалося зберегти фото. Спробуйте інше зображення.
+          </p>
+        )}
+      </div>
+    </div>
   );
 }

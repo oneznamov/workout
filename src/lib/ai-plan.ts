@@ -4,6 +4,7 @@ import { z } from "zod";
 export const planSchema = z.object({
   name: z.string(),
   notes: z.string(),
+  effort: z.number().nullable(),
   exercises: z.array(
     z.object({
       exercise: z.string(),
@@ -24,6 +25,7 @@ export type PlanDraft = z.infer<typeof planSchema>;
 export const PLAN_SHAPE = `{
   "name": string,                 // short workout name in Ukrainian
   "notes": string,                // one or two sentences: why this session, in Ukrainian
+  "effort": number,               // how hard you expect it to feel for this athlete, 1–10: 1–3 easy, 4–6 moderate, 7–8 hard, 9–10 all out
   "exercises": [{
     "exercise": string,           // exact "name" of an exercise from the library below
     "rest_seconds": number|null,  // rest between sets
@@ -49,6 +51,7 @@ export const PROGRAM_SHAPE = `{
     "date": "YYYY-MM-DD",         // one of the allowed days
     "name": string,
     "notes": string,
+    "effort": number,             // expected effort of this session, 1–10
     "exercises": [ ...same as in a single workout... ]
   }]
 }`;
@@ -77,7 +80,8 @@ export function extractJson(text: string): unknown {
  * name (unknown ones are dropped), numbers are clamped to sane ranges, empty exercises removed.
  */
 export function resolvePlan(raw: unknown, library: LibraryItem[], skipIds: string[] = []) {
-  const draft = planSchema.parse(raw);
+  // Providers without a strict output format may leave the effort out.
+  const draft = planSchema.parse({ effort: null, ...(raw && typeof raw === "object" ? raw : {}) });
   const byName = new Map<string, LibraryItem>();
   for (const e of library) {
     byName.set(norm(e.name), e);
@@ -112,13 +116,20 @@ export function resolvePlan(raw: unknown, library: LibraryItem[], skipIds: strin
     });
     if (exercises.length >= 12) break;
   }
-  return { name: draft.name.trim().slice(0, 80) || "Тренування", notes: draft.notes.trim().slice(0, 600), exercises, unknown };
+  return { name: draft.name.trim().slice(0, 80) || "Тренування", notes: draft.notes.trim().slice(0, 600), effort: clampInt(draft.effort, 1, 10), exercises, unknown };
 }
 
 /** A programme draft made safe to store: only allowed days, one workout per day, each resolved like a single plan. */
 export function resolveProgram(raw: unknown, library: LibraryItem[], allowedDays: string[]) {
   // Providers without a strict output format may leave the optional texts out.
-  const draft = programSchema.parse({ name: "", notes: "", forecast: "", ...(raw && typeof raw === "object" ? raw : {}) });
+  const given = raw && typeof raw === "object" ? (raw as Record<string, unknown>) : {};
+  const draft = programSchema.parse({
+    name: "",
+    notes: "",
+    forecast: "",
+    ...given,
+    workouts: Array.isArray(given.workouts) ? given.workouts.map((w) => ({ effort: null, ...(w && typeof w === "object" ? w : {}) })) : given.workouts,
+  });
   const allowed = new Set(allowedDays);
   const taken = new Set<string>();
   const workouts: (ReturnType<typeof resolvePlan> & { date: string })[] = [];

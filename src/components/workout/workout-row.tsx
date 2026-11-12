@@ -59,6 +59,7 @@ export function PlannedCard({ w, sick = false }: { w: WorkoutListItem; sick?: bo
         <div className="mt-1.5 flex flex-wrap items-center gap-1.5 text-xs text-muted">
           <KindTag label={kind.label} />
           <span>{plural(w.exerciseCount, EXERCISES_FORMS)}</span>
+          {w.expectedEffort != null && <EffortTag value={w.expectedEffort} forecast />}
         </div>
       </div>
       <BodyIcon kind={kind} size={40} className="bg-transparent" />
