@@ -103,6 +103,10 @@ export const workouts = pgTable(
     scheduledFor: date("scheduled_for"),
     startedAt: timestamp("started_at", { withTimezone: true }),
     endedAt: timestamp("ended_at", { withTimezone: true }),
+    /** Seconds spent on pause so far (finished pauses only). Active time = total − paused. */
+    pausedSec: integer("paused_sec").notNull().default(0),
+    /** Set while the workout is paused right now. */
+    pausedAt: timestamp("paused_at", { withTimezone: true }),
     notes: text("notes"),
     createdAt: createdAt(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),

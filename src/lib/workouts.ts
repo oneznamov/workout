@@ -168,6 +168,7 @@ export async function listWorkouts(
       scheduledFor: workouts.scheduledFor,
       startedAt: workouts.startedAt,
       endedAt: workouts.endedAt,
+      pausedSec: workouts.pausedSec,
       notes: workouts.notes,
       exerciseCount: sql<number>`(select count(*)::int from workout_exercises we where we.workout_id = "workouts"."id")`,
       setCount: sql<number>`(select count(*)::int from sets s join workout_exercises we on we.id = s.workout_exercise_id
@@ -511,6 +512,8 @@ export type SnapshotInput = {
   scheduledFor: string | null;
   startedAt: Date | null;
   endedAt: Date | null;
+  pausedSec: number;
+  pausedAt: Date | null;
   notes: string | null;
   exercises: {
     id: string;
@@ -548,6 +551,8 @@ export async function saveSnapshot(userId: string, id: string, snap: SnapshotInp
     scheduledFor: snap.scheduledFor,
     startedAt: snap.startedAt,
     endedAt: snap.endedAt,
+    pausedSec: snap.pausedSec,
+    pausedAt: snap.status === "in_progress" ? snap.pausedAt : null,
     notes: snap.notes,
     updatedAt: new Date(),
   };

@@ -15,6 +15,8 @@ const snapshotSchema = z.object({
     scheduledFor: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).nullable(),
     startedAt: iso,
     endedAt: iso,
+    pausedSec: z.number().int().min(0).max(86400).optional(),
+    pausedAt: iso.optional(),
     notes: z.string().max(5000).nullable(),
     exercises: z
       .array(
@@ -81,6 +83,8 @@ export async function PUT(req: Request, ctx: RouteContext<"/api/workouts/[id]">)
       scheduledFor: w.scheduledFor,
       startedAt: date(w.startedAt),
       endedAt: date(w.endedAt),
+      pausedSec: w.pausedSec ?? 0,
+      pausedAt: date(w.pausedAt),
       notes: w.notes,
       exercises: w.exercises.map((e) => ({
         id: e.id,

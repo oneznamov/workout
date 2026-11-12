@@ -47,7 +47,7 @@ export async function getTrainingAnalytics(userId: string, weeks = 12) {
   const [rows, sessions] = await Promise.all([
     completedSetRows(userId, from),
     db
-      .select({ id: workouts.id, startedAt: workouts.startedAt, endedAt: workouts.endedAt })
+      .select({ id: workouts.id, startedAt: workouts.startedAt, endedAt: workouts.endedAt, pausedSec: workouts.pausedSec })
       .from(workouts)
       .where(
         and(
@@ -68,7 +68,7 @@ export async function getTrainingAnalytics(userId: string, weeks = 12) {
     const w = weekly.get(weekStart(dayOf(s.startedAt)));
     if (!w) continue;
     w.workouts++;
-    if (s.endedAt) w.durationMin += Math.round((s.endedAt.getTime() - s.startedAt.getTime()) / 60000);
+    if (s.endedAt) w.durationMin += Math.max(0, Math.round((s.endedAt.getTime() - s.startedAt.getTime()) / 60000 - s.pausedSec / 60));
   }
 
   const muscleSets = new Map<MuscleGroup, number>();

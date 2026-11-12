@@ -9,7 +9,7 @@ export function PageHeader({ title, subtitle, actions }: { title: string; subtit
         {subtitle && <p className="text-sm text-muted">{subtitle}</p>}
         <h1 className="truncate text-[2rem] leading-tight font-bold tracking-tight">{title}</h1>
       </div>
-      {actions && <div className="flex flex-wrap items-center gap-2">{actions}</div>}
+      {actions && <div className="flex w-full flex-wrap items-center gap-2 sm:w-auto">{actions}</div>}
     </header>
   );
 }
@@ -113,14 +113,14 @@ export function Segmented({
   label?: string;
 }) {
   return (
-    <div className="inline-flex rounded-full bg-surface p-1" role="group" aria-label={label}>
+    <div className="flex w-full rounded-full bg-surface p-1 sm:inline-flex sm:w-auto" role="group" aria-label={label}>
       {options.map((o) => (
         <Link
           key={o.value}
           href={`?${new URLSearchParams({ ...extra, [param]: o.value })}`}
           aria-current={o.value === current ? "true" : undefined}
           className={cx(
-            "rounded-full px-3.5 py-1.5 text-[13px] font-medium",
+            "flex-1 rounded-full px-3.5 py-1.5 text-center text-[13px] font-medium whitespace-nowrap sm:flex-none",
             o.value === current ? "bg-surface-3 text-ink" : "text-muted hover:text-ink",
           )}
         >

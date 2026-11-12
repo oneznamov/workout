@@ -82,6 +82,7 @@ async function describeWorkout(userId: string, id: string, includeHeartRate = fa
     started_at: w.startedAt,
     ended_at: w.endedAt,
     duration_min: w.startedAt && w.endedAt ? Math.round((w.endedAt.getTime() - w.startedAt.getTime()) / 60000) : null,
+    paused_min: Math.round(w.pausedSec / 60),
     notes: w.notes,
     exercises: w.exercises.map((we) => ({
       workout_exercise_id: we.id,

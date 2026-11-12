@@ -58,7 +58,7 @@ async function Content() {
   for (const w of recent) {
     if (!w.startedAt || !w.endedAt) continue;
     const d = dayOf(w.startedAt);
-    gymMinByDay.set(d, (gymMinByDay.get(d) ?? 0) + Math.round((w.endedAt.getTime() - w.startedAt.getTime()) / 60000));
+    gymMinByDay.set(d, (gymMinByDay.get(d) ?? 0) + Math.max(0, Math.round((w.endedAt.getTime() - w.startedAt.getTime()) / 60000 - w.pausedSec / 60)));
   }
   const cardioMinByDay = new Map<string, number>();
   for (const c of weekCardio) cardioMinByDay.set(dayOf(c.startAt), (cardioMinByDay.get(dayOf(c.startAt)) ?? 0) + Math.round(c.durationSec / 60));

@@ -56,10 +56,7 @@ async function Content({ searchParams }: PageProps<"/cardio">) {
         actions={<Segmented options={PERIODS} current={String(weeks)} param="w" extra={{ k: kind }} />}
       />
       <div className="space-y-6">
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <Segmented options={KINDS} current={kind} param="k" extra={{ w: String(weeks) }} label="Вид" />
-          <CardioForm today={dayOf()} />
-        </div>
+        <Segmented options={KINDS} current={kind} param="k" extra={{ w: String(weeks) }} label="Вид" />
 
         {shown.map((k) => {
           const t = a.totals[k];
@@ -102,6 +99,9 @@ async function Content({ searchParams }: PageProps<"/cardio">) {
 
         <section>
           <SectionTitle>Історія</SectionTitle>
+          <div className="mb-3">
+            <CardioForm today={dayOf()} />
+          </div>
           <div className="grid gap-3 lg:grid-cols-2">
             {sessions.length ? (
               sessions.map((s) => <CardioRow key={s.id} s={s} />)

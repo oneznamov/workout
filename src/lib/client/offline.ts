@@ -136,6 +136,8 @@ export function newWorkout(status: WorkoutStatus, name?: string): CWorkout {
     scheduledFor: status === "planned" ? dayOf() : null,
     startedAt: status === "in_progress" ? now : null,
     endedAt: null,
+    pausedSec: 0,
+    pausedAt: null,
     notes: null,
     updatedAt: now,
     exercises: [],

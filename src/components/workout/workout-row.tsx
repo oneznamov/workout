@@ -6,7 +6,8 @@ import type { WorkoutListItem } from "@/lib/workouts";
 
 /** One workout in a list: icon, name, the headline number, then the supporting details. */
 export function WorkoutRow({ w }: { w: WorkoutListItem }) {
-  const duration = w.startedAt && w.endedAt ? (w.endedAt.getTime() - w.startedAt.getTime()) / 1000 : null;
+  // Active time: pauses are not counted.
+  const duration = w.startedAt && w.endedAt ? Math.max(0, (w.endedAt.getTime() - w.startedAt.getTime()) / 1000 - w.pausedSec) : null;
   const when =
     w.status === "completed"
       ? `${fmtDateLong(w.startedAt)} · ${fmtTime(w.startedAt)}`

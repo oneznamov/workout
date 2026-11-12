@@ -52,6 +52,9 @@ export type CWorkout = {
   scheduledFor: string | null;
   startedAt: string | null;
   endedAt: string | null;
+  /** seconds of finished pauses; `pausedAt` is set while paused right now */
+  pausedSec: number;
+  pausedAt: string | null;
   notes: string | null;
   updatedAt: string;
   exercises: CExercise[];
@@ -73,6 +76,8 @@ type ServerWorkout = {
   scheduledFor: string | null;
   startedAt: Date | null;
   endedAt: Date | null;
+  pausedSec: number;
+  pausedAt: Date | null;
   notes: string | null;
   updatedAt: Date;
   exercises: {
@@ -105,6 +110,8 @@ export function toClientWorkout(w: ServerWorkout): CWorkout {
     scheduledFor: w.scheduledFor,
     startedAt: w.startedAt?.toISOString() ?? null,
     endedAt: w.endedAt?.toISOString() ?? null,
+    pausedSec: w.pausedSec,
+    pausedAt: w.pausedAt?.toISOString() ?? null,
     notes: w.notes,
     updatedAt: w.updatedAt.toISOString(),
     exercises: w.exercises.map((we) => ({
@@ -183,3 +190,11 @@ export type OfflineBundle = {
   last: CLast;
   fetchedAt: string;
 };
+
+/** Seconds actually spent training: total time minus pauses (including one in progress). */
+export function activeSeconds(w: Pick<CWorkout, "startedAt" | "endedAt" | "pausedSec" | "pausedAt">, now = Date.now()) {
+  if (!w.startedAt) return 0;
+  const end = w.endedAt ? +new Date(w.endedAt) : now;
+  const pausing = w.pausedAt ? Math.max(0, end - +new Date(w.pausedAt)) : 0;
+  return Math.max(0, (end - +new Date(w.startedAt) - pausing) / 1000 - (w.pausedSec ?? 0));
+}

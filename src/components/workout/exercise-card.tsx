@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useState } from "react";
-import { ArrowDown, ArrowLeftRight, ArrowUp, Check, MoreHorizontal, Plus, Timer, Trash2 } from "lucide-react";
+import { ArrowDown, ArrowLeftRight, ArrowUp, Check, Minus, MoreHorizontal, Plus, Timer, Trash2 } from "lucide-react";
 import type { SetType } from "@/db/schema";
 import { cx, fmtClock, fmtDate } from "@/lib/format";
 import { MUSCLE_LABEL, SET_TYPE_LABEL, SET_TYPE_SHORT } from "@/lib/labels";
@@ -46,16 +46,18 @@ export function ExerciseCard({
   onRemoveSet: (setId: string) => void;
 }) {
   const [menu, setMenu] = useState<"exercise" | { setId: string } | null>(null);
+  const [editing, setEditing] = useState(false);
   const t = e.exercise.tracking;
   const cols = columnsFor(t);
+  const lastCol = tracked || editing;
   const grid =
     cols.length === 1
-      ? tracked
-        ? "grid-cols-[2.5rem_1fr_3rem]"
-        : "grid-cols-[2.5rem_1fr]"
-      : tracked
-        ? "grid-cols-[2.5rem_1fr_1fr_3rem]"
-        : "grid-cols-[2.5rem_1fr_1fr]";
+      ? lastCol
+        ? "grid-cols-[3.25rem_1fr_3rem]"
+        : "grid-cols-[3.25rem_1fr]"
+      : lastCol
+        ? "grid-cols-[3.25rem_1fr_1fr_3rem]"
+        : "grid-cols-[3.25rem_1fr_1fr]";
   const menuSet = menu && menu !== "exercise" ? e.sets.find((s) => s.id === menu.setId) : undefined;
   let n = 0;
 
@@ -85,13 +87,13 @@ export function ExerciseCard({
 
       <div className="mt-3 space-y-2">
         <div className={cx("caps grid items-center gap-2", grid)}>
-          <span className="text-center">#</span>
+          <span className="text-center">Підхід</span>
           {cols.map((c) => (
             <span key={c.key} className="text-center">
               {c.label}
             </span>
           ))}
-          {tracked && <span />}
+          {lastCol && <span />}
         </div>
         {e.sets.map((s, idx) => {
           const label = s.type === "normal" ? String(++n) : SET_TYPE_SHORT[s.type];
@@ -102,7 +104,7 @@ export function ExerciseCard({
                 onClick={() => setMenu({ setId: s.id })}
                 aria-label={`Підхід ${idx + 1}: ${SET_TYPE_LABEL[s.type]}. Змінити тип або видалити`}
                 className={cx(
-                  "num grid size-10 place-items-center rounded-full text-[15px] font-semibold",
+                  "num mx-auto grid size-10 place-items-center rounded-full text-[15px] font-semibold",
                   s.type === "normal" ? "bg-surface-2 text-ink-2" : "bg-warning/20 text-warning",
                 )}
               >
@@ -119,7 +121,15 @@ export function ExerciseCard({
                   onChange={(v) => onPatchSet(s.id, c.set(v))}
                 />
               ))}
-              {tracked && (
+              {editing ? (
+                <button
+                  onClick={() => onRemoveSet(s.id)}
+                  aria-label={`Видалити підхід ${idx + 1}`}
+                  className="grid size-12 place-items-center rounded-full bg-critical/15 text-critical transition active:scale-90"
+                >
+                  <Minus size={22} strokeWidth={3} />
+                </button>
+              ) : tracked ? (
                 <button
                   onClick={() => onToggleSet(s, idx)}
                   role="checkbox"
@@ -132,16 +142,23 @@ export function ExerciseCard({
                 >
                   <Check size={22} strokeWidth={3} />
                 </button>
-              )}
+              ) : null}
             </div>
           );
         })}
       </div>
 
       <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
-        <button onClick={onAddSet} className="btn btn-sm btn-ghost">
-          <Plus size={15} /> Підхід
-        </button>
+        <div className="flex gap-2">
+          <button onClick={onAddSet} className="btn btn-sm btn-ghost">
+            <Plus size={15} /> Підхід
+          </button>
+          {e.sets.length > 0 && (
+            <button onClick={() => setEditing((v) => !v)} aria-pressed={editing} className={cx("btn btn-sm", editing ? "btn-primary" : "btn-ghost")}>
+              {editing ? "Готово" : "Видалити…"}
+            </button>
+          )}
+        </div>
         <label className="flex items-center gap-1.5 text-xs text-muted">
           <Timer size={15} /> Відпочинок
           <select

@@ -11,6 +11,7 @@ import {
   LayoutList,
   Loader2,
   MoreHorizontal,
+  Pause,
   Play,
   Plus,
   RotateCcw,
@@ -25,7 +26,7 @@ import { deleteWorkoutAction, linkHealthWorkoutAction } from "@/lib/actions";
 import { cloneWorkout, hardNavigate, pushWorkout, readLocal, removeLocal, writeLocal } from "@/lib/client/offline";
 import { cx, EXERCISES_FORMS, fmtClock, fmtDate, fmtDuration, fmtNum, fmtTime, plural } from "@/lib/format";
 import { STATUS_LABEL } from "@/lib/labels";
-import type { CExercise, CExerciseInfo, CLast, CSet, CWorkout } from "@/lib/shape";
+import { activeSeconds, type CExercise, type CExerciseInfo, type CLast, type CSet, type CWorkout } from "@/lib/shape";
 import { DEFAULT_REST, ExerciseCard } from "./exercise-card";
 import { ExercisePicker } from "./exercise-picker";
 import { FocusView } from "./focus";
@@ -33,6 +34,7 @@ import { ActionSheet, NotesField, type SheetAction } from "./parts";
 import { WorkoutTimeline } from "./timeline";
 
 const VIEW_KEY = "wk:view";
+const MIN_REST = 20;
 type View = "focus" | "list";
 
 export type HealthCandidate = { id: string; activityType: string; startAt: string; durationSec: number | null; avgHr: number | null };
@@ -314,8 +316,10 @@ export function WorkoutEditor({
         if (e.sets.length === 0) removedExercises.push(e.id);
         return e.sets.length > 0;
       });
+    const end = new Date();
+    const open = cur().pausedAt ? Math.max(0, Math.round((+end - +new Date(cur().pausedAt!)) / 1000)) : 0;
     persist(
-      { ...cur(), status: "completed", endedAt: new Date().toISOString(), exercises: kept },
+      { ...cur(), status: "completed", endedAt: end.toISOString(), pausedSec: (cur().pausedSec ?? 0) + open, pausedAt: null, exercises: kept },
       { sets: removedSets, exercises: removedExercises },
     );
     void saveNow();
@@ -351,7 +355,27 @@ export function WorkoutEditor({
 
   const removeSet = (weId: string, setId: string) =>
     persist(mapExercise(weId, (x) => ({ ...x, sets: x.sets.filter((s) => s.id !== setId) })), { sets: [setId] });
-  const adjustRest = (d: number) => setRest((r) => (r ? { endsAt: r.endsAt + d * 1000, total: Math.max(5, r.total + d) } : r));
+  // Rest can be shortened, but never below 20 s — to end it early there is an explicit "Далі".
+  const adjustRest = (d: number) =>
+    setRest((r) => {
+      if (!r) return r;
+      if (d < 0 && r.endsAt + d * 1000 - Date.now() < MIN_REST * 1000) return r;
+      return { endsAt: r.endsAt + d * 1000, total: Math.max(MIN_REST, r.total + d) };
+    });
+
+  const paused = live && Boolean(w.pausedAt);
+  /** Pause stops the active-time clock; the total (start → finish) keeps running. */
+  const togglePause = () => {
+    const now = new Date();
+    const c = cur();
+    if (c.pausedAt) {
+      persist({ ...c, pausedSec: (c.pausedSec ?? 0) + Math.max(0, Math.round((+now - +new Date(c.pausedAt)) / 1000)), pausedAt: null });
+    } else {
+      setRest(null);
+      persist({ ...c, pausedAt: now.toISOString() });
+    }
+    void saveNow();
+  };
   const endRest = (natural: boolean) => {
     if (natural) beep(audio.current);
     setRest(null);
@@ -401,34 +425,38 @@ export function WorkoutEditor({
         />
 
         {live && w.startedAt && (
-          <div className="card flex items-center gap-3 px-4 py-3">
-            <div className="min-w-0 flex-1">
-              <Elapsed since={w.startedAt} />
-              <div className="mt-0.5 text-xs text-muted">
-                з {fmtTime(w.startedAt)} · підходів{" "}
-                <span className="num font-semibold text-ink">
-                  {doneSets}/{totalSets}
-                </span>
+          <div className={cx("card px-4 py-3", paused && "ring-2 ring-warning/60")}>
+            <div className="flex items-center gap-3">
+              <div className="min-w-0 flex-1">
+                <div className="caps">{paused ? "Пауза" : "Активний час"}</div>
+                <Elapsed workout={w} done={doneSets} sets={totalSets} />
               </div>
-            </div>
-            <div className="inline-flex shrink-0 rounded-full bg-surface-2 p-1" role="group" aria-label="Вигляд">
-              {(
-                [
-                  ["focus", "По одному підходу", Target],
-                  ["list", "Усі вправи списком", LayoutList],
-                ] as const
-              ).map(([v, label, Icon]) => (
-                <button
-                  key={v}
-                  onClick={() => setView(v)}
-                  aria-pressed={view === v}
-                  aria-label={label}
-                  title={label}
-                  className={cx("grid size-9 place-items-center rounded-full", view === v ? "bg-surface-3 text-ink" : "text-muted")}
-                >
-                  <Icon size={18} />
-                </button>
-              ))}
+              <button
+                onClick={togglePause}
+                aria-label={paused ? "Продовжити тренування" : "Поставити на паузу"}
+                className={cx("grid size-12 shrink-0 place-items-center rounded-full transition active:scale-95", paused ? "bg-accent text-accent-ink" : "bg-surface-2 text-ink")}
+              >
+                {paused ? <Play size={22} fill="currentColor" /> : <Pause size={22} fill="currentColor" />}
+              </button>
+              <div className="inline-flex shrink-0 rounded-full bg-surface-2 p-1" role="group" aria-label="Вигляд">
+                {(
+                  [
+                    ["focus", "По одному підходу", Target],
+                    ["list", "Усі вправи списком", LayoutList],
+                  ] as const
+                ).map(([v, label, Icon]) => (
+                  <button
+                    key={v}
+                    onClick={() => setView(v)}
+                    aria-pressed={view === v}
+                    aria-label={label}
+                    title={label}
+                    className={cx("grid size-9 place-items-center rounded-full", view === v ? "bg-surface-3 text-ink" : "text-muted")}
+                  >
+                    <Icon size={18} />
+                  </button>
+                ))}
+              </div>
             </div>
           </div>
         )}
@@ -441,9 +469,14 @@ export function WorkoutEditor({
               hint={`${fmtDate(w.startedAt, { weekday: "short" })} · ${fmtTime(w.startedAt)}–${fmtTime(w.endedAt)}`}
             />
             <Mini
-              label="Тривалість"
+              label="Активний час"
               tone="text-activity"
-              value={w.startedAt && w.endedAt ? fmtDuration((+new Date(w.endedAt) - +new Date(w.startedAt)) / 1000) : "—"}
+              value={w.startedAt && w.endedAt ? fmtDuration(activeSeconds(w)) : "—"}
+              hint={
+                w.startedAt && w.endedAt && (w.pausedSec ?? 0) > 0
+                  ? `загалом ${fmtDuration((+new Date(w.endedAt) - +new Date(w.startedAt)) / 1000)}`
+                  : undefined
+              }
             />
             <Mini label="Підходи" tone="text-strength" value={String(doneSets)} hint={plural(w.exercises.length, EXERCISES_FORMS)} />
             <Mini label="Тоннаж" tone="text-strength" value={fmtNum(volume)} unit="кг" />
@@ -503,14 +536,25 @@ export function WorkoutEditor({
         />
       )}
 
+      {paused && (
+        <section className="card space-y-3 p-5 text-center">
+          <h2 className="text-xl font-bold">Тренування на паузі</h2>
+          <p className="text-sm text-muted">Активний час зупинено, загальний іде далі.</p>
+          <button onClick={togglePause} className="btn btn-primary w-full">
+            <Play size={18} fill="currentColor" /> Продовжити
+          </button>
+        </section>
+      )}
+
       {/* ── Exercises ── */}
-      {live && view === "focus" ? (
+      {paused && view === "focus" ? null : live && view === "focus" ? (
         <FocusView
           w={w}
           last={last}
           rest={rest}
           onRestAdjust={adjustRest}
           onRestDone={endRest}
+          onNotes={(weId, notes) => persist(mapExercise(weId, (x) => ({ ...x, notes })))}
           onPatchSet={patchSet}
           onToggleSet={toggleSet}
           onAddSet={addSet}
@@ -653,16 +697,26 @@ function Mini({ label, value, unit, hint, tone }: { label: string; value: string
   );
 }
 
-function Elapsed({ since }: { since: string }) {
+function Elapsed({ workout, done, sets }: { workout: CWorkout; done: number; sets: number }) {
   const [now, setNow] = useState(() => Date.now());
   useEffect(() => {
     const iv = setInterval(() => setNow(Date.now()), 1000);
     return () => clearInterval(iv);
   }, []);
+  const total = workout.startedAt ? (now - +new Date(workout.startedAt)) / 1000 : 0;
+  const paused = Boolean(workout.pausedAt);
   return (
     // The clock differs between server render and hydration by design.
-    <div className="num text-[2.5rem] leading-none font-semibold text-accent" role="timer" suppressHydrationWarning>
-      {fmtClock((now - +new Date(since)) / 1000)}
+    <div suppressHydrationWarning>
+      <div className={cx("num text-[2.5rem] leading-none font-semibold", paused ? "text-warning" : "text-accent")} role="timer">
+        {fmtClock(activeSeconds(workout, now))}
+      </div>
+      <div className="mt-1.5 text-xs text-muted">
+        Загалом <span className="num font-semibold text-ink">{fmtClock(total)}</span> · підходів{" "}
+        <span className="num font-semibold text-ink">
+          {done} з {sets}
+        </span>
+      </div>
     </div>
   );
 }
@@ -696,7 +750,7 @@ function RestBar({
               {fmtClock(Math.ceil(Math.max(0, left)))}
             </div>
           </div>
-          <button onClick={() => onAdjust(-15)} className="btn btn-sm bg-surface-3 text-ink">
+          <button onClick={() => onAdjust(-15)} disabled={left < 35} className="btn btn-sm bg-surface-3 text-ink">
             −15
           </button>
           <button onClick={() => onAdjust(15)} className="btn btn-sm bg-surface-3 text-ink">

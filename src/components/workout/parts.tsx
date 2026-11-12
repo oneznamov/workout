@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState, type ReactNode } from "react";
-import { Check, X } from "lucide-react";
+import { Check, StickyNote, X } from "lucide-react";
 import type { Tracking } from "@/db/schema";
 import { exerciseFrames } from "@/lib/exercise-media";
 import { cx, fmtClock } from "@/lib/format";
@@ -220,7 +220,7 @@ export function RestRing({
         </div>
       </div>
       <div className="mt-4 flex w-full gap-2">
-        <button onClick={() => onAdjust(-15)} className="btn btn-ghost flex-1">
+        <button onClick={() => onAdjust(-15)} disabled={left < 35} className="btn btn-ghost flex-1">
           −15 с
         </button>
         <button onClick={() => onAdjust(15)} className="btn btn-ghost flex-1">
@@ -327,8 +327,8 @@ export function NotesField({
   }
   if (!open) {
     return (
-      <button onClick={() => setOpen(true)} className="text-sm text-muted hover:text-ink">
-        + нотатка
+      <button onClick={() => setOpen(true)} className="flex items-center gap-1.5 text-sm text-muted hover:text-ink">
+        <StickyNote size={15} /> Додати нотатку
       </button>
     );
   }

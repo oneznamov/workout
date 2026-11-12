@@ -5,7 +5,7 @@ import { ArrowLeftRight, Check, ChevronRight, Flag, Minus, MoreHorizontal, Plus,
 import { cx, fmtDate, plural, SETS_FORMS } from "@/lib/format";
 import { MUSCLE_LABEL, SET_TYPE_LABEL } from "@/lib/labels";
 import { describeSet, type CExercise, type CLast, type CSet, type CWorkout } from "@/lib/shape";
-import { ActionSheet, columnsFor, ExerciseThumb, NumInput, RestRing } from "./parts";
+import { ActionSheet, columnsFor, ExerciseThumb, NotesField, NumInput, RestRing } from "./parts";
 
 /**
  * One thing at a time: the set to do now with big controls, then the rest countdown,
@@ -18,6 +18,7 @@ export function FocusView({
   rest,
   onRestAdjust,
   onRestDone,
+  onNotes,
   onPatchSet,
   onToggleSet,
   onAddSet,
@@ -31,6 +32,7 @@ export function FocusView({
   rest: { endsAt: number; total: number } | null;
   onRestAdjust: (deltaSec: number) => void;
   onRestDone: (natural: boolean) => void;
+  onNotes: (weId: string, notes: string | null) => void;
   onPatchSet: (weId: string, setId: string, patch: Partial<CSet>) => void;
   onToggleSet: (e: CExercise, s: CSet, index: number) => void;
   onAddSet: (e: CExercise) => void;
@@ -60,8 +62,8 @@ export function FocusView({
     <div className="mt-4 w-full rounded-2xl bg-surface-2 p-3 text-left">
       <div className="caps">Далі</div>
       <div className="truncate text-[15px] font-semibold">{current.exercise.name}</div>
-      <div className="text-xs text-muted">
-        підхід {index + 1} з {current.sets.length} · {describeSet(current.exercise.tracking, set)}
+      <div className="text-sm text-ink-2">
+        Підхід {index + 1} з {current.sets.length} · <span className="num font-semibold">{describeSet(current.exercise.tracking, set)}</span>
       </div>
     </div>
   );
@@ -77,28 +79,50 @@ export function FocusView({
           <div className="flex items-center gap-3">
             <ExerciseThumb name={current.exercise.name} size={56} />
             <div className="min-w-0 flex-1">
-              <div className="caps text-accent">
-                Підхід {index + 1} з {current.sets.length}
-                {set.type !== "normal" && ` · ${SET_TYPE_LABEL[set.type].toLowerCase()}`}
-              </div>
               <h2 className="truncate text-[1.35rem] leading-tight font-bold">{current.exercise.name}</h2>
               <div className="truncate text-xs text-muted">
                 {current.exercise.nameUk ? `${current.exercise.nameUk} · ` : ""}
                 {MUSCLE_LABEL[current.exercise.muscle]}
               </div>
             </div>
-            <button onClick={() => setMenu(true)} aria-label="Дії з підходом і вправою" className="icon-btn bg-surface-2 text-ink-2">
+            <button onClick={() => setMenu(true)} aria-label="Дії з вправою" className="icon-btn bg-surface-2 text-ink-2">
               <MoreHorizontal size={20} />
             </button>
           </div>
 
+          {/* Every set of this exercise at a glance: done, the one in hand, still ahead. */}
+          <div className="mt-4">
+            <div className="flex items-baseline justify-between gap-2">
+              <span className="text-[1.6rem] leading-none font-bold">
+                Підхід <span className="num text-accent">{index + 1}</span>
+                <span className="num text-muted"> з {current.sets.length}</span>
+              </span>
+              {set.type !== "normal" && <span className="rounded-full bg-warning/20 px-2.5 py-0.5 text-xs font-semibold text-warning">{SET_TYPE_LABEL[set.type]}</span>}
+            </div>
+            <ol className="mt-2.5 flex flex-wrap gap-1.5" aria-label="Підходи цієї вправи">
+              {current.sets.map((s, i) => (
+                <li
+                  key={s.id}
+                  aria-current={i === index ? "step" : undefined}
+                  className={cx(
+                    "flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium",
+                    s.completed ? "bg-accent/15 text-ink-2" : i === index ? "bg-accent text-accent-ink" : "bg-surface-2 text-muted",
+                  )}
+                >
+                  {s.completed ? <Check size={13} strokeWidth={3} className="text-accent" /> : <span className="num font-semibold">{i + 1}</span>}
+                  <span className="num">{describeSet(current.exercise.tracking, s)}</span>
+                </li>
+              ))}
+            </ol>
+          </div>
+
           {prev && prev.sets.length > 0 && (
-            <p className="mt-2 truncate text-xs text-muted">
+            <p className="mt-2.5 truncate text-xs text-muted">
               Минулого разу{prev.date ? ` (${fmtDate(prev.date)})` : ""}: {prev.sets.map((s) => describeSet(current.exercise.tracking, s)).join(", ")}
             </p>
           )}
 
-          <div className={cx("mt-4 grid gap-3", columnsFor(current.exercise.tracking).length > 1 && "sm:grid-cols-2")}>
+          <div className={cx("mt-3 grid gap-3", columnsFor(current.exercise.tracking).length > 1 && "sm:grid-cols-2")}>
             {columnsFor(current.exercise.tracking).map((c) => {
               const fallback = (prev?.sets[index] ? c.get(prev.sets[index] as CSet) : null) ?? (index > 0 ? c.get(current.sets[index - 1]) : null) ?? 0;
               const value = c.get(set);
@@ -133,6 +157,18 @@ export function FocusView({
           <button onClick={() => onToggleSet(current, set, index)} className="btn btn-primary mt-4 h-14 w-full text-[17px]">
             <Check size={22} strokeWidth={3} /> Готово
           </button>
+          <div className="mt-2 grid grid-cols-2 gap-2">
+            <button onClick={() => onRemoveSet(current.id, set.id)} className="btn btn-sm btn-ghost text-ink-2">
+              <Trash2 size={15} /> Прибрати підхід
+            </button>
+            <button onClick={() => onAddSet(current)} className="btn btn-sm btn-ghost text-ink-2">
+              <Plus size={15} /> Ще підхід
+            </button>
+          </div>
+
+          <div className="mt-3">
+            <NotesField key={current.id} value={current.notes} placeholder="Нотатка до вправи" onSave={(notes) => onNotes(current.id, notes)} />
+          </div>
         </section>
       ) : (
         <section className="card space-y-3 p-5 text-center">
@@ -171,22 +207,17 @@ export function FocusView({
         </section>
       )}
 
-      {finished.length > 0 && (
-        <p className="px-1 text-xs text-muted">
-          Виконано: {finished.map((e) => e.exercise.name).join(", ")}
-        </p>
-      )}
+      {finished.length > 0 && <p className="px-1 text-xs text-muted">Виконано: {finished.map((e) => e.exercise.name).join(", ")}</p>}
 
       <button onClick={onAddExercise} className="btn btn-ghost w-full">
         <Plus size={18} /> Додати вправу
       </button>
 
-      {menu && current && set && (
+      {menu && current && (
         <ActionSheet
           title={current.exercise.name}
           onClose={() => setMenu(false)}
           actions={[
-            { label: "Додати ще підхід", icon: <Plus size={19} />, onSelect: () => onAddSet(current) },
             {
               label: "Відкласти вправу на потім",
               icon: <SkipForward size={19} />,
@@ -194,7 +225,6 @@ export function FocusView({
               disabled: others.length === 0,
             },
             { label: "Замінити вправу", icon: <ArrowLeftRight size={19} />, onSelect: () => onReplace(current.id) },
-            { label: "Пропустити цей підхід", icon: <Trash2 size={19} />, onSelect: () => onRemoveSet(current.id, set.id), tone: "danger" },
           ]}
         />
       )}
