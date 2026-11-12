@@ -12,6 +12,8 @@ import {
   uniqueIndex,
   uuid,
 } from "drizzle-orm/pg-core";
+import type { AiProvider } from "../lib/ai-providers";
+import type { Profile } from "../lib/profile";
 
 const id = () => uuid("id").primaryKey().defaultRandom();
 const createdAt = () => timestamp("created_at", { withTimezone: true }).notNull().defaultNow();
@@ -28,8 +30,28 @@ export const users = pgTable("users", {
   isAdmin: boolean("is_admin").notNull().default(false),
   /** Bumped to sign the account out everywhere (password change, reset, "sign out all"). */
   sessionVersion: integer("session_version").notNull().default(0),
+  /** Private training goals and notes about the athlete — read by Claude and the built-in AI coach, never shown to friends. */
+  profile: jsonb("profile").$type<Profile>(),
+  /** Optional AI provider for automatic analysis and planning. `key` is the API key encrypted with the server secret. */
+  ai: jsonb("ai").$type<{ provider: AiProvider; model: string; key: string; hint: string; auto: boolean }>(),
   createdAt: createdAt(),
 });
+
+/** Texts written by the AI coach: one review per finished workout, one coaching note per day. */
+export const aiNotes = pgTable(
+  "ai_notes",
+  {
+    id: id(),
+    userId: uuid("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+    kind: text("kind").$type<"workout" | "coach">().notNull(),
+    /** Workout id for a review, the day (YYYY-MM-DD) for a coaching note. */
+    ref: text("ref").notNull(),
+    content: text("content").notNull(),
+    model: text("model").notNull(),
+    createdAt: createdAt(),
+  },
+  (t) => [uniqueIndex("ai_notes_ref").on(t.userId, t.kind, t.ref)],
+);
 
 /** A friendship is stored once, with the smaller id first. Friends see each other's training totals. */
 export const friendships = pgTable(

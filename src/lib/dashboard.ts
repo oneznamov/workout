@@ -2,6 +2,7 @@
 export const WIDGETS = [
   { id: "goals", label: "Цілі тижня (кільця)", shown: true, wide: false },
   { id: "minutes", label: "Хвилини по днях", shown: true, wide: false },
+  { id: "coach", label: "Порада тренера (ШІ)", shown: true, wide: true },
   { id: "week", label: "Календар тижня", shown: true, wide: true },
   { id: "stats", label: "Показники тижня", shown: true, wide: true },
   { id: "weight", label: "Вага тіла", shown: true, wide: false },

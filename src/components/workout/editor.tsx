@@ -17,12 +17,16 @@ import {
   RotateCcw,
   Save,
   Smartphone,
+  Sparkles,
   Target,
   Trash2,
   Watch,
 } from "lucide-react";
 import type { WorkoutStatus } from "@/db/schema";
+import { AiWorkoutNote } from "@/components/ai";
 import { deleteWorkoutAction, linkHealthWorkoutAction } from "@/lib/actions";
+import { supplementWorkoutAction } from "@/lib/ai-actions";
+import type { AiNote } from "@/lib/ai-providers";
 import { cloneWorkout, hardNavigate, pushWorkout, readLocal, removeLocal, writeLocal } from "@/lib/client/offline";
 import { cx, EXERCISES_FORMS, fmtClock, fmtDate, fmtDuration, fmtNum, fmtTime, plural } from "@/lib/format";
 import { STATUS_LABEL } from "@/lib/labels";
@@ -47,7 +51,10 @@ export function WorkoutEditor({
   exercises,
   healthCandidates = [],
   localOnly = false,
+  ai,
 }: {
+  /** Present when an AI key is connected: enables the review and "complete with AI". */
+  ai?: { auto: boolean; note: AiNote | null };
   initial: CWorkout;
   last: CLast;
   exercises: CExerciseInfo[];
@@ -381,6 +388,18 @@ export function WorkoutEditor({
     setRest(null);
   };
 
+  // "Complete with AI": the server adds what the plan is missing, then the screen picks it up.
+  const [aiMsg, setAiMsg] = useState<{ busy?: boolean; text: string } | null>(null);
+  const supplement = async () => {
+    setAiMsg({ busy: true, text: "ШІ підбирає, чого бракує…" });
+    const pushed = await saveNow();
+    if (pushed.status !== "ok" && pushed.status !== "clean") return setAiMsg({ text: "Спершу потрібен звʼязок із сервером — зміни ще не збережено." });
+    const r = await supplementWorkoutAction(id);
+    if (!r.ok) return setAiMsg({ text: r.error });
+    await refetch();
+    setAiMsg({ text: r.added ? `Додано вправ: ${r.added}. ${r.why}` : `ШІ вважає, що тренування вже повне. ${r.why}` });
+  };
+
   const menuActions: SheetAction[] = [
     ...(done
       ? [
@@ -389,6 +408,7 @@ export function WorkoutEditor({
         ]
       : []),
     ...(live ? [{ label: "Завершити тренування", icon: <Flag size={19} />, onSelect: () => setConfirmFinish(true) }] : []),
+    ...(ai && !done && !localOnly ? [{ label: "Доповнити з ШІ", icon: <Sparkles size={19} />, onSelect: supplement }] : []),
     ...(w.status !== "template" ? [{ label: "Зберегти як шаблон", icon: <Save size={19} />, onSelect: () => spawn("template") }] : []),
     { label: "Видалити тренування", icon: <Trash2 size={19} />, onSelect: remove, tone: "danger" as const },
   ];
@@ -515,8 +535,17 @@ export function WorkoutEditor({
           </button>
         )}
 
+        {aiMsg && (
+          <p role="status" className="flex items-start gap-2 rounded-2xl bg-body/15 px-3.5 py-2.5 text-sm text-ink-2">
+            {aiMsg.busy ? <Loader2 size={16} className="mt-0.5 shrink-0 animate-spin text-body" /> : <Sparkles size={16} className="mt-0.5 shrink-0 text-body" />}
+            <span className="min-w-0 flex-1">{aiMsg.text}</span>
+          </p>
+        )}
+
         <NotesField value={w.notes} placeholder="Нотатки до тренування" onSave={(notes) => persist({ ...cur(), notes })} />
       </header>
+
+      {done && ai && !localOnly && <AiWorkoutNote workoutId={id} initial={ai.note} auto={ai.auto} ready={save === "saved"} />}
 
       {/* ── Apple Watch ── */}
       {done && !localOnly && (

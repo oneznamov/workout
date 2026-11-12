@@ -62,6 +62,7 @@ export const getSessionUser = cache(async () => {
       username: users.username,
       goals: users.goals,
       dashboard: users.dashboard,
+      profile: users.profile,
       isAdmin: users.isAdmin,
       sessionVersion: users.sessionVersion,
     })

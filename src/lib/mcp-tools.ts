@@ -1,16 +1,20 @@
 import "server-only";
 import type { McpServer } from "@modelcontextprotocol/server";
 import { z } from "zod";
-import { EQUIPMENT, MUSCLE_GROUPS, SET_TYPES, TRACKING } from "@/db/schema";
+import { eq } from "drizzle-orm";
+import { db } from "@/db";
+import { EQUIPMENT, MUSCLE_GROUPS, SET_TYPES, TRACKING, users } from "@/db/schema";
 import { getExerciseHistory, getMuscleSummary, getTrainingAnalytics } from "./analytics";
 import { addManualCardio, listCardio } from "./cardio";
 import { CARDIO_LABEL, paceLabel } from "./cardio-kinds";
 import { addDays, dayOf } from "./format";
 import { getLeaderboard } from "./friends";
+import { normalizeGoals } from "./goals";
 import * as health from "./health";
 import { toClientWorkout } from "./shape";
 import { buildTimeline } from "./timeline";
 import { METRIC_INFO } from "./labels";
+import { normalizeProfile } from "./profile";
 import * as wk from "./workouts";
 import type { ExerciseInput, SetInput } from "./workouts";
 
@@ -481,6 +485,51 @@ export function registerWorkoutTools(server: McpServer, userId: string) {
         distance_km: h.distanceM != null ? Math.round(h.distanceM / 10) / 100 : null,
         linked_workout_id: h.workoutId,
       }));
+    }),
+  );
+
+  server.registerTool(
+    "get_profile",
+    {
+      title: "Athlete profile and goals",
+      description:
+        "The athlete's private goals (title, details, target date, done) and their own notes about themselves (experience, injuries and limitations, schedule, equipment), plus the weekly targets shown as rings in the app. Read this before planning a workout or judging progress.",
+      inputSchema: z.object({}),
+    },
+    tool(async () => {
+      const [u] = await db.select({ profile: users.profile, goals: users.goals }).from(users).where(eq(users.id, userId));
+      return { ...normalizeProfile(u?.profile), weekly_targets: normalizeGoals(u?.goals) };
+    }),
+  );
+
+  server.registerTool(
+    "update_profile",
+    {
+      title: "Update athlete profile and goals",
+      description:
+        "Updates the athlete's private goals and notes. `goals` replaces the whole list: send every goal that should remain, keeping the `id` of existing ones (omit `id` for a new goal). Use it when the athlete states or changes a goal, reaches one (done=true), or when progress shows a goal needs a new target or date — say what you changed and why. Fields left out stay as they are.",
+      inputSchema: z.object({
+        about: z.string().max(2000).optional().describe("The athlete's notes about themselves: experience, limitations, schedule, equipment."),
+        goals: z
+          .array(
+            z.object({
+              id: z.string().optional(),
+              title: z.string().min(1).max(140),
+              details: z.string().max(600).optional(),
+              target_date: day.nullable().optional(),
+              done: z.boolean().optional(),
+            }),
+          )
+          .max(12)
+          .optional(),
+      }),
+    },
+    tool(async (a) => {
+      const [u] = await db.select({ profile: users.profile }).from(users).where(eq(users.id, userId));
+      const current = normalizeProfile(u?.profile);
+      const profile = normalizeProfile({ about: a.about ?? current.about, goals: a.goals ?? current.goals });
+      await db.update(users).set({ profile }).where(eq(users.id, userId));
+      return profile;
     }),
   );
 

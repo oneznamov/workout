@@ -2,6 +2,7 @@ import { Suspense } from "react";
 import { PageSkeleton } from "@/components/ui";
 import { notFound } from "next/navigation";
 import { WorkoutEditor } from "@/components/workout/editor";
+import { getAiState, getWorkoutNote } from "@/lib/ai";
 import { requireUserId } from "@/lib/auth";
 import { addDays, dayOf } from "@/lib/format";
 import { listHealthWorkouts } from "@/lib/health";
@@ -19,17 +20,20 @@ async function Content({ params }: PageProps<"/workouts/[id]">) {
   });
 
   const day = dayOf(workout.startedAt ?? new Date());
-  const [exercises, last, candidates] = await Promise.all([
+  const [exercises, last, candidates, ai, note] = await Promise.all([
     listExercises(userId),
     lastPerformance(userId, undefined, workout.id),
     workout.status === "completed"
       ? listHealthWorkouts(userId, { from: addDays(day, -1), to: addDays(day, 1), unlinkedOnly: true })
       : Promise.resolve([]),
+    getAiState(userId),
+    getWorkoutNote(userId, workout.id),
   ]);
 
   return (
     <WorkoutEditor
       key={workout.id}
+      ai={ai ? { auto: ai.auto, note } : undefined}
       initial={toClientWorkout(workout)}
       last={toClientLast(last)}
       exercises={[...exercises].sort((a, b) => a.name.localeCompare(b.name)).map(({ id, name, nameUk, muscle, equipment, tracking }) => ({ id, name, nameUk, muscle, equipment, tracking }))}

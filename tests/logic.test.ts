@@ -105,3 +105,76 @@ describe("friends", () => {
     ]);
   });
 });
+
+import { extractJson, resolvePlan } from "@/lib/ai-plan";
+import { seal, unseal } from "@/lib/crypto";
+import { normalizeProfile, profileText } from "@/lib/profile";
+
+describe("athlete profile", () => {
+  it("keeps well-formed goals, drops empty ones and repairs ids and dates", () => {
+    const p = normalizeProfile({
+      about: "  3 рази на тиждень  ",
+      goals: [
+        { id: "a", title: " Жим 100 кг ", details: "зараз 80×5", targetDate: "2027-03-01", done: false },
+        { id: "a", title: "Схуднути", target_date: "скоро" },
+        { title: "   " },
+        "сміття",
+      ],
+    });
+    expect(p.about).toBe("3 рази на тиждень");
+    expect(p.goals.map((g) => g.title)).toEqual(["Жим 100 кг", "Схуднути"]);
+    expect(p.goals[0]).toMatchObject({ id: "a", targetDate: "2027-03-01", done: false });
+    expect(p.goals[1].id).not.toBe("a");
+    expect(p.goals[1].targetDate).toBeNull();
+    expect(profileText(p)).toContain("Жим 100 кг (by 2027-03-01) — зараз 80×5");
+    expect(normalizeProfile(null)).toEqual({ about: "", goals: [] });
+  });
+});
+
+describe("AI plan", () => {
+  const library = [
+    { id: "1", name: "Barbell Bench Press", nameUk: "Жим лежачи", tracking: "weight_reps" },
+    { id: "2", name: "Plank", nameUk: "Планка", tracking: "duration" },
+    { id: "3", name: "Pull-Up", nameUk: null, tracking: "reps" },
+  ];
+  it("reads JSON out of a chatty reply", () => {
+    expect(extractJson('Ось план:\n```json\n{"a": 1}\n```')).toEqual({ a: 1 });
+    expect(() => extractJson("нічого")).toThrow();
+  });
+  it("matches exercises to the library, clamps numbers and drops what it cannot place", () => {
+    const plan = resolvePlan(
+      {
+        name: " Груди ",
+        notes: "бо відстають",
+        exercises: [
+          { exercise: "barbell bench press", rest_seconds: 5, notes: null, sets: [{ weight: 82.6, reps: 8, duration_sec: null }, { weight: 9999, reps: 500, duration_sec: null }] },
+          { exercise: "Планка", rest_seconds: null, notes: " тримати спину ", sets: [{ weight: 20, reps: 10, duration_sec: 45 }] },
+          { exercise: "Flying Kick", rest_seconds: 60, notes: null, sets: [{ weight: null, reps: 5, duration_sec: null }] },
+          { exercise: "Pull-Up", rest_seconds: 90, notes: null, sets: [] },
+        ],
+      },
+      library,
+    );
+    expect(plan.name).toBe("Груди");
+    expect(plan.unknown).toEqual(["Flying Kick"]);
+    expect(plan.exercises).toEqual([
+      { exerciseId: "1", restSeconds: 20, notes: null, sets: [{ weight: 82.5, reps: 8, durationSec: null }, { weight: 500, reps: 100, durationSec: null }] },
+      { exerciseId: "2", restSeconds: null, notes: "тримати спину", sets: [{ weight: null, reps: null, durationSec: 45 }] },
+    ]);
+  });
+  it("skips exercises the workout already has", () => {
+    const raw = { name: "x", notes: "", exercises: [{ exercise: "Plank", rest_seconds: null, notes: null, sets: [{ weight: null, reps: null, duration_sec: 30 }] }] };
+    expect(resolvePlan(raw, library, ["2"]).exercises).toEqual([]);
+  });
+});
+
+describe("sealed secrets", () => {
+  it("round-trips and rejects tampering", () => {
+    process.env.AUTH_SECRET ??= "test-secret-test-secret-test-secret-1234";
+    const sealed = seal("sk-test-123");
+    expect(sealed).not.toContain("sk-test");
+    expect(unseal(sealed)).toBe("sk-test-123");
+    expect(unseal(sealed.slice(0, -2) + "xx")).toBeNull();
+    expect(unseal("garbage")).toBeNull();
+  });
+});

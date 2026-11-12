@@ -1,6 +1,7 @@
 import { Suspense, type ReactNode } from "react";
 import Link from "next/link";
 import { Check, Dumbbell, Flame, Footprints, Heart, Moon, Play, Scale, Timer, Weight, Activity } from "lucide-react";
+import { CoachCard } from "@/components/ai";
 import { CardioRow } from "@/components/cardio/cardio-row";
 import { StackedBars } from "@/components/charts";
 import { DashboardCustomizer } from "@/components/dashboard-customizer";
@@ -11,6 +12,7 @@ import { Card, Empty, PageSkeleton, SectionTitle, Stat } from "@/components/ui";
 import { WeightQuick } from "@/components/weight-quick";
 import { NewWorkoutButtons } from "@/components/workout/new-workout";
 import { WorkoutRow } from "@/components/workout/workout-row";
+import { getAiState, getCoachNote } from "@/lib/ai";
 import { getMuscleBalance, getWeekSummary } from "@/lib/analytics";
 import { getUser } from "@/lib/auth";
 import { listCardio } from "@/lib/cardio";
@@ -32,7 +34,7 @@ async function Content() {
   const widgets = resolveDashboard(user.dashboard);
   const on = (id: WidgetId) => widgets.some((w) => w.id === id && w.visible);
 
-  const [active, planned, recent, week, weights, muscles, cardio, vitals, board] = await Promise.all([
+  const [active, planned, recent, week, weights, muscles, cardio, vitals, board, ai, coach] = await Promise.all([
     listWorkouts(user.id, { status: "in_progress", limit: 1 }),
     listWorkouts(user.id, { status: "planned", limit: 50 }),
     listWorkouts(user.id, { status: "completed", limit: 20 }),
@@ -44,6 +46,8 @@ async function Content() {
       ? getMetricSeries(user.id, ["resting_heart_rate", "heart_rate_variability", "sleep_analysis", "step_count"], addDays(today, -14))
       : [],
     on("friends") ? getLeaderboard(user.id, "week") : [],
+    on("coach") ? getAiState(user.id) : null,
+    on("coach") ? getCoachNote(user.id) : null,
   ]);
 
   const upcoming = planned
@@ -164,6 +168,8 @@ async function Content() {
         </div>
       </section>
     ),
+    // Only with an AI key connected; without one the widget simply is not there.
+    coach: ai ? <CoachCard initial={coach} auto={ai.auto} /> : null,
     friends:
       board.length > 1 ? (
         <Card title="Друзі цього тижня" action={<Link href="/friends" className="text-xs text-accent">Рейтинг →</Link>}>

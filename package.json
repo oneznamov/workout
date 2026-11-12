@@ -16,6 +16,7 @@
     "test": "vitest run"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "^1.8.0",
     "@modelcontextprotocol/server": "^2.4.0",
     "bcryptjs": "^3.0.3",
     "date-fns": "^4.4.0",

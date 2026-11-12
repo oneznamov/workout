@@ -3,12 +3,16 @@ import { PageSkeleton } from "@/components/ui";
 import { desc, eq } from "drizzle-orm";
 import { headers } from "next/headers";
 import Link from "next/link";
+import { AiSettings } from "@/components/ai";
 import { InstallCard } from "@/components/install";
+import { ProfileEditor } from "@/components/profile";
 import { CopyField, DataAndSecurity, LogoutButton, PasswordForm, TokensManager } from "@/components/settings";
 import { Card, Disclosure, PageHeader } from "@/components/ui";
 import { db } from "@/db";
 import { apiTokens } from "@/db/schema";
+import { getAiState } from "@/lib/ai";
 import { getUser } from "@/lib/auth";
+import { normalizeProfile } from "@/lib/profile";
 
 export const metadata = { title: "Налаштування" };
 
@@ -22,6 +26,7 @@ async function Content() {
     .from(apiTokens)
     .where(eq(apiTokens.userId, user.id))
     .orderBy(desc(apiTokens.createdAt));
+  const ai = await getAiState(user.id);
 
   return (
     <>
@@ -38,6 +43,10 @@ async function Content() {
               <span className="text-accent">→</span>
             </Link>
           )}
+
+          <Card title="Мої цілі">
+            <ProfileEditor initial={normalizeProfile(user.profile)} />
+          </Card>
 
           <Card title="Токени доступу">
             <p className="mb-4 text-sm text-ink-2">
@@ -59,6 +68,10 @@ async function Content() {
           </Disclosure>
         </div>
         <div className="space-y-5">
+          <Card title="ШІ-помічник" action={ai ? <span className="rounded-full bg-good/20 px-2.5 py-0.5 text-xs font-medium text-good">Підключено</span> : undefined}>
+            <AiSettings state={ai} />
+          </Card>
+
           <Disclosure title="Підключити Claude" hint="Планування та аналіз тренувань">
             <ol className="list-decimal space-y-2 pl-5 text-sm text-ink-2">
               <li>Створіть токен у розділі «Токени доступу» (наприклад, «Claude»).</li>

@@ -1,8 +1,10 @@
 import { Suspense } from "react";
+import { PlanWithAi } from "@/components/ai";
 import { NewWorkoutButtons } from "@/components/workout/new-workout";
 import { WorkoutList, WorkoutRow, WorkoutTable } from "@/components/workout/workout-row";
 import Link from "next/link";
 import { Empty, PageHeader, PageSkeleton, SectionTitle } from "@/components/ui";
+import { getAiState } from "@/lib/ai";
 import { requireUserId } from "@/lib/auth";
 import { listWorkouts } from "@/lib/workouts";
 
@@ -10,7 +12,7 @@ export const metadata = { title: "Тренування" };
 
 async function Content() {
   const userId = await requireUserId();
-  const all = await listWorkouts(userId, { limit: 300 });
+  const [all, ai] = await Promise.all([listWorkouts(userId, { limit: 300 }), getAiState(userId)]);
   const active = all.filter((w) => w.status === "in_progress");
   const planned = all
     .filter((w) => w.status === "planned")
@@ -27,7 +29,12 @@ async function Content() {
             Бібліотека вправ →
           </Link>
         }
-        actions={<NewWorkoutButtons />}
+        actions={
+          <>
+            <NewWorkoutButtons />
+            {ai && <PlanWithAi />}
+          </>
+        }
       />
       <div className="space-y-8">
         {active.length > 0 && (
@@ -51,7 +58,7 @@ async function Content() {
                 <WorkoutList rows={planned} className="hidden lg:block" />
               </>
             ) : (
-              <Empty>Запланованих тренувань немає. Створіть самі або попросіть Claude скласти план.</Empty>
+              <Empty>Запланованих тренувань немає. Створіть самі{ai ? ", натисніть «Скласти з ШІ»" : ""} або попросіть Claude скласти план.</Empty>
             )}
           </section>
           {templates.length > 0 && (

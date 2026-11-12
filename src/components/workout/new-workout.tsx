@@ -19,7 +19,7 @@ export function NewWorkoutButtons({ compact, localOnly }: { compact?: boolean; l
       else hardNavigate(`/train#${w.id}`);
     });
   return (
-    <div className="grid w-full max-w-md grid-cols-2 gap-2 sm:flex sm:max-w-none">
+    <div className="grid w-full max-w-md grid-cols-2 gap-2 sm:flex sm:w-auto sm:max-w-none">
       <button disabled={pending} onClick={() => create("in_progress")} className={compact ? "btn btn-primary px-3" : "btn btn-primary col-span-2"}>
         <Play size={18} /> Почати зараз
       </button>
