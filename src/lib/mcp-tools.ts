@@ -3,8 +3,12 @@ import type { McpServer } from "@modelcontextprotocol/server";
 import { z } from "zod";
 import { EQUIPMENT, MUSCLE_GROUPS, SET_TYPES, TRACKING } from "@/db/schema";
 import { getExerciseHistory, getMuscleSummary, getTrainingAnalytics } from "./analytics";
+import { addManualCardio, listCardio } from "./cardio";
+import { CARDIO_LABEL, paceLabel } from "./cardio-kinds";
 import { addDays, dayOf } from "./format";
 import * as health from "./health";
+import { toClientWorkout } from "./shape";
+import { buildTimeline } from "./timeline";
 import { METRIC_INFO } from "./labels";
 import * as wk from "./workouts";
 import type { ExerciseInput, SetInput } from "./workouts";
@@ -238,6 +242,20 @@ export function registerWorkoutTools(server: McpServer, userId: string) {
     tool(({ workout_id, include_heart_rate }) => describeWorkout(userId, workout_id, include_heart_rate)),
   );
 
+  server.registerTool(
+    "get_workout_timeline",
+    {
+      title: "Workout timeline",
+      description:
+        "Reconstructs a finished workout minute by minute: when each set was done, the rest before it, peak heart rate per set, average rest per exercise, work vs rest time and time in heart-rate zones. mode=logged uses the times sets were ticked off; mode=estimated infers them from heart-rate peaks (see confidence). Use it to analyse pacing, rest discipline and effort.",
+      inputSchema: z.object({ workout_id: z.string() }),
+    },
+    tool(async ({ workout_id }) => {
+      const timeline = buildTimeline(toClientWorkout(await wk.getWorkout(userId, workout_id)));
+      return timeline ?? { error: "No timeline: the workout is not finished, has no completed sets, or has neither set times nor heart-rate data." };
+    }),
+  );
+
   // ───────────── Workouts: write ─────────────
   server.registerTool(
     "create_workout",
@@ -399,7 +417,7 @@ export function registerWorkoutTools(server: McpServer, userId: string) {
     {
       title: "Muscle balance",
       description:
-        "Per-muscle-group training load: effective working sets this week and week by week, weekly average, status (none / low / below / optimal / high vs the 10–20 sets-per-week guideline), when each group was last trained and which exercises loaded it. Use it to find undertrained muscle groups and decide what the next workouts should target.",
+        "Per-muscle-group training load in points (a hard set = 1 for the primary muscle, 0.5 for secondaries; easier sets count less; cardio adds ~1 point per 10 min to the legs it works), this week and week by week, with status vs the 10–20 points-per-week guideline, when each group was last trained and what loaded it. Use it to find undertrained muscle groups and decide what the next workouts should target.",
       inputSchema: z.object({ weeks: z.number().int().min(1).max(52).default(8) }),
     },
     tool(({ weeks }) => getMuscleSummary(userId, weeks)),
@@ -461,6 +479,59 @@ export function registerWorkoutTools(server: McpServer, userId: string) {
         distance_km: h.distanceM != null ? Math.round(h.distanceM / 10) / 100 : null,
         linked_workout_id: h.workoutId,
       }));
+    }),
+  );
+
+  server.registerTool(
+    "list_cardio_sessions",
+    {
+      title: "Cardio sessions",
+      description: "Runs, rides and other cardio (from Apple Watch or added by hand) with distance, duration, pace or speed and heart rate. Cardio also counts toward muscle load in get_muscle_balance.",
+      inputSchema: z.object({ from: day.optional().describe("Defaults to 30 days ago."), to: day.optional(), kind: z.enum(["run", "cycle", "walk", "other"]).optional() }),
+    },
+    tool(async ({ from, to, kind }) => {
+      const rows = await listCardio(userId, { from: from ?? addDays(dayOf(), -30), to });
+      return rows
+        .filter((s) => !kind || s.kind === kind)
+        .map((s) => ({
+          id: s.id,
+          kind: s.kind,
+          label: CARDIO_LABEL[s.kind],
+          start: s.startAt,
+          duration_min: Math.round(s.durationSec / 60),
+          distance_km: s.distanceM != null ? Math.round(s.distanceM / 10) / 100 : null,
+          pace_or_speed: paceLabel(s.kind, s.distanceM, s.durationSec),
+          avg_hr: s.avgHr != null ? Math.round(s.avgHr) : null,
+          max_hr: s.maxHr != null ? Math.round(s.maxHr) : null,
+          active_kcal: s.activeKcal != null ? Math.round(s.activeKcal) : null,
+          source: s.manual ? "manual" : "apple_watch",
+          part_of_workout_id: s.workoutId,
+        }));
+    }),
+  );
+
+  server.registerTool(
+    "log_cardio_session",
+    {
+      title: "Log a run or ride",
+      description: "Adds a run or a bike ride by hand (use only when the Apple Watch did not record it, to avoid duplicates).",
+      inputSchema: z.object({
+        kind: z.enum(["run", "cycle"]),
+        started_at: z.string().describe("ISO datetime with offset."),
+        duration_min: z.number().positive().max(1440),
+        distance_km: z.number().min(0).max(1000).optional(),
+        avg_hr: z.number().min(30).max(240).optional(),
+      }),
+    },
+    tool(async (a) => {
+      const id = await addManualCardio(userId, {
+        kind: a.kind,
+        startAt: new Date(a.started_at),
+        durationSec: Math.round(a.duration_min * 60),
+        distanceM: a.distance_km != null ? Math.round(a.distance_km * 1000) : null,
+        avgHr: a.avg_hr ?? null,
+      });
+      return { ok: true, id };
     }),
   );
 

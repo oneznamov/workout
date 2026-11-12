@@ -66,7 +66,7 @@ function Region({
       role={interactive ? "button" : undefined}
       tabIndex={interactive ? 0 : undefined}
       aria-pressed={interactive ? isSelected : undefined}
-      aria-label={`${MUSCLE_LABEL[muscle]}: ${fmtNum(v, 1)} підходів, ${info.label.toLowerCase()}`}
+      aria-label={`${MUSCLE_LABEL[muscle]}: ${fmtNum(v, 1)} балів навантаження, ${info.label.toLowerCase()}`}
       onClick={interactive ? () => onSelect!(muscle) : undefined}
       onKeyDown={
         interactive
@@ -80,7 +80,7 @@ function Region({
       }
       className={interactive ? "cursor-pointer outline-none transition-opacity hover:opacity-80 focus-visible:opacity-80" : undefined}
     >
-      <title>{`${MUSCLE_LABEL[muscle]} · ${fmtNum(v, 1)} підх. · ${info.label}`}</title>
+      <title>{`${MUSCLE_LABEL[muscle]} · ${fmtNum(v, 1)} балів · ${info.label}`}</title>
       {children}
     </g>
   );

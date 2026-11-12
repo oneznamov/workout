@@ -8,6 +8,7 @@ import { db } from "@/db";
 import { apiTokens, EQUIPMENT, MUSCLE_GROUPS, TRACKING, users, type WorkoutStatus } from "@/db/schema";
 import { createSession, destroySession, generateApiToken, requireUserId } from "./auth";
 import { dayOf } from "./format";
+import { addManualCardio, deleteManualCardio } from "./cardio";
 import * as health from "./health";
 import * as wk from "./workouts";
 import type { ExerciseInput, SetInput } from "./workouts";
@@ -226,4 +227,32 @@ export async function createTokenAction(name: string) {
 export async function deleteTokenAction(id: string) {
   const userId = await requireUserId();
   await db.delete(apiTokens).where(and(eq(apiTokens.id, id), eq(apiTokens.userId, userId)));
+}
+
+// ───────────────────────── Cardio ─────────────────────────
+
+const cardioSchema = z.object({
+  kind: z.enum(["run", "cycle"]),
+  startAt: z.string().datetime({ offset: true }),
+  durationMin: z.number().positive().max(24 * 60),
+  distanceKm: z.number().min(0).max(1000).nullable(),
+  avgHr: z.number().min(30).max(240).nullable(),
+});
+
+export async function addCardioAction(input: z.infer<typeof cardioSchema>) {
+  const userId = await requireUserId();
+  const d = cardioSchema.parse(input);
+  await addManualCardio(userId, {
+    kind: d.kind,
+    startAt: new Date(d.startAt),
+    durationSec: Math.round(d.durationMin * 60),
+    distanceM: d.distanceKm != null ? Math.round(d.distanceKm * 1000) : null,
+    avgHr: d.avgHr,
+  });
+}
+
+export async function deleteCardioAction(id: string) {
+  const userId = await requireUserId();
+  await deleteManualCardio(userId, id);
+  redirect("/cardio");
 }

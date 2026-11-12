@@ -29,8 +29,8 @@ import { cloneWorkout, hardNavigate, pushWorkout, readLocal, removeLocal, writeL
 import { cx, EXERCISES_FORMS, fmtClock, fmtDate, fmtDateLong, fmtDuration, fmtNum, fmtTime, plural } from "@/lib/format";
 import { MUSCLE_LABEL, SET_TYPE_LABEL, SET_TYPE_SHORT, STATUS_LABEL } from "@/lib/labels";
 import { describeSet, type CExercise, type CExerciseInfo, type CLast, type CSet, type CWorkout } from "@/lib/shape";
-import { HrChart } from "../hr-chart";
 import { ExercisePicker } from "./exercise-picker";
+import { WorkoutTimeline } from "./timeline";
 
 const DEFAULT_REST = 90;
 const REST_OPTIONS = [30, 45, 60, 90, 120, 150, 180, 240, 300];
@@ -383,7 +383,7 @@ export function WorkoutEditor({
             <Mini
               label="Дата"
               value={fmtDate(w.startedAt, { day: "numeric", month: "short" })}
-              hint={`${fmtDate(w.startedAt, { weekday: "short", year: "numeric" })} · ${fmtTime(w.startedAt)}–${fmtTime(w.endedAt)}`}
+              hint={`${fmtDate(w.startedAt, { weekday: "short" })} · ${fmtTime(w.startedAt)}–${fmtTime(w.endedAt)}`}
             />
             <Mini
               label="Тривалість"
@@ -451,6 +451,21 @@ export function WorkoutEditor({
             await linkHealthWorkoutAction(hwId, link ? id : null);
             await refetch();
           }}
+        />
+      )}
+
+      {done && (
+        <WorkoutTimeline
+          workout={w}
+          onApply={(times) =>
+            persist({
+              ...cur(),
+              exercises: cur().exercises.map((e) => ({
+                ...e,
+                sets: e.sets.map((s) => (times[s.id] ? { ...s, completedAt: times[s.id] } : s)),
+              })),
+            })
+          }
         />
       )}
 
@@ -577,8 +592,8 @@ function SaveButton({ state, onSave }: { state: SaveState; onSave: () => void })
 function Mini({ label, value, unit, hint, tone }: { label: string; value: string; unit?: string; hint?: string; tone?: string }) {
   return (
     <div className="card p-3.5">
-      <div className="caps">{label}</div>
-      <div className={cx("num mt-0.5 text-2xl font-semibold", tone)}>
+      <div className={cx("text-[13px] font-semibold", tone ?? "text-ink-2")}>{label}</div>
+      <div className="num mt-1 text-2xl font-semibold text-ink">
         {value}
         {unit && <span className="ml-1 text-sm font-medium text-muted">{unit}</span>}
       </div>
@@ -1012,12 +1027,7 @@ function WatchCard({
             <WatchStat label="Активні калорії" value={fmtNum(h.activeKcal)} unit="ккал" tone="text-activity" />
             <WatchStat label="Час на годиннику" value={fmtDuration(h.durationSec)} />
           </div>
-          {h.hrSamples && h.hrSamples.length > 1 && (
-            <div className="mt-4">
-              <div className="caps mb-1">Пульс, уд/хв</div>
-              <HrChart samples={h.hrSamples} start={h.startAt} end={h.endAt} />
-            </div>
-          )}
+          {/* The heart-rate curve itself is drawn once, in the timeline card below. */}
         </section>
       ))}
     </>
@@ -1027,8 +1037,8 @@ function WatchCard({
 function WatchStat({ label, value, unit, tone }: { label: string; value: string; unit?: string; tone?: string }) {
   return (
     <div>
-      <div className="caps">{label}</div>
-      <div className={cx("num text-2xl font-semibold", tone)}>
+      <div className={cx("text-[13px] font-semibold", tone ?? "text-ink-2")}>{label}</div>
+      <div className="num text-2xl font-semibold text-ink">
         {value}
         {unit && <span className="ml-1 text-xs font-medium text-muted">{unit}</span>}
       </div>

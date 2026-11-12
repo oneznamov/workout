@@ -57,13 +57,19 @@ export function loadColor(load: number): string {
   return `rgb(${a.map((x, k) => Math.round(x + (b[k] - x) * t)).join(" ")})`;
 }
 
-export type MuscleContribution = { week: string; muscle: MuscleGroup; exerciseId: string; name: string; sets: number };
+/** `sets` is the load in points (1 ≈ one hard working set for that muscle). */
+export type MuscleContribution = { week: string; muscle: MuscleGroup; exerciseId: string; name: string; sets: number; cardio?: boolean };
+
+/** Cardio per week. `load` puts minutes on the same heat scale: 150 intensity-minutes ≈ 12 points. */
+export type CardioLoad = { week: string; label: string; minutes: number; load: number };
+export const CARDIO_MINUTES_PER_POINT = 12.5;
 
 export type MuscleBalance = {
   /** Monday of each week, oldest → newest. */
   weeks: string[];
   today: string;
   contributions: MuscleContribution[];
+  cardio: CardioLoad[];
   lastTrained: Partial<Record<MuscleGroup, string>>;
   suggestions: Record<MuscleGroup, { id: string; name: string; nameUk: string | null; done: number }[]>;
 };

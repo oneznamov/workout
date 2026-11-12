@@ -27,11 +27,13 @@ export function SectionTitle({ children, action }: { children: ReactNode; action
 export function Card({
   title,
   tone,
+  icon,
   action,
   children,
   className,
 }: {
   title?: ReactNode;
+  icon?: ReactNode;
   /** Tailwind text color for the card title, e.g. "text-heart" */
   tone?: string;
   action?: ReactNode;
@@ -42,7 +44,7 @@ export function Card({
     <section className={cx("card p-4", className)}>
       {(title || action) && (
         <div className="mb-3 flex items-center justify-between gap-2">
-          {title && <h2 className={cx("text-[15px] font-semibold", tone ?? "text-ink")}>{title}</h2>}
+          {title && <h2 className={cx("flex items-center gap-1.5 text-[15px] font-semibold", tone ?? "text-ink")}>{icon}{title}</h2>}
           {action}
         </div>
       )}
@@ -57,18 +59,23 @@ export function Stat({
   unit,
   hint,
   tone,
+  icon,
 }: {
   label: string;
   value: ReactNode;
   unit?: string;
   hint?: ReactNode;
-  /** Tailwind text color for the value, e.g. "text-strength" */
+  /** Tailwind text color of the category (icon + label), e.g. "text-strength" */
   tone?: string;
+  icon?: ReactNode;
 }) {
   return (
     <div className="card p-4">
-      <div className="caps">{label}</div>
-      <div className={cx("num mt-1 text-[1.75rem] leading-none font-semibold", tone)}>
+      <div className={cx("flex items-center gap-1.5 text-[13px] leading-tight font-semibold", tone ?? "text-ink-2")}>
+        {icon}
+        <span className="truncate">{label}</span>
+      </div>
+      <div className="num mt-2 text-[1.75rem] leading-none font-semibold text-ink">
         {value}
         {unit && <span className="ml-1 text-sm font-medium text-muted">{unit}</span>}
       </div>
@@ -91,13 +98,26 @@ export function Empty({ children }: { children: ReactNode }) {
   return <div className="card p-8 text-center text-sm text-muted">{children}</div>;
 }
 
-export function Segmented({ options, current, param }: { options: { value: string; label: string }[]; current: string; param: string }) {
+export function Segmented({
+  options,
+  current,
+  param,
+  extra,
+  label = "Період",
+}: {
+  options: { value: string; label: string }[];
+  current: string;
+  param: string;
+  /** Other query parameters to keep when switching. */
+  extra?: Record<string, string>;
+  label?: string;
+}) {
   return (
-    <div className="inline-flex rounded-full bg-surface p-1" role="group" aria-label="Період">
+    <div className="inline-flex rounded-full bg-surface p-1" role="group" aria-label={label}>
       {options.map((o) => (
         <Link
           key={o.value}
-          href={`?${param}=${o.value}`}
+          href={`?${new URLSearchParams({ ...extra, [param]: o.value })}`}
           aria-current={o.value === current ? "true" : undefined}
           className={cx(
             "rounded-full px-3.5 py-1.5 text-[13px] font-medium",

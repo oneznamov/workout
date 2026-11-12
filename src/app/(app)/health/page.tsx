@@ -1,6 +1,7 @@
 import { Suspense } from "react";
 import { PageSkeleton } from "@/components/ui";
 import Link from "next/link";
+import { Activity, Droplet, Flame, Footprints, Heart, Moon, PersonStanding, Scale, Timer, TrendingUp, Watch, Wind } from "lucide-react";
 import { TrendChart } from "@/components/charts";
 import { DeleteMetricButton, WeightForm } from "@/components/metric-form";
 import { Card, Empty, PageHeader, Segmented } from "@/components/ui";
@@ -37,6 +38,22 @@ const TONE: Record<string, string> = {
   "var(--c-activity)": "text-activity",
 };
 const colorOf = (metric: string) => COLOR[metric] ?? "var(--c-activity)";
+const ICON: Record<string, typeof Heart> = {
+  resting_heart_rate: Heart,
+  walking_heart_rate_average: Heart,
+  heart_rate_variability: Activity,
+  vo2_max: Wind,
+  respiratory_rate: Wind,
+  blood_oxygen_saturation: Droplet,
+  sleep_analysis: Moon,
+  step_count: Footprints,
+  walking_running_distance: Footprints,
+  active_energy: Flame,
+  basal_energy_burned: Flame,
+  apple_exercise_time: Timer,
+  apple_stand_time: PersonStanding,
+  flights_climbed: TrendingUp,
+};
 
 const ORDER = [
   "resting_heart_rate",
@@ -92,6 +109,7 @@ async function Content({ searchParams }: PageProps<"/health">) {
         <Card
           title="Вага тіла, кг"
           tone="text-body"
+          icon={<Scale size={16} />}
           action={
             lastWeight && (
               <span className="text-sm">
@@ -129,7 +147,7 @@ async function Content({ searchParams }: PageProps<"/health">) {
         </Card>
 
         {of("body_fat_percentage").length > 0 && (
-          <Card title="Жир, %" tone="text-body">
+          <Card title="Жир, %" tone="text-body" icon={<Scale size={16} />}>
             <TrendChart data={points("body_fat_percentage")} unit="%" digits={1} color="var(--c-body)" />
           </Card>
         )}
@@ -149,8 +167,9 @@ async function Content({ searchParams }: PageProps<"/health">) {
               const data = points(m);
               const vals = data.map((d) => d.value);
               const avg = vals.length ? vals.reduce((a, b) => a + b, 0) / vals.length : null;
+              const Icon = ICON[m] ?? Activity;
               return (
-                <Card key={m} title={info.label} tone={TONE[colorOf(m)]}>
+                <Card key={m} title={info.label} tone={TONE[colorOf(m)]} icon={<Icon size={16} />}>
                   {avg != null && (
                     <div className="mb-2">
                       <div className="caps">У середньому</div>
@@ -174,7 +193,7 @@ async function Content({ searchParams }: PageProps<"/health">) {
         )}
 
         {watchWorkouts.length > 0 && (
-          <Card title="Тренування з Apple Watch">
+          <Card title="Тренування з Apple Watch" icon={<Watch size={16} />}>
             <ul className="divide-y divide-line">
               {watchWorkouts.map((h) => (
                 <li key={h.id} className="tabular flex flex-wrap items-center justify-between gap-x-4 gap-y-1 py-2.5 text-sm">

@@ -2,14 +2,15 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Activity, BarChart3, Dumbbell, HeartPulse, Home, Settings } from "lucide-react";
+import { Activity, BarChart3, Bike, Dumbbell, HeartPulse, Home, Settings } from "lucide-react";
 import { cx } from "@/lib/format";
 import { ConnectionBadge } from "./connection";
 
 const items = [
   { href: "/", label: "Головна", icon: Home },
-  { href: "/workouts", label: "Тренування", icon: Activity, also: ["/train"] },
-  { href: "/exercises", label: "Вправи", icon: Dumbbell },
+  { href: "/workouts", label: "Тренування", icon: Activity, also: ["/train", "/exercises"], mobileAlso: true },
+  { href: "/cardio", label: "Кардіо", icon: Bike },
+  { href: "/exercises", label: "Вправи", icon: Dumbbell, desktopOnly: true },
   { href: "/analytics", label: "Аналітика", icon: BarChart3 },
   { href: "/health", label: "Здоров'я", icon: HeartPulse },
   { href: "/settings", label: "Налаштування", icon: Settings, desktopOnly: true },
@@ -28,8 +29,12 @@ function Brand() {
 
 export function Nav() {
   const pathname = usePathname();
-  const active = (i: (typeof items)[number]) =>
-    i.href === "/" ? pathname === "/" : pathname.startsWith(i.href) || (i.also ?? []).some((p) => pathname.startsWith(p));
+  const active = (i: (typeof items)[number], mobile = false) => {
+    if (i.href === "/") return pathname === "/";
+    if (pathname.startsWith(i.href)) return true;
+    // On the phone "Вправи" has no tab of its own — it lives under "Тренування".
+    return (i.also ?? []).some((p) => pathname.startsWith(p) && (mobile || p !== "/exercises"));
+  };
   return (
     <>
       {/* Desktop sidebar */}
@@ -80,10 +85,10 @@ export function Nav() {
               <Link
                 key={i.href}
                 href={i.href}
-                aria-current={active(i) ? "page" : undefined}
+                aria-current={active(i, true) ? "page" : undefined}
                 className={cx(
                   "flex flex-col items-center gap-0.5 pt-2 pb-1.5 text-[10px] font-medium",
-                  active(i) ? "text-accent" : "text-muted",
+                  active(i, true) ? "text-accent" : "text-muted",
                 )}
               >
                 <i.icon size={23} />

@@ -47,7 +47,7 @@ export function WeightQuick({ today, points }: { today: string; points: { day: s
     <div>
       <div className="flex items-end justify-between gap-3">
         <div>
-          <div className="num text-[2.25rem] leading-none font-semibold text-body">
+          <div className="num text-[2.25rem] leading-none font-semibold text-ink">
             {last ? fmtNum(last.value, 1) : "—"}
             <span className="ml-1 text-base font-medium text-muted">кг</span>
           </div>

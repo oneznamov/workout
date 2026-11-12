@@ -1,5 +1,5 @@
 import "server-only";
-import { and, asc, desc, eq, gte, ilike, inArray, isNull, lte, ne, or, sql } from "drizzle-orm";
+import { and, asc, desc, eq, ilike, inArray, isNull, ne, or, sql } from "drizzle-orm";
 import { db } from "@/db";
 import {
   exercises,
@@ -156,8 +156,9 @@ export async function listWorkouts(
   const where = [eq(workouts.userId, userId)];
   if (opts.status) where.push(inArray(workouts.status, Array.isArray(opts.status) ? opts.status : [opts.status]));
   const when = sql`coalesce(${workouts.startedAt}, ${workouts.scheduledFor}::timestamptz, ${workouts.createdAt})`;
-  if (opts.from) where.push(gte(when, new Date(`${opts.from}T00:00:00Z`)));
-  if (opts.to) where.push(lte(when, new Date(`${opts.to}T23:59:59Z`)));
+  // `when` is a raw expression, so the bounds are passed as text and cast in SQL.
+  if (opts.from) where.push(sql`${when} >= ${`${opts.from}T00:00:00Z`}::timestamptz`);
+  if (opts.to) where.push(sql`${when} <= ${`${opts.to}T23:59:59Z`}::timestamptz`);
 
   return db
     .select({
