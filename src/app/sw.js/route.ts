@@ -45,6 +45,38 @@ self.addEventListener("activate", (event) => {
   );
 });
 
+// Push: the server speaks while the app is not on screen (e.g. "rest is over" on a locked phone).
+self.addEventListener("push", (event) => {
+  let data = {};
+  try { data = event.data ? event.data.json() : {}; } catch {}
+  event.waitUntil(
+    self.registration.showNotification(data.title || "Workout", {
+      body: data.body || "",
+      tag: data.tag || "workout",
+      renotify: true,
+      icon: "/pwa-icon/192",
+      badge: "/pwa-icon/192",
+      vibrate: [250, 120, 250, 120, 400],
+      data: { url: data.url || "/" },
+    }),
+  );
+});
+
+self.addEventListener("notificationclick", (event) => {
+  event.notification.close();
+  const url = (event.notification.data && event.notification.data.url) || "/";
+  event.waitUntil(
+    (async () => {
+      const windows = await self.clients.matchAll({ type: "window", includeUncontrolled: true });
+      // The app is usually still open on the workout — bring it forward instead of opening a second copy.
+      for (const client of windows) {
+        if ("focus" in client) return client.focus();
+      }
+      return self.clients.openWindow(url);
+    })(),
+  );
+});
+
 self.addEventListener("message", (event) => {
   if (event.data && event.data.type === "warm") event.waitUntil(warm().catch(() => undefined));
 });

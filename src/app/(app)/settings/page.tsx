@@ -5,6 +5,7 @@ import { headers } from "next/headers";
 import Link from "next/link";
 import { AiSettings } from "@/components/ai";
 import { InstallCard } from "@/components/install";
+import { PushToggle } from "@/components/push-toggle";
 import { CopyField, DataAndSecurity, LogoutButton, PasswordForm, TokensManager } from "@/components/settings";
 import { Card, Disclosure, PageHeader } from "@/components/ui";
 import { db } from "@/db";
@@ -49,6 +50,10 @@ async function Content() {
             </span>
             <span className="text-accent">→</span>
           </Link>
+
+          <Card title="Сповіщення">
+            <PushToggle />
+          </Card>
 
           <Card title="Токени доступу">
             <p className="mb-4 text-sm text-ink-2">

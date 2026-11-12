@@ -12,7 +12,7 @@ const items = [
   { href: "/workouts", label: "Тренування", icon: Activity, also: ["/train", "/exercises", "/cardio", "/programs"], mobileAlso: true },
   { href: "/exercises", label: "Вправи", icon: Dumbbell, desktopOnly: true },
   { href: "/analytics", label: "Аналітика", icon: BarChart3 },
-  { href: "/team", label: "Команда", icon: Users },
+  { href: "/team", label: "Команда", icon: Users, desktopOnly: true },
   { href: "/profile", label: "Профіль", icon: CircleUser },
   { href: "/settings", label: "Налаштування", icon: Settings, desktopOnly: true },
 ];
@@ -66,6 +66,7 @@ export function Nav({ teamBadge }: { teamBadge?: ReactNode }) {
     // On the phone "Вправи" has no tab of its own — it lives under "Тренування".
     return (i.also ?? []).some((p) => pathname.startsWith(p) && (mobile || p !== "/exercises"));
   };
+  const tabs = items.filter((i) => !i.desktopOnly);
   return (
     <>
       <div aria-hidden="true" className="pointer-events-none absolute inset-x-0 top-0 md:left-60" style={{ height: GLOW_HEIGHT, backgroundImage: glow(pathname) }} />
@@ -115,6 +116,10 @@ export function Nav({ teamBadge }: { teamBadge?: ReactNode }) {
           <Brand />
           <div className="flex items-center gap-1">
             <ConnectionBadge compact />
+            <Link href="/team" aria-label="Команда" className={cx("icon-btn relative size-9", pathname.startsWith("/team") && "text-accent")}>
+              <Users size={19} />
+              <span className="absolute top-1 right-1">{teamBadge}</span>
+            </Link>
             <Link href="/settings" aria-label="Налаштування" className="icon-btn size-9">
               <Settings size={19} />
             </Link>
@@ -122,28 +127,26 @@ export function Nav({ teamBadge }: { teamBadge?: ReactNode }) {
         </div>
       </header>
 
-      {/* Mobile tab bar */}
-      <nav data-chrome className="pb-safe fixed inset-x-0 bottom-0 z-30 border-t border-line bg-plane/85 backdrop-blur-xl md:hidden">
-        <div className="grid grid-cols-5">
-          {items
-            .filter((i) => !i.desktopOnly)
-            .map((i) => (
-              <Link
-                key={i.href}
-                href={i.href}
-                aria-current={active(i, true) ? "page" : undefined}
-                className={cx(
-                  "flex flex-col items-center gap-0.5 pt-2 pb-1.5 text-[10px] font-medium",
-                  active(i, true) ? "text-accent" : "text-muted",
-                )}
-              >
-                <span className="relative">
-                  <i.icon size={23} />
-                  {i.href === "/team" && <span className="absolute -top-0.5 -right-1.5">{teamBadge}</span>}
-                </span>
-                {i.label}
-              </Link>
-            ))}
+      {/* Mobile tab bar: a floating pane of glass — what is behind it shows through, blurred. */}
+      <nav data-chrome className="pointer-events-none fixed inset-x-0 bottom-0 z-30 px-3 pb-[calc(env(safe-area-inset-bottom)+0.5rem)] md:hidden">
+        <div
+          className="pointer-events-auto mx-auto grid max-w-md gap-1 rounded-[30px] border border-white/[0.12] bg-surface/55 p-1.5 shadow-[0_10px_30px_rgba(0,0,0,0.5),inset_0_1px_0_rgba(255,255,255,0.14)] backdrop-blur-[20px] backdrop-saturate-[1.8]"
+          style={{ gridTemplateColumns: `repeat(${tabs.length}, minmax(0, 1fr))` }}
+        >
+          {tabs.map((i) => (
+            <Link
+              key={i.href}
+              href={i.href}
+              aria-current={active(i, true) ? "page" : undefined}
+              className={cx(
+                "flex flex-col items-center gap-0.5 rounded-[24px] py-1.5 text-[10px] font-medium transition-colors",
+                active(i, true) ? "bg-white/[0.13] text-accent" : "text-ink-2",
+              )}
+            >
+              <i.icon size={23} />
+              {i.label}
+            </Link>
+          ))}
         </div>
       </nav>
     </>

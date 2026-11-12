@@ -32,6 +32,7 @@ import { deleteWorkoutAction, linkHealthWorkoutAction } from "@/lib/actions";
 import { reviseWorkoutAction, supplementWorkoutAction } from "@/lib/ai-actions";
 import type { AiNote } from "@/lib/ai-providers";
 import { useLockScroll } from "@/lib/client/lock-scroll";
+import { armRestPush, cancelRestPush } from "@/lib/client/push";
 import { cloneWorkout, hardNavigate, pushWorkout, readLocal, removeLocal, writeLocal } from "@/lib/client/offline";
 import { addDays, cx, dayOf, EXERCISES_FORMS, fmtClock, fmtDate, fmtDateLong, fmtDuration, fmtNum, fmtTime, plural } from "@/lib/format";
 import { STATUS_LABEL } from "@/lib/labels";
@@ -389,6 +390,25 @@ export function WorkoutEditor({
       if (d < 0 && r.endsAt + d * 1000 - Date.now() < MIN_REST * 1000) return r;
       return { endsAt: r.endsAt + d * 1000, total: Math.max(MIN_REST, r.total + d) };
     });
+
+  // A rest that ends while the phone is locked is announced by a push; one that ends on screen is not.
+  const restEndsAt = rest?.endsAt ?? null;
+  const pushArmed = useRef(false);
+  useEffect(() => {
+    if (restEndsAt != null) {
+      pushArmed.current = true;
+      armRestPush(restEndsAt, `Час наступного підходу · ${wRef.current.name || "тренування"}`);
+    } else if (pushArmed.current) {
+      pushArmed.current = false;
+      cancelRestPush();
+    }
+  }, [restEndsAt]);
+  useEffect(
+    () => () => {
+      if (pushArmed.current) cancelRestPush();
+    },
+    [],
+  );
 
   const paused = live && Boolean(w.pausedAt);
   /** Pause stops the active-time clock; the total (start → finish) keeps running. */
@@ -796,7 +816,7 @@ export function WorkoutEditor({
 
       {/* The start button floats at the bottom: always within reach, never in the middle of the plan. */}
       {startable && (
-        <div className="pointer-events-none fixed inset-x-0 bottom-[calc(4.25rem+env(safe-area-inset-bottom))] z-30 bg-gradient-to-t from-plane via-plane/80 to-transparent px-4 pt-8 pb-3 md:bottom-0 md:left-60 md:pb-6">
+        <div className="pointer-events-none fixed inset-x-0 bottom-[calc(5rem+env(safe-area-inset-bottom))] z-30 bg-gradient-to-t from-plane via-plane/80 to-transparent px-4 pt-8 pb-3 md:bottom-0 md:left-60 md:pb-6">
           <button
             disabled={busy}
             onClick={start}
@@ -976,7 +996,7 @@ function RestBar({
   }, [left, onDone]);
   const pct = Math.min(100, Math.max(0, (left / rest.total) * 100));
   return (
-    <div className="fixed inset-x-0 bottom-[calc(4.25rem+env(safe-area-inset-bottom))] z-40 px-3 md:bottom-5 md:left-60">
+    <div className="fixed inset-x-0 bottom-[calc(5rem+env(safe-area-inset-bottom))] z-40 px-3 md:bottom-5 md:left-60">
       <div className="mx-auto max-w-md overflow-hidden rounded-3xl bg-surface-2 shadow-2xl ring-1 ring-white/10">
         <div className="flex items-center gap-2 p-3 pl-4">
           <div className="mr-auto">

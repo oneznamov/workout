@@ -5,6 +5,7 @@ import Link from "next/link";
 import { Check, CirclePlay, StickyNote, X } from "lucide-react";
 import type { MuscleGroup, Tracking } from "@/db/schema";
 import { exerciseFrames } from "@/lib/exercise-media";
+import { PushBell } from "@/components/push-toggle";
 import { useLockScroll } from "@/lib/client/lock-scroll";
 import { cx, fmtClock } from "@/lib/format";
 import type { CSet } from "@/lib/shape";
@@ -222,8 +223,10 @@ export function RestScreen({
       />
       <div className="relative mx-auto flex min-h-0 w-full max-w-xl flex-1 flex-col px-5 pt-[calc(env(safe-area-inset-top)+2rem)] pb-[calc(env(safe-area-inset-bottom)+1.25rem)]">
         <div className="flex items-baseline justify-between gap-3">
-          <span className="text-[1.6rem] leading-none font-bold">Відпочинок</span>
-          <span className="num text-sm text-muted">з {fmtClock(rest.total)}</span>
+          <span className="flex items-baseline gap-2">
+            <span className="text-[1.6rem] leading-none font-bold">Відпочинок</span>
+            <span className="num text-sm text-muted">з {fmtClock(rest.total)}</span>
+          </span>
         </div>
         <div className="flex min-h-0 flex-1 flex-col items-center justify-center">
           <div
@@ -235,6 +238,9 @@ export function RestScreen({
           </div>
           <div className="mt-7 h-3 w-full overflow-hidden rounded-full bg-surface-2">
             <div className={cx("h-full rounded-full", ending ? "bg-warning" : "bg-accent")} style={{ width: `${p * 100}%` }} />
+          </div>
+          <div className="mt-5 flex min-h-8 touch-auto justify-center">
+            <PushBell />
           </div>
         </div>
         {children}

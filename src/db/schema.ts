@@ -35,7 +35,29 @@ export const users = pgTable("users", {
   profile: jsonb("profile").$type<Profile>(),
   /** Optional AI provider for automatic analysis and planning. `key` is the API key encrypted with the server secret. */
   ai: jsonb("ai").$type<{ provider: AiProvider; model: string; key: string; hint: string; auto: boolean }>(),
+  /** The rest countdown a push is waiting to announce: its id and the moment it ends (ms). Null when none. */
+  restPush: jsonb("rest_push").$type<{ id: string; at: number }>(),
   createdAt: createdAt(),
+});
+
+/** Where to deliver push notifications: one row per device that allowed them. */
+export const pushSubscriptions = pgTable(
+  "push_subscriptions",
+  {
+    id: id(),
+    userId: uuid("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+    endpoint: text("endpoint").notNull().unique(),
+    p256dh: text("p256dh").notNull(),
+    auth: text("auth").notNull(),
+    createdAt: createdAt(),
+  },
+  (t) => [index("push_subscriptions_user").on(t.userId)],
+);
+
+/** Small server-wide values the app creates for itself (e.g. the push signing keys, stored sealed). */
+export const appConfig = pgTable("app_config", {
+  key: text("key").primaryKey(),
+  value: text("value").notNull(),
 });
 
 /** Texts written by the AI coach: one review per finished workout, one coaching note per day. */
