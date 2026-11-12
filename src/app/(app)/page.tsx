@@ -18,7 +18,7 @@ import { getUser } from "@/lib/auth";
 import { listCardio } from "@/lib/cardio";
 import { CARDIO_COLOR } from "@/lib/cardio-kinds";
 import { resolveDashboard, type WidgetId } from "@/lib/dashboard";
-import { addDays, cx, dayOf, EXERCISES_FORMS, fmtDate, fmtDateLong, fmtDuration, fmtNum, fmtTime, plural, weekStart } from "@/lib/format";
+import { addDays, cx, dayOf, durationParts, EXERCISES_FORMS, fmtDate, fmtDateLong, fmtDuration, fmtNum, fmtTime, plural, weekStart } from "@/lib/format";
 import { getLeaderboard, listMyTeamInvites } from "@/lib/team";
 import { normalizeGoals } from "@/lib/goals";
 import { getMetricSeries } from "@/lib/health";
@@ -131,7 +131,7 @@ async function Content() {
     stats: (
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
         <Stat label="Тренувань" tone="text-strength" icon={<Dumbbell size={15} />} value={week.cur.workouts} hint={`минулого тижня: ${week.prev.workouts}`} />
-        <Stat label="Час у залі" tone="text-activity" icon={<Timer size={15} />} value={fmtDuration(week.cur.durationMin * 60)} hint={`минулого: ${fmtDuration(week.prev.durationMin * 60)}`} />
+        <Stat label="Час у залі" tone="text-activity" icon={<Timer size={15} />} {...durationParts(week.cur.durationMin * 60)} hint={`минулого: ${fmtDuration(week.prev.durationMin * 60)}`} />
         <Stat label="Тоннаж" tone="text-strength" icon={<Weight size={15} />} value={fmtNum(week.cur.volume)} unit="кг" hint={delta(week.cur.volume, week.prev.volume)} />
         <Stat
           label="Кардіо"
@@ -229,7 +229,7 @@ async function Content() {
           </span>
           <span className="min-w-0 flex-1">
             <span className="block text-xs font-semibold tracking-wide uppercase opacity-70">Триває · з {fmtTime(active[0].startedAt)}</span>
-            <span className="block truncate text-xl font-bold">{active[0].name}</span>
+            <span className="line-clamp-2 text-xl leading-tight font-bold">{active[0].name}</span>
           </span>
           <span className="shrink-0 text-sm font-semibold">Продовжити →</span>
         </Link>

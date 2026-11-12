@@ -7,7 +7,7 @@ import { Card, PageHeader, PageSkeleton, Stat } from "@/components/ui";
 import { requireUserId } from "@/lib/auth";
 import { getCardioSession } from "@/lib/cardio";
 import { CARDIO_LABEL, paceLabel } from "@/lib/cardio-kinds";
-import { fmtDateLong, fmtDuration, fmtNum, fmtTime } from "@/lib/format";
+import { durationParts, fmtDateLong, fmtNum, fmtTime } from "@/lib/format";
 
 export const metadata = { title: "Кардіо" };
 
@@ -39,7 +39,7 @@ async function Content({ params }: PageProps<"/cardio/[id]">) {
       <div className="space-y-4">
         <div className="grid grid-cols-2 gap-3 lg:grid-cols-3">
           <Stat label="Дистанція" tone={tone} value={s.distanceM ? fmtNum(s.distanceM / 1000, 2) : "—"} unit="км" />
-          <Stat label="Час" tone="text-activity" value={fmtDuration(duration)} />
+          <Stat label="Час" tone="text-activity" {...durationParts(duration)} />
           <Stat label={s.kind === "cycle" ? "Швидкість" : "Темп"} value={pace?.split(" ")[0] ?? "—"} unit={s.kind === "cycle" ? "км/год" : "/км"} />
           <Stat label="Середній пульс" tone="text-heart" value={fmtNum(s.avgHr)} unit="уд/хв" />
           <Stat label="Макс. пульс" tone="text-heart" value={fmtNum(s.maxHr)} unit="уд/хв" />

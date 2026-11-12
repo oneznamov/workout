@@ -10,7 +10,7 @@ import { getMuscleBalance, getRecords, getTrainingAnalytics } from "@/lib/analyt
 import { requireUserId } from "@/lib/auth";
 import { getCardioAnalytics } from "@/lib/cardio";
 import { CARDIO_COLOR, CARDIO_LABEL } from "@/lib/cardio-kinds";
-import { addDays, dayOf, fmtDate, fmtDuration, fmtNum, fmtWeight } from "@/lib/format";
+import { addDays, dayOf, durationParts, fmtDate, fmtDuration, fmtNum, fmtWeight } from "@/lib/format";
 import { MUSCLE_LABEL } from "@/lib/labels";
 import { listWorkouts } from "@/lib/workouts";
 
@@ -82,7 +82,7 @@ async function Content({ searchParams }: PageProps<"/analytics">) {
           <SectionTitle>Зведення</SectionTitle>
           <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
             <Stat label="Силових" tone="text-strength" value={a.totals.workouts} hint={`≈ ${fmtNum(a.totals.workouts / weeks, 1)} на тиждень`} />
-            <Stat label="Час у залі" tone="text-activity" value={fmtDuration(a.totals.durationMin * 60)} />
+            <Stat label="Час у залі" tone="text-activity" {...durationParts(a.totals.durationMin * 60)} />
             <Stat label="Тоннаж" tone="text-strength" value={fmtNum(a.totals.volume / 1000, 1)} unit="т" hint={`${fmtNum(a.totals.sets)} підходів`} />
             <Stat label="Кардіо" tone="text-run" value={fmtNum(cardioKm, 1)} unit="км" hint={`${cardioCount} сесій · ${fmtDuration(cardio.weekly.reduce((s, w) => s + w.minutes, 0) * 60)}`} />
           </div>

@@ -52,6 +52,13 @@ export function fmtDuration(totalSec: number | null | undefined) {
   return `${Math.floor(m / 60)} год ${m % 60} хв`;
 }
 
+/** A duration as a big number and its unit, short enough for a stat tile: 55 + "хв", 5:30 + "год". */
+export function durationParts(totalSec: number | null | undefined): { value: string; unit?: string } {
+  if (totalSec == null) return { value: "—" };
+  const m = Math.round(totalSec / 60);
+  return m < 60 ? { value: String(m), unit: "хв" } : { value: `${Math.floor(m / 60)}:${String(m % 60).padStart(2, "0")}`, unit: "год" };
+}
+
 export function fmtNum(n: number | null | undefined, digits = 0) {
   if (n == null || Number.isNaN(n)) return "—";
   return new Intl.NumberFormat("uk-UA", { maximumFractionDigits: digits }).format(n);

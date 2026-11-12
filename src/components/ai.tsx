@@ -2,7 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useRef, useState, useTransition } from "react";
-import { Check, Loader2, Minus, Plus, RefreshCw, Sparkles, X } from "lucide-react";
+import { Check, ChevronDown, Loader2, Minus, Plus, RefreshCw, Sparkles, X } from "lucide-react";
 import Link from "next/link";
 import {
   analyzeWorkoutAction,
@@ -146,9 +146,12 @@ function NoteCard({
   ready = true,
   idle,
   action = "Проаналізувати",
+  foldKey,
   run,
 }: {
   title: string;
+  /** When set, the card can be folded to one line; the choice is remembered on this device under this key. */
+  foldKey?: string;
   /** label of the button that starts the first run */
   action?: string;
   initial: AiNote | null;
@@ -175,6 +178,26 @@ function NoteCard({
     [run],
   );
 
+  const [folded, setFolded] = useState(false);
+  useEffect(() => {
+    if (!foldKey) return;
+    void Promise.resolve().then(() => {
+      try {
+        setFolded(localStorage.getItem(foldKey) === "1");
+      } catch {
+        /* storage blocked — stay open */
+      }
+    });
+  }, [foldKey]);
+  const fold = (next: boolean) => {
+    setFolded(next);
+    try {
+      localStorage.setItem(foldKey!, next ? "1" : "0");
+    } catch {
+      /* ignore */
+    }
+  };
+
   useEffect(() => {
     if (note || !auto || !ready || started.current) return;
     started.current = true;
@@ -183,17 +206,26 @@ function NoteCard({
 
   return (
     <section className="card p-4">
-      <div className="mb-2 flex items-center justify-between gap-2">
-        <h2 className="flex items-center gap-1.5 text-[15px] font-semibold text-body">
-          <Sparkles size={16} /> {title}
-        </h2>
-        {note && (
+      <div className={cx("flex items-center justify-between gap-2", !folded && "mb-2")}>
+        {foldKey ? (
+          <button onClick={() => fold(!folded)} aria-expanded={!folded} className="flex min-w-0 flex-1 items-center gap-1.5 text-left text-[15px] font-semibold text-body">
+            <Sparkles size={16} className="shrink-0" />
+            <span className="shrink-0">{title}</span>
+            {folded && note && <span className="min-w-0 flex-1 truncate pl-1 text-sm font-normal text-muted">{note.content}</span>}
+            <ChevronDown size={17} className={cx("ml-auto shrink-0 text-muted transition-transform", !folded && "rotate-180")} />
+          </button>
+        ) : (
+          <h2 className="flex items-center gap-1.5 text-[15px] font-semibold text-body">
+            <Sparkles size={16} /> {title}
+          </h2>
+        )}
+        {note && !folded && (
           <button onClick={() => void load(true)} disabled={busy} aria-label="Оновити аналіз" title="Оновити" className="icon-btn size-8">
             <RefreshCw size={15} className={busy ? "animate-spin" : undefined} />
           </button>
         )}
       </div>
-      {note ? (
+      {folded ? null : note ? (
         <>
           <p className={cx("text-[15px] leading-relaxed whitespace-pre-line text-ink-2", busy && "opacity-50")}>{note.content}</p>
           <p className="mt-2 text-xs text-muted">
@@ -212,7 +244,7 @@ function NoteCard({
           </button>
         </div>
       )}
-      {error && (
+      {error && !folded && (
         <p role="alert" className="mt-2 text-sm text-critical">
           {error}
         </p>
@@ -229,7 +261,9 @@ export function AiWorkoutNote({ workoutId, initial, auto, ready }: { workoutId: 
 
 /** Today's coaching note on the home screen. */
 export function CoachCard({ initial, auto }: { initial: AiNote | null; auto: boolean }) {
-  return <NoteCard title="Порада тренера" initial={initial} auto={auto} idle="Як іде тиждень відносно ваших цілей і що тренувати далі." run={coachNoteAction} />;
+  return (
+    <NoteCard title="Порада тренера" initial={initial} auto={auto} foldKey="wk:fold:coach" idle="Як іде тиждень відносно ваших цілей і що тренувати далі." run={coachNoteAction} />
+  );
 }
 
 // ───────────────────────── Planning ─────────────────────────

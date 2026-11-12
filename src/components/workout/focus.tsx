@@ -1,16 +1,16 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { ArrowLeftRight, Check, ChevronRight, Flag, Minus, MoreHorizontal, Plus, SkipForward, Trash2 } from "lucide-react";
+import { ArrowLeftRight, Check, ChevronDown, ChevronRight, Flag, Minus, MoreHorizontal, Plus, SkipForward, Trash2 } from "lucide-react";
 import { cx, fmtDate, plural, SETS_FORMS } from "@/lib/format";
 import { MUSCLE_LABEL, SET_TYPE_LABEL } from "@/lib/labels";
 import { describeSet, type CExercise, type CLast, type CSet, type CWorkout } from "@/lib/shape";
-import { ActionSheet, columnsFor, ExerciseThumb, NotesField, NumInput, RestRing } from "./parts";
+import { ActionSheet, columnsFor, ExerciseThumb, NotesField, NumInput, RestScreen } from "./parts";
 
 /**
- * One thing at a time: the set to do now with big controls, then the rest countdown,
- * then the next set. The queue below lets you jump to any other exercise — the order
- * you do them in is up to you.
+ * One thing at a time: the set to do now with big controls and a "done" button that stays
+ * under the thumb, then a full-screen rest countdown, then the next set. Everything else —
+ * the queue of other exercises, adding one — is folded away below until asked for.
  */
 export function FocusView({
   w,
@@ -45,7 +45,7 @@ export function FocusView({
   const [menu, setMenu] = useState(false);
   const top = useRef<HTMLDivElement>(null);
   const resting = rest != null;
-  // Bring the countdown (or the next set) to the top of the screen when the phase changes.
+  // When the rest ends, the next set is waiting at the top of the screen.
   useEffect(() => {
     top.current?.scrollIntoView({ behavior: "smooth", block: "start" });
   }, [resting]);
@@ -59,27 +59,31 @@ export function FocusView({
   const prev = current ? last[current.exercise.id] : undefined;
 
   const upNext = current && set && (
-    <div className="mt-4 w-full rounded-2xl bg-surface-2 p-3 text-left">
-      <div className="caps">Далі</div>
-      <div className="truncate text-[15px] font-semibold">{current.exercise.name}</div>
-      <div className="text-sm text-ink-2">
-        Підхід {index + 1} з {current.sets.length} · <span className="num font-semibold">{describeSet(current.exercise.tracking, set)}</span>
+    <div className="flex w-full items-center gap-3 rounded-2xl bg-surface-2/90 p-3 text-left">
+      <ExerciseThumb name={current.exercise.name} size={48} />
+      <div className="min-w-0 flex-1">
+        <div className="caps">Далі</div>
+        <div className="truncate text-[17px] font-semibold">{current.exercise.name}</div>
+        <div className="text-sm text-ink-2">
+          Підхід {index + 1} з {current.sets.length} · <span className="num font-semibold text-ink">{describeSet(current.exercise.tracking, set, true)}</span>
+        </div>
       </div>
     </div>
   );
 
   return (
     <div ref={top} className="scroll-mt-[calc(5rem+env(safe-area-inset-top))] space-y-4 md:scroll-mt-6">
-      {rest ? (
-        <RestRing rest={rest} onAdjust={onRestAdjust} onDone={onRestDone}>
+      {rest && (
+        <RestScreen rest={rest} onAdjust={onRestAdjust} onDone={onRestDone}>
           {upNext}
-        </RestRing>
-      ) : current && set ? (
+        </RestScreen>
+      )}
+      {current && set ? (
         <section className="card p-4">
           <div className="flex items-center gap-3">
             <ExerciseThumb name={current.exercise.name} size={56} />
             <div className="min-w-0 flex-1">
-              <h2 className="truncate text-[1.35rem] leading-tight font-bold">{current.exercise.name}</h2>
+              <h2 className="line-clamp-2 text-[1.35rem] leading-tight font-bold">{current.exercise.name}</h2>
               <div className="truncate text-xs text-muted">
                 {current.exercise.nameUk ? `${current.exercise.nameUk} · ` : ""}
                 {MUSCLE_LABEL[current.exercise.muscle]}
@@ -154,9 +158,15 @@ export function FocusView({
             })}
           </div>
 
-          <button onClick={() => onToggleSet(current, set, index)} className="btn btn-primary mt-4 h-14 w-full text-[17px]">
-            <Check size={22} strokeWidth={3} /> Готово
-          </button>
+          {/* Stays at the bottom of the screen while the card scrolls — always under the thumb. */}
+          <div className="sticky bottom-[calc(env(safe-area-inset-bottom)+0.75rem)] z-20 mt-4 md:bottom-4">
+            <button
+              onClick={() => onToggleSet(current, set, index)}
+              className="btn btn-primary h-16 w-full text-[19px] shadow-[0_10px_30px_rgba(0,0,0,0.55)]"
+            >
+              <Check size={24} strokeWidth={3} /> Готово
+            </button>
+          </div>
           <div className="mt-2 grid grid-cols-2 gap-2">
             <button onClick={() => onRemoveSet(current.id, set.id)} className="btn btn-sm btn-ghost text-ink-2">
               <Trash2 size={15} /> Прибрати підхід
@@ -181,10 +191,17 @@ export function FocusView({
         </section>
       )}
 
-      {others.length > 0 && (
-        <section>
-          <h3 className="caps mb-2 px-1">Черга · натисніть, щоб робити зараз</h3>
-          <div className="card divide-y divide-line overflow-hidden">
+      {/* Everything that is not "this set, now" lives in one folded block. */}
+      {others.length > 0 ? (
+        <details className="card group overflow-hidden">
+          <summary className="flex cursor-pointer list-none items-center gap-3 p-3.5 [&::-webkit-details-marker]:hidden">
+            <span className="min-w-0 flex-1">
+              <span className="caps block">Черга · {plural(others.length, ["вправа", "вправи", "вправ"])}</span>
+              <span className="block truncate text-[15px] font-medium text-ink-2">Потім: {others[0].exercise.name}</span>
+            </span>
+            <ChevronDown size={18} className="shrink-0 text-muted transition-transform group-open:rotate-180" />
+          </summary>
+          <div className="divide-y divide-line border-t border-line">
             {others.map((e) => {
               const left = e.sets.filter((s) => !s.completed);
               return (
@@ -195,23 +212,29 @@ export function FocusView({
                       <span className="block truncate text-[15px] font-semibold">{e.exercise.name}</span>
                       <span className="block truncate text-xs text-muted">
                         {e.sets.length === left.length ? plural(left.length, SETS_FORMS) : `залишилось ${left.length} з ${e.sets.length}`} ·{" "}
-                        {describeSet(e.exercise.tracking, left[0])}
+                        {describeSet(e.exercise.tracking, left[0], true)}
                       </span>
                     </span>
+                    <span className="shrink-0 text-xs font-medium text-accent">Зараз</span>
                     <ChevronRight size={18} className="shrink-0 text-muted" />
                   </button>
                 </div>
               );
             })}
+            <div className="p-3">
+              <button onClick={onAddExercise} className="btn btn-ghost btn-sm w-full">
+                <Plus size={16} /> Додати вправу
+              </button>
+            </div>
           </div>
-        </section>
+        </details>
+      ) : (
+        <button onClick={onAddExercise} className="btn btn-ghost w-full">
+          <Plus size={18} /> Додати вправу
+        </button>
       )}
 
       {finished.length > 0 && <p className="px-1 text-xs text-muted">Виконано: {finished.map((e) => e.exercise.name).join(", ")}</p>}
-
-      <button onClick={onAddExercise} className="btn btn-ghost w-full">
-        <Plus size={18} /> Додати вправу
-      </button>
 
       {menu && current && (
         <ActionSheet

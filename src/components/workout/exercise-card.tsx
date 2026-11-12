@@ -241,7 +241,7 @@ export function ExerciseSummary({ e, tracked }: { e: CExercise; tracked: boolean
               )}
             >
               <span className="text-xs font-normal text-muted">{SET_TYPE_SHORT[s.type] || i + 1}</span>
-              {describeSet(t, s)}
+              {describeSet(t, s, true)}
               {tracked && s.completed && <Check size={13} strokeWidth={3} className="text-accent" />}
             </li>
           ))}

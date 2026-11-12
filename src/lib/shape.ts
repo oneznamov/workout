@@ -154,17 +154,19 @@ export function toClientLast(
   );
 }
 
-/** "80 × 8", "12 повт", "1:30", "2.5 км" */
+/** "80 × 8", "12 повт", "1:30", "2.5 км"; with `units` — "80 кг × 8" for reading without column headers. */
 export function describeSet(
   tracking: Tracking,
   s: { weight: number | null; reps: number | null; durationSec: number | null; distanceM: number | null },
+  units = false,
 ) {
   const w = s.weight != null ? String(Math.round(s.weight * 100) / 100) : null;
+  const kg = units ? " кг" : "";
   switch (tracking) {
     case "weight_reps":
-      return `${w ?? "—"} × ${s.reps ?? "—"}`;
+      return `${w ?? "—"}${w ? kg : ""} × ${s.reps ?? "—"}`;
     case "reps":
-      return w && s.weight !== 0 ? `+${w} × ${s.reps ?? "—"}` : `${s.reps ?? "—"} повт`;
+      return w && s.weight !== 0 ? `+${w}${kg} × ${s.reps ?? "—"}` : `${s.reps ?? "—"} повт`;
     case "duration": {
       const sec = s.durationSec ?? 0;
       return `${Math.floor(sec / 60)}:${String(sec % 60).padStart(2, "0")}`;

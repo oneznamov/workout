@@ -166,8 +166,12 @@ export function ActionSheet({ title, actions, onClose }: { title?: string; actio
 
 // ───────────────────────── Rest ring ─────────────────────────
 
-/** Big circular rest countdown. The ring drains smoothly and pulses for the last seconds. */
-export function RestRing({
+/**
+ * Rest between sets, as large as the screen allows: the time left in huge digits that can be
+ * read from the floor, a bar draining under them, the screen filling up as the rest runs out,
+ * what comes next, and three big buttons.
+ */
+export function RestScreen({
   rest,
   onAdjust,
   onDone,
@@ -187,50 +191,45 @@ export function RestRing({
   useEffect(() => {
     if (left <= 0) onDone(true);
   }, [left, onDone]);
-  const size = 232;
-  const stroke = 16;
-  const r = (size - stroke) / 2;
-  const len = 2 * Math.PI * r;
   const p = Math.min(1, Math.max(0, left / rest.total));
   const ending = left <= 5;
   return (
-    <div className="card flex flex-col items-center p-5">
-      <div className="caps">Відпочинок</div>
-      <div className={cx("relative mt-3", ending && "animate-pulse")} style={{ width: size, height: size }}>
-        <svg width={size} height={size} className="-rotate-90" aria-hidden="true">
-          <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke="var(--surface-2)" strokeWidth={stroke} />
-          <circle
-            cx={size / 2}
-            cy={size / 2}
-            r={r}
-            fill="none"
-            stroke={ending ? "var(--warning)" : "var(--accent)"}
-            strokeWidth={stroke}
-            strokeLinecap="round"
-            strokeDasharray={`${Math.max(0.01, p * len)} ${len}`}
-          />
-        </svg>
-        <div className="absolute inset-0 grid place-items-center">
-          <div className="text-center">
-            <div className={cx("num text-[4rem] leading-none font-semibold", ending ? "text-warning" : "text-ink")} role="timer" aria-live="off">
-              {fmtClock(Math.ceil(Math.max(0, left)))}
-            </div>
-            <div className="mt-1 text-xs text-muted">з {fmtClock(rest.total)}</div>
+    <div role="dialog" aria-label="Відпочинок" className="fixed inset-0 z-40 flex flex-col overflow-hidden bg-plane md:left-60">
+      <div
+        aria-hidden="true"
+        className={cx("absolute inset-x-0 bottom-0 transition-[height] duration-150 ease-linear", ending ? "bg-warning/20" : "bg-accent/[0.14]")}
+        style={{ height: `${(1 - p) * 100}%` }}
+      />
+      <div className="relative mx-auto flex min-h-0 w-full max-w-xl flex-1 flex-col px-5 pt-[calc(env(safe-area-inset-top)+1.25rem)] pb-[calc(env(safe-area-inset-bottom)+1.25rem)]">
+        <div className="flex items-baseline justify-between gap-3">
+          <span className="text-[1.6rem] leading-none font-bold">Відпочинок</span>
+          <span className="num text-sm text-muted">з {fmtClock(rest.total)}</span>
+        </div>
+        <div className="flex min-h-0 flex-1 flex-col items-center justify-center">
+          <div
+            role="timer"
+            aria-live="off"
+            className={cx("num text-[min(34vw,13rem)] leading-none font-semibold tracking-tight", ending ? "animate-pulse text-warning" : "text-ink")}
+          >
+            {fmtClock(Math.ceil(Math.max(0, left)))}
+          </div>
+          <div className="mt-7 h-3 w-full overflow-hidden rounded-full bg-surface-2">
+            <div className={cx("h-full rounded-full", ending ? "bg-warning" : "bg-accent")} style={{ width: `${p * 100}%` }} />
           </div>
         </div>
+        {children}
+        <div className="mt-4 grid grid-cols-[1fr_1fr_1.5fr] gap-2">
+          <button onClick={() => onAdjust(-15)} disabled={left < 35} className="btn btn-ghost h-14 px-2 text-base">
+            −15 с
+          </button>
+          <button onClick={() => onAdjust(15)} className="btn btn-ghost h-14 px-2 text-base">
+            +15 с
+          </button>
+          <button onClick={() => onDone(false)} className="btn btn-primary h-14 px-2 text-[17px]">
+            Далі
+          </button>
+        </div>
       </div>
-      <div className="mt-4 flex w-full gap-2">
-        <button onClick={() => onAdjust(-15)} disabled={left < 35} className="btn btn-ghost flex-1">
-          −15 с
-        </button>
-        <button onClick={() => onAdjust(15)} className="btn btn-ghost flex-1">
-          +15 с
-        </button>
-        <button onClick={() => onDone(false)} className="btn btn-primary flex-1">
-          Далі
-        </button>
-      </div>
-      {children}
     </div>
   );
 }

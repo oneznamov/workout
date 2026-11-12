@@ -6,7 +6,7 @@ import { Card, Empty, PageHeader, PageSkeleton, SectionTitle, Segmented, Stat } 
 import { requireUserId } from "@/lib/auth";
 import { getCardioAnalytics } from "@/lib/cardio";
 import { CARDIO_COLOR, CARDIO_LABEL, paceLabel, type CardioKind } from "@/lib/cardio-kinds";
-import { addDays, dayOf, fmtDate, fmtDuration, fmtNum } from "@/lib/format";
+import { addDays, dayOf, durationParts, fmtDate, fmtNum } from "@/lib/format";
 
 export const metadata = { title: "Кардіо" };
 
@@ -65,7 +65,7 @@ async function Content({ searchParams }: PageProps<"/cardio">) {
               <SectionTitle>{CARDIO_LABEL[k]}</SectionTitle>
               <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
                 <Stat label="Дистанція" tone={k === "run" ? "text-run" : "text-cycle"} value={fmtNum(t.distanceM / 1000, 1)} unit="км" />
-                <Stat label="Час" tone="text-activity" value={fmtDuration(t.durationSec)} />
+                <Stat label="Час" tone="text-activity" {...durationParts(t.durationSec)} />
                 <Stat label={k === "run" ? "Пробіжок" : "Заїздів"} value={t.sessions} hint={`≈ ${fmtNum(t.sessions / weeks, 1)} на тиждень`} />
                 <Stat
                   label={k === "run" ? "Середній темп" : "Середня швидкість"}

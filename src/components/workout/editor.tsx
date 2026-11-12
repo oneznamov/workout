@@ -441,8 +441,42 @@ export function WorkoutEditor({
     0,
   );
 
+  // One set at a time: nothing on the screen but the workout. On a phone the app's own bars step aside too.
+  const focused = live && view === "focus";
+  useEffect(() => {
+    if (!focused) return;
+    document.body.dataset.immersive = "1";
+    return () => {
+      delete document.body.dataset.immersive;
+    };
+  }, [focused]);
+
+  // Keep the screen on while training, so the phone on the floor still shows the set or the rest.
+  useEffect(() => {
+    if (!live || paused || !("wakeLock" in navigator)) return;
+    let lock: WakeLockSentinel | null = null;
+    let stopped = false;
+    const acquire = () => {
+      if (stopped || document.visibilityState !== "visible") return;
+      navigator.wakeLock
+        .request("screen")
+        .then((l) => {
+          if (stopped) void l.release().catch(() => undefined);
+          else lock = l;
+        })
+        .catch(() => undefined);
+    };
+    acquire();
+    document.addEventListener("visibilitychange", acquire);
+    return () => {
+      stopped = true;
+      document.removeEventListener("visibilitychange", acquire);
+      void lock?.release().catch(() => undefined);
+    };
+  }, [live, paused]);
+
   // Desktop: summary on the left, exercises on the right. One-set-at-a-time mode stays a single centred column.
-  const split = !(live && view === "focus");
+  const split = !focused;
 
   return (
     <div
@@ -480,7 +514,7 @@ export function WorkoutEditor({
             <MoreHorizontal size={19} />
           </button>
         </div>
-        {readOnly ? (
+        {focused ? null : readOnly ? (
           <h1 className="text-[1.75rem] leading-tight font-bold tracking-tight">{w.name || "Тренування"}</h1>
         ) : (
           <input
@@ -496,7 +530,7 @@ export function WorkoutEditor({
           <div className={cx("card px-4 py-3", paused && "ring-2 ring-warning/60")}>
             <div className="flex items-center gap-3">
               <div className="min-w-0 flex-1">
-                <div className="caps">{paused ? "Пауза" : "Активний час"}</div>
+                <div className="caps truncate">{paused ? "Пауза" : focused ? w.name || "Активний час" : "Активний час"}</div>
                 <Elapsed workout={w} done={doneSets} sets={totalSets} />
               </div>
               <button
@@ -525,6 +559,10 @@ export function WorkoutEditor({
                   </button>
                 ))}
               </div>
+            </div>
+            {/* How far through the workout: sets done out of all planned. */}
+            <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-surface-2" role="progressbar" aria-label="Виконано підходів" aria-valuemin={0} aria-valuemax={totalSets} aria-valuenow={doneSets}>
+              <div className="h-full rounded-full bg-accent transition-[width] duration-300" style={{ width: `${totalSets ? (doneSets / totalSets) * 100 : 0}%` }} />
             </div>
           </div>
         )}
@@ -582,7 +620,7 @@ export function WorkoutEditor({
           </p>
         )}
 
-        {readOnly ? (
+        {focused ? null : readOnly ? (
           w.notes && <p className="rounded-2xl bg-surface-2 px-3.5 py-3 text-[15px] leading-snug whitespace-pre-line text-ink-2">{w.notes}</p>
         ) : (
           <NotesField value={w.notes} placeholder="Нотатки до тренування" onSave={(notes) => persist({ ...cur(), notes })} />
