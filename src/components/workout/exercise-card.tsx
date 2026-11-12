@@ -208,3 +208,48 @@ export function ExerciseCard({
     </section>
   );
 }
+
+/**
+ * An exercise as plain text — for looking at a planned or finished workout without the risk
+ * of changing a number by a stray tap. Editing is one button away on the workout itself.
+ */
+export function ExerciseSummary({ e, tracked }: { e: CExercise; tracked: boolean }) {
+  const t = e.exercise.tracking;
+  return (
+    <section className="card p-3.5 sm:p-4">
+      <div className="flex items-center gap-3">
+        <ExerciseThumb name={e.exercise.name} />
+        <div className="min-w-0 flex-1">
+          <Link href={`/exercises/${e.exercise.id}`} className="block truncate text-[17px] font-semibold hover:underline">
+            {e.exercise.name}
+          </Link>
+          <div className="truncate text-xs text-muted">
+            {e.exercise.nameUk ? `${e.exercise.nameUk} · ` : ""}
+            {MUSCLE_LABEL[e.exercise.muscle]}
+            {e.restSeconds ? ` · відпочинок ${fmtClock(e.restSeconds)}` : ""}
+          </div>
+        </div>
+      </div>
+      {e.sets.length > 0 ? (
+        <ol className="mt-3 flex flex-wrap gap-1.5" aria-label="Підходи">
+          {e.sets.map((s, i) => (
+            <li
+              key={s.id}
+              className={cx(
+                "num flex items-center gap-1.5 rounded-xl bg-surface-2 px-2.5 py-1.5 text-[15px] font-medium",
+                tracked && !s.completed && "text-muted line-through",
+              )}
+            >
+              <span className="text-xs font-normal text-muted">{SET_TYPE_SHORT[s.type] || i + 1}</span>
+              {describeSet(t, s)}
+              {tracked && s.completed && <Check size={13} strokeWidth={3} className="text-accent" />}
+            </li>
+          ))}
+        </ol>
+      ) : (
+        <p className="mt-3 text-sm text-muted">Підходів ще немає.</p>
+      )}
+      {e.notes && <p className="mt-2.5 text-sm leading-snug whitespace-pre-line text-ink-2">{e.notes}</p>}
+    </section>
+  );
+}

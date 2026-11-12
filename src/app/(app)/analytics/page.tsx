@@ -1,9 +1,11 @@
 import { Suspense } from "react";
 import Link from "next/link";
 import { ActivityCalendar, type DayActivity } from "@/components/activity-calendar";
+import { ReportCard, ReviewBacklog } from "@/components/ai";
 import { StackedBars, TrendChart } from "@/components/charts";
 import { MuscleBalanceView } from "@/components/muscles/muscle-balance";
 import { Badge, Card, PageHeader, PageSkeleton, SectionTitle, Segmented, Stat } from "@/components/ui";
+import { getAiState, getPeriodReport } from "@/lib/ai";
 import { getMuscleBalance, getRecords, getTrainingAnalytics } from "@/lib/analytics";
 import { requireUserId } from "@/lib/auth";
 import { getCardioAnalytics } from "@/lib/cardio";
@@ -26,9 +28,11 @@ async function Content({ searchParams }: PageProps<"/analytics">) {
   const weeks = PERIODS.some((p) => p.value === sp.w) ? Number(sp.w) : 12;
   const userId = await requireUserId();
   const [a, muscles, cardio] = await Promise.all([getTrainingAnalytics(userId, weeks), getMuscleBalance(userId, weeks), getCardioAnalytics(userId, weeks)]);
-  const [sessions, records] = await Promise.all([
+  const [sessions, records, ai, report] = await Promise.all([
     listWorkouts(userId, { status: "completed", from: a.from, limit: 500 }),
     getRecords(userId, a.from),
+    getAiState(userId),
+    getPeriodReport(userId, weeks),
   ]);
   const weekLabel = (w: string) => ({ label: fmtDate(w), hint: `${fmtDate(w)} – ${fmtDate(addDays(w, 6))}` });
 
@@ -68,6 +72,12 @@ async function Content({ searchParams }: PageProps<"/analytics">) {
         actions={<Segmented options={PERIODS} current={String(weeks)} param="w" />}
       />
       <div className="space-y-7">
+        {ai && (
+          <section className="grid grid-cols-1 gap-3 lg:grid-cols-[minmax(0,2fr)_minmax(0,1fr)] lg:items-start">
+            <ReportCard key={weeks} weeks={weeks} initial={report} />
+            <ReviewBacklog />
+          </section>
+        )}
         <section>
           <SectionTitle>Зведення</SectionTitle>
           <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">

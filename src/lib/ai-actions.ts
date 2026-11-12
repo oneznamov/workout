@@ -4,7 +4,20 @@ import { eq } from "drizzle-orm";
 import { z } from "zod";
 import { db } from "@/db";
 import { users } from "@/db/schema";
-import { AiError, analyzeWorkout, coachNote, planWorkout, removeAiSettings, saveAiSettings, supplementWorkout, testAi } from "./ai";
+import {
+  AiError,
+  analyzeWorkout,
+  coachNote,
+  listUnreviewed,
+  periodReport,
+  planProgram,
+  planWorkout,
+  removeAiSettings,
+  reviseWorkout,
+  saveAiSettings,
+  supplementWorkout,
+  testAi,
+} from "./ai";
 import { AI_PROVIDER_IDS, type AiNote, type AiResult } from "./ai-providers";
 import { requireUserId } from "./auth";
 import { logError } from "./errors";
@@ -56,6 +69,25 @@ export async function coachNoteAction(force = false): Promise<AiResult<{ note: A
 
 export async function planWorkoutAction(input: { wish?: string; date?: string }) {
   return attempt("plan", (userId) => planWorkout(userId, input));
+}
+
+/** Several planned workouts at once: on the chosen days, or `count` sessions spread over a week by the model. */
+export async function planProgramAction(input: { wish?: string; days?: string[]; count?: number; from?: string }) {
+  return attempt("programme", (userId) => planProgram(userId, input));
+}
+
+/** Rebuilds an already planned workout following what the athlete says has changed. */
+export async function reviseWorkoutAction(workoutId: string, instruction: string) {
+  return attempt("revise", (userId) => reviseWorkout(userId, workoutId, instruction));
+}
+
+export async function periodReportAction(weeks: number, force = false): Promise<AiResult<{ note: AiNote }>> {
+  return attempt("report", async (userId) => ({ note: await periodReport(userId, weeks, force) }));
+}
+
+/** Finished workouts that have no review yet (watch records are matched to them first). */
+export async function unreviewedWorkoutsAction() {
+  return attempt("backlog", async (userId) => ({ workouts: await listUnreviewed(userId) }));
 }
 
 export async function supplementWorkoutAction(workoutId: string) {

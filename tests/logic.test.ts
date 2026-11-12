@@ -208,3 +208,34 @@ describe("workout kind", () => {
     expect(workoutKind({ biceps: 2, triceps: 2 }).zones).toMatchObject({ arms: true, torso: false });
   });
 });
+
+import { resolveProgram } from "@/lib/ai-plan";
+
+describe("AI programme", () => {
+  const library = [
+    { id: "1", name: "Barbell Bench Press", nameUk: null, tracking: "weight_reps" },
+    { id: "2", name: "Back Squat", nameUk: null, tracking: "weight_reps" },
+  ];
+  const day = (date: string, exercise: string) => ({ date, name: `W ${date}`, notes: "", exercises: [{ exercise, rest_seconds: 90, notes: null, sets: [{ weight: 50, reps: 8, duration_sec: null }] }] });
+  it("keeps one workout per allowed day, in date order, and drops the rest", () => {
+    const program = resolveProgram(
+      {
+        notes: " ідея ",
+        workouts: [
+          day("2026-11-16", "Back Squat"),
+          day("2026-11-14", "Barbell Bench Press"),
+          day("2026-11-14", "Back Squat"),
+          day("2026-11-20", "Back Squat"),
+          day("2026-11-15", "Unknown Move"),
+        ],
+      },
+      library,
+      ["2026-11-14", "2026-11-15", "2026-11-16"],
+    );
+    expect(program.notes).toBe("ідея");
+    expect(program.workouts.map((w) => [w.date, w.exercises[0].exerciseId])).toEqual([
+      ["2026-11-14", "1"],
+      ["2026-11-16", "2"],
+    ]);
+  });
+});

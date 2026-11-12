@@ -6,13 +6,15 @@ import { PlannedCard, WorkoutList, WorkoutRow, WorkoutTable } from "@/components
 import Link from "next/link";
 import { Empty, PageHeader, PageSkeleton, SectionTitle } from "@/components/ui";
 import { getAiState } from "@/lib/ai";
-import { requireUserId } from "@/lib/auth";
+import { getUser } from "@/lib/auth";
+import { normalizeGoals } from "@/lib/goals";
 import { listWorkouts } from "@/lib/workouts";
 
 export const metadata = { title: "Тренування" };
 
 async function Content() {
-  const userId = await requireUserId();
+  const user = await getUser();
+  const userId = user.id;
   const [all, ai] = await Promise.all([listWorkouts(userId, { limit: 300 }), getAiState(userId)]);
   const active = all.filter((w) => w.status === "in_progress");
   const planned = all
@@ -33,7 +35,7 @@ async function Content() {
         actions={
           <>
             <NewWorkoutButtons />
-            {ai && <PlanWithAi />}
+            {ai && <PlanWithAi weeklyTarget={normalizeGoals(user.goals).workouts} />}
           </>
         }
       />

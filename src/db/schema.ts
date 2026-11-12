@@ -43,8 +43,8 @@ export const aiNotes = pgTable(
   {
     id: id(),
     userId: uuid("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
-    kind: text("kind").$type<"workout" | "coach">().notNull(),
-    /** Workout id for a review, the day (YYYY-MM-DD) for a coaching note. */
+    kind: text("kind").$type<"workout" | "coach" | "report">().notNull(),
+    /** Workout id for a review, the day (YYYY-MM-DD) for a coaching note, "<weeks>w" for a period report. */
     ref: text("ref").notNull(),
     content: text("content").notNull(),
     model: text("model").notNull(),

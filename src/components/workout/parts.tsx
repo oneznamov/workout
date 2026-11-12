@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { Check, StickyNote, X } from "lucide-react";
 import type { Tracking } from "@/db/schema";
 import { exerciseFrames } from "@/lib/exercise-media";
@@ -325,6 +325,14 @@ export function NotesField({
     setText(value ?? "");
     if (value) setOpen(true);
   }
+  // The field is as tall as its text — a long note (e.g. one written by Claude) is never cut off.
+  const field = useRef<HTMLTextAreaElement>(null);
+  useEffect(() => {
+    const el = field.current;
+    if (!el) return;
+    el.style.height = "auto";
+    el.style.height = `${el.scrollHeight + 2}px`;
+  }, [text, open]);
   if (!open) {
     return (
       <button onClick={() => setOpen(true)} className="flex items-center gap-1.5 text-sm text-muted hover:text-ink">
@@ -334,6 +342,7 @@ export function NotesField({
   }
   return (
     <textarea
+      ref={field}
       value={text}
       onChange={(e) => setText(e.target.value)}
       onBlur={() => {
@@ -344,7 +353,7 @@ export function NotesField({
       rows={2}
       placeholder={placeholder}
       aria-label={placeholder}
-      className="field resize-y text-[15px]"
+      className="field resize-none overflow-hidden text-[15px] leading-snug"
     />
   );
 }

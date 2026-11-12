@@ -1,18 +1,30 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { zodOutputFormat } from "@anthropic-ai/sdk/helpers/zod";
-import { and, eq } from "drizzle-orm";
+import { and, desc, eq, gte, notInArray } from "drizzle-orm";
 import type { z } from "zod";
 import { db } from "@/db";
-import { aiNotes, users } from "@/db/schema";
-import { extractJson, PLAN_SHAPE, planSchema, resolvePlan } from "./ai-plan";
+import { aiNotes, users, workouts as workoutsTable } from "@/db/schema";
+import { extractJson, PLAN_SHAPE, planSchema, PROGRAM_SHAPE, programSchema, resolvePlan, resolveProgram } from "./ai-plan";
 import { AI_PROVIDERS, type AiNote, type AiProvider, type AiState } from "./ai-providers";
-import { getMuscleSummary } from "./analytics";
+import { getMuscleSummary, getRecords, getTrainingAnalytics } from "./analytics";
 import { seal, unseal } from "./crypto";
 import { addDays, dayOf, TZ } from "./format";
 import { normalizeGoals } from "./goals";
-import { getMetricSeries } from "./health";
+import { getMetricSeries, linkHealthWorkouts, listHealthWorkouts } from "./health";
 import { normalizeProfile, profileText } from "./profile";
-import { addWorkoutExercise, createWorkout, getWorkout, lastPerformance, listExercises, listWorkoutsFull, type WorkoutFull } from "./workouts";
+import { toClientWorkout } from "./shape";
+import { buildTimeline } from "./timeline";
+import {
+  addWorkoutExercise,
+  createWorkout,
+  getWorkout,
+  lastPerformance,
+  listExercises,
+  listWorkoutsFull,
+  replaceWorkoutPlan,
+  updateWorkout,
+  type WorkoutFull,
+} from "./workouts";
 
 /** An error whose message is meant for the person using the app. */
 export class AiError extends Error {}
@@ -198,38 +210,97 @@ function workoutText(w: WorkoutFull | Awaited<ReturnType<typeof listWorkoutsFull
   return [head, ...lines].join("\n");
 }
 
-/** Everything the coach should know about the athlete, as text. */
-async function athleteContext(userId: string) {
+const VITALS: [string, string, string][] = [
+  ["body_fat_percentage", "Body fat", "%"],
+  ["resting_heart_rate", "Resting heart rate", "bpm"],
+  ["heart_rate_variability", "HRV", "ms"],
+  ["sleep_analysis", "Sleep", "h"],
+  ["vo2_max", "VO2 max", ""],
+  ["step_count", "Steps per day", ""],
+];
+const round1 = (n: number) => Math.round(n * 10) / 10;
+
+/** One line per Apple Watch session — the diary knows nothing else about yoga, climbing, runs and the like. */
+const watchLine = (h: Awaited<ReturnType<typeof listHealthWorkouts>>[number]) =>
+  `  ${dayOf(h.startAt)} ${h.activityType}, ${Math.round((h.durationSec ?? 0) / 60)} min` +
+  `${h.avgHr ? `, avg HR ${Math.round(h.avgHr)}` : ""}${h.maxHr ? `, max HR ${Math.round(h.maxHr)}` : ""}` +
+  `${h.activeKcal ? `, ${Math.round(h.activeKcal)} kcal` : ""}${h.distanceM ? `, ${round1(h.distanceM / 1000)} km` : ""}` +
+  `${h.workoutId ? " [attached to a diary workout]" : " [no diary entry]"}`;
+
+/**
+ * Everything the coach should know about the athlete, as text: goals and notes, body and
+ * recovery metrics, muscle load, records, recent diary workouts and Apple Watch sessions.
+ * Every AI feature starts from this, so none of them can forget the goals or the history.
+ */
+async function athleteContext(userId: string, historyLimit = 12) {
   const today = dayOf();
-  const [[u], recent, planned, muscles, weight] = await Promise.all([
+  const [[u], recent, planned, muscles, weight, vitals, watch, records] = await Promise.all([
     db.select({ profile: users.profile, goals: users.goals }).from(users).where(eq(users.id, userId)),
-    listWorkoutsFull(userId, ["completed"], 10),
-    listWorkoutsFull(userId, ["planned"], 6),
+    listWorkoutsFull(userId, ["completed"], historyLimit),
+    listWorkoutsFull(userId, ["planned"], 10),
     getMuscleSummary(userId, 6),
     getMetricSeries(userId, ["body_mass"], addDays(today, -90)),
+    getMetricSeries(
+      userId,
+      VITALS.map(([m]) => m),
+      addDays(today, -28),
+    ),
+    listHealthWorkouts(userId, { from: addDays(today, -21), limit: 30 }),
+    getRecords(userId, addDays(today, -30), 8),
   ]);
   const targets = normalizeGoals(u?.goals);
   const history = [...recent].sort((a, b) => (b.startedAt?.getTime() ?? 0) - (a.startedAt?.getTime() ?? 0));
+  const vitalLines = VITALS.flatMap(([metric, label, unit]) => {
+    const rows = vitals.filter((v) => v.metric === metric);
+    if (rows.length === 0) return [];
+    const avg = rows.reduce((a, r) => a + r.value, 0) / rows.length;
+    return [`  ${label}: latest ${round1(rows.at(-1)!.value)}${unit ? ` ${unit}` : ""} (${rows.at(-1)!.day}), 4-week average ${round1(avg)}`];
+  });
   const parts = [
     `Today: ${today} (${new Intl.DateTimeFormat("en-GB", { weekday: "long", timeZone: TZ }).format(new Date())}).`,
     profileText(normalizeProfile(u?.profile)),
     `Weekly targets set in the app: ${targets.workouts} strength workouts, ${targets.cardioMin} min of cardio, ${targets.muscles} muscle groups trained enough.`,
     weight.length
-      ? `Body weight: ${weight.at(-1)!.value} kg on ${weight.at(-1)!.day}${weight.length > 1 ? `; ${weight[0].value} kg on ${weight[0].day}` : ""}.`
+      ? `Body weight: ${weight.at(-1)!.value} kg on ${weight.at(-1)!.day}${weight.length > 1 ? `; ${weight[0].value} kg on ${weight[0].day} (${weight.length} entries in 90 days)` : ""}.`
       : "Body weight: not recorded.",
+    vitalLines.length ? `Body and recovery metrics from Apple Health:\n${vitalLines.join("\n")}` : "Body and recovery metrics from Apple Health: none synced.",
     `Muscle load this week vs the weekly average over 6 weeks (${muscles.counting})\n${muscles.muscles
       .map((m) => `  ${m.muscle}: ${m.load_this_week} this week, avg ${m.avg_load_per_week}, last trained ${m.last_trained ?? "never"}`)
       .join("\n")}`,
     `Cardio minutes by week, oldest first: ${muscles.cardio_minutes_by_week.join(", ")}.`,
-    history.length ? `Finished workouts, newest first:\n${history.map((w) => workoutText(w)).join("\n")}` : "Finished workouts: none yet.",
+    records.length
+      ? `Best sets by estimated 1RM:\n${records.map((r) => `  ${r.name}: ${r.weight}kg×${r.reps} on ${r.day}${r.isNew ? " (new record in the last 30 days)" : ""}`).join("\n")}`
+      : "Best sets: not enough data yet.",
+    history.length ? `Finished diary workouts, newest first:\n${history.map((w) => workoutText(w)).join("\n")}` : "Finished diary workouts: none yet.",
+    watch.length
+      ? `Apple Watch sessions in the last 3 weeks, newest first (every activity, including ones the diary does not track):\n${watch.map(watchLine).join("\n")}`
+      : "Apple Watch sessions in the last 3 weeks: none synced.",
     planned.length ? `Already planned:\n${planned.map((w) => workoutText(w, false)).join("\n")}` : "Already planned: nothing.",
   ];
   return parts.join("\n\n");
 }
 
+/** What happened minute by minute, as text: rest before each set, peak heart rate, time in zones. */
+function timelineText(w: WorkoutFull) {
+  const t = buildTimeline(toClientWorkout(w));
+  if (!t) return "  not available (no set times and no heart-rate data)";
+  const fmt = (sec: number | null) => (sec == null ? "?" : `${Math.round(sec)}s`);
+  return [
+    `  Source: ${t.mode === "logged" ? "set times recorded live" : `estimated from the heart-rate curve (confidence ${t.confidence})`}.`,
+    `  Work ${Math.round(t.workSec / 60)} min, rest ${Math.round(t.restSec / 60)} min, average rest ${fmt(t.avgRestSec)}.`,
+    `  Average rest by exercise: ${t.byExercise.map((e) => `${e.exercise} ${fmt(e.avgRestSec)}`).join("; ")}.`,
+    `  Sets in order (rest before / peak HR): ${t.sets.map((x) => `${x.exercise} #${x.index} ${x.label} (${fmt(x.restBeforeSec)} / ${x.peakHr ?? "?"})`).join("; ")}.`,
+    t.zones ? `  Time in heart-rate zones: ${t.zones.map((z) => `${z.label} ${Math.round(z.sec / 60)} min`).join(", ")}.` : "",
+  ]
+    .filter(Boolean)
+    .join("\n");
+}
+
 // ───────────────────────── Notes ─────────────────────────
 
-async function readNote(userId: string, kind: "workout" | "coach", ref: string): Promise<AiNote | null> {
+type NoteKind = "workout" | "coach" | "report";
+
+async function readNote(userId: string, kind: NoteKind, ref: string): Promise<AiNote | null> {
   const [n] = await db
     .select({ content: aiNotes.content, model: aiNotes.model, createdAt: aiNotes.createdAt })
     .from(aiNotes)
@@ -237,7 +308,7 @@ async function readNote(userId: string, kind: "workout" | "coach", ref: string):
   return n ? { content: n.content, model: n.model, createdAt: n.createdAt.toISOString() } : null;
 }
 
-async function writeNote(userId: string, kind: "workout" | "coach", ref: string, content: string, model: string): Promise<AiNote> {
+async function writeNote(userId: string, kind: NoteKind, ref: string, content: string, model: string): Promise<AiNote> {
   const createdAt = new Date();
   await db
     .insert(aiNotes)
@@ -256,6 +327,8 @@ export async function analyzeWorkout(userId: string, workoutId: string, force = 
     if (saved) return saved;
   }
   const cfg = await getAiConfig(userId);
+  // Attach the Apple Watch record first if it arrived after the workout was finished.
+  await linkHealthWorkouts(userId).catch(() => undefined);
   const w = await getWorkout(userId, workoutId);
   if (w.status !== "completed") throw new AiError("Аналіз доступний після завершення тренування.");
   const [context, last] = await Promise.all([
@@ -284,9 +357,12 @@ The same exercises the previous time they were done:
 ${previous}
 
 Apple Watch data for this workout:
-${watch || "  none"}
+${watch || "  none — no watch session overlaps this workout"}
 
-Write the review the athlete reads right after finishing this workout, about 90–140 words: what improved or slipped compared with last time (name the exercises and numbers), anything worth watching, and one concrete suggestion for the next session.`;
+Timeline of this workout:
+${timelineText(w)}
+
+Write the review the athlete reads right after finishing this workout, about 110–160 words: what improved or slipped compared with last time (name the exercises and numbers), what the heart rate and rest times say about effort and pacing when that data exists, anything worth watching, and one concrete suggestion for the next session.`;
   return writeNote(userId, "workout", workoutId, await askText(cfg, { system: SYSTEM, prompt }), cfg.model);
 }
 
@@ -356,4 +432,117 @@ Return only the exercises to ADD (usually one to three; none if the workout is a
   );
   for (const item of plan.exercises.slice(0, 4)) await addWorkoutExercise(userId, workoutId, item);
   return { added: Math.min(4, plan.exercises.length), why: plan.notes };
+}
+
+const PROGRAM_SYSTEM = `${PLAN_SYSTEM.slice(0, PLAN_SYSTEM.indexOf("Reply with a single JSON object"))}You are planning several sessions at once, so think of them as one programme: spread the muscle groups so each gets enough work across the days and none is trained hard on two days in a row, vary the sessions instead of repeating one workout, and count what the athlete does outside the gym (Apple Watch sessions, things they mention in their wish) as load that needs recovery. Give each workout a short distinct name.
+
+Reply with a single JSON object and nothing else, in this shape:
+${PROGRAM_SHAPE}
+
+where every item of "exercises" looks like this:
+${PLAN_SHAPE.slice(PLAN_SHAPE.indexOf('"exercises": [{') + '"exercises": ['.length, PLAN_SHAPE.lastIndexOf("]"))}`;
+
+/**
+ * Plans several workouts at once and saves them as planned: either on the days the athlete
+ * picked, or `count` sessions the model spreads over the week starting at `from`.
+ */
+export async function planProgram(userId: string, input: { wish?: string; days?: string[]; count?: number; from?: string }) {
+  const cfg = await getAiConfig(userId);
+  const isDay = (d: unknown): d is string => typeof d === "string" && /^\d{4}-\d{2}-\d{2}$/.test(d);
+  const today = dayOf();
+  const picked = [...new Set((input.days ?? []).filter(isDay))].filter((d) => d >= today).sort().slice(0, 7);
+  const from = isDay(input.from) && input.from >= today ? input.from : today;
+  const week = Array.from({ length: 7 }, (_, i) => addDays(from, i));
+  const count = Math.min(6, Math.max(2, Math.round(input.count ?? 3)));
+  const allowed = picked.length ? picked : week;
+  const [context, lib] = await Promise.all([athleteContext(userId), libraryText(userId)]);
+  const task = picked.length
+    ? `Plan one workout for each of these days: ${picked.join(", ")}.`
+    : `Plan ${count} workouts in the week ${week[0]} … ${week[6]}. Choose the days yourself, leaving recovery between hard sessions and avoiding days that already have a planned workout or a demanding activity.`;
+  const prompt = `${context}
+
+Exercise library — name [muscle, equipment, tracking]:
+${lib.text}
+
+${task}${input.wish?.trim() ? `\nThe athlete's wishes for this programme: ${input.wish.trim().slice(0, 800)}` : ""}`;
+  const program = resolveProgram(await askJson(cfg, { system: PROGRAM_SYSTEM, prompt }, programSchema), lib.library, allowed);
+  if (program.workouts.length === 0) throw new AiError("Модель не запропонувала жодного тренування з вправами з бібліотеки. Спробуйте ще раз.");
+  const created: { id: string; name: string; date: string }[] = [];
+  for (const w of program.workouts) {
+    const id = await createWorkout(userId, { name: w.name, status: "planned", scheduledFor: w.date, notes: w.notes || null, exercises: w.exercises });
+    created.push({ id, name: w.name, date: w.date });
+  }
+  return { created, why: program.notes };
+}
+
+/**
+ * Rebuilds a workout that is already planned, following what the athlete says has changed
+ * ("yoga and bouldering tomorrow", "only 30 minutes", "shoulder hurts").
+ */
+export async function reviseWorkout(userId: string, workoutId: string, instruction: string) {
+  const cfg = await getAiConfig(userId);
+  const w = await getWorkout(userId, workoutId);
+  if (w.status !== "planned" && w.status !== "template") throw new AiError("Перезібрати можна заплановане тренування або шаблон.");
+  const [context, lib] = await Promise.all([athleteContext(userId), libraryText(userId)]);
+  const what = instruction.trim().slice(0, 800);
+  const prompt = `${context}
+
+Exercise library — name [muscle, equipment, tracking]:
+${lib.text}
+
+The athlete already has this workout${w.scheduledFor ? ` planned for ${w.scheduledFor}` : ""} and wants it rebuilt:
+${workoutText(w, false)}${w.notes ? `\n  Note on the workout: ${w.notes}` : ""}
+
+${what ? `What has changed, in the athlete's words: ${what}` : "Nothing specific has changed — check it against the athlete's goals, recent load and recovery, and improve it."}
+
+Return the whole updated workout (every exercise it should now contain, not only the changes). Keep what still makes sense, drop or swap what conflicts with the new situation, and adjust sets and weights where needed. In "notes" say in one or two sentences what you changed and why.`;
+  const plan = resolvePlan(await askJson(cfg, { system: PLAN_SYSTEM, prompt }, planSchema), lib.library);
+  if (plan.exercises.length === 0) throw new AiError("Модель не запропонувала жодної вправи з бібліотеки. Спробуйте ще раз.");
+  await replaceWorkoutPlan(userId, workoutId, plan.exercises);
+  await updateWorkout(userId, workoutId, { name: plan.name, notes: plan.notes || null });
+  return { exercises: plan.exercises.length, why: plan.notes };
+}
+
+// ───────────────────────── Looking back ─────────────────────────
+
+const REPORT_WEEKS = [4, 8, 12, 26, 52];
+const reportRef = (weeks: number) => `${weeks}w`;
+
+export const getPeriodReport = (userId: string, weeks: number) => readNote(userId, "report", reportRef(weeks));
+
+/** A written report on a period: progress, load balance, heart and recovery, where it stands against the goals. */
+export async function periodReport(userId: string, weeks: number, force = false): Promise<AiNote> {
+  const span = REPORT_WEEKS.includes(weeks) ? weeks : 12;
+  if (!force) {
+    const saved = await getPeriodReport(userId, span);
+    if (saved) return saved;
+  }
+  const cfg = await getAiConfig(userId);
+  await linkHealthWorkouts(userId).catch(() => undefined);
+  const [context, stats] = await Promise.all([athleteContext(userId, 40), getTrainingAnalytics(userId, span)]);
+  const weekly = stats.weekly.map((w) => `  ${w.week}: ${w.workouts} workouts, ${w.durationMin} min, ${w.sets} sets, ${Math.round(w.volume)} kg`).join("\n");
+  const prompt = `${context}
+
+Strength training week by week over the last ${span} weeks (week starting on):
+${weekly}
+
+Write a report on these ${span} weeks, about 220–320 words, as short paragraphs each starting with a two- or three-word label and a colon (no markdown): the overall picture; progress in specific exercises with numbers; how the load is spread across muscle groups and what is neglected; what the Apple Watch data says about heart rate, effort and recovery (and mention watch sessions that have no diary entry, or diary workouts without watch data, if that limits the analysis); where the athlete stands against each of their goals; and three concrete changes for the coming weeks.`;
+  return writeNote(userId, "report", reportRef(span), await askText(cfg, { system: SYSTEM, prompt }), cfg.model);
+}
+
+/**
+ * Finished workouts from the last two months that have no AI review yet, newest first.
+ * Watch records are matched to diary workouts first, so the reviews can use them.
+ */
+export async function listUnreviewed(userId: string, limit = 10) {
+  await linkHealthWorkouts(userId).catch(() => undefined);
+  const reviewed = await db.select({ ref: aiNotes.ref }).from(aiNotes).where(and(eq(aiNotes.userId, userId), eq(aiNotes.kind, "workout")));
+  const where = [eq(workoutsTable.userId, userId), eq(workoutsTable.status, "completed"), gte(workoutsTable.startedAt, new Date(Date.now() - 60 * 86400000))];
+  if (reviewed.length) where.push(notInArray(workoutsTable.id, reviewed.map((r) => r.ref)));
+  return db
+    .select({ id: workoutsTable.id, name: workoutsTable.name })
+    .from(workoutsTable)
+    .where(and(...where))
+    .orderBy(desc(workoutsTable.startedAt))
+    .limit(limit);
 }

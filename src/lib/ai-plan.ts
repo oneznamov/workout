@@ -32,6 +32,22 @@ export const PLAN_SHAPE = `{
   }]
 }`;
 
+/** Several workouts at once: a week's programme or a set of chosen days. */
+export const programSchema = z.object({
+  notes: z.string(),
+  workouts: z.array(planSchema.extend({ date: z.string() })),
+});
+
+export const PROGRAM_SHAPE = `{
+  "notes": string,                // two or three sentences: the idea of the programme, in Ukrainian
+  "workouts": [{
+    "date": "YYYY-MM-DD",         // one of the allowed days
+    "name": string,
+    "notes": string,
+    "exercises": [ ...same as in a single workout... ]
+  }]
+}`;
+
 type LibraryItem = { id: string; name: string; nameUk: string | null; tracking: string };
 export type PlannedExercise = {
   exerciseId: string;
@@ -92,4 +108,23 @@ export function resolvePlan(raw: unknown, library: LibraryItem[], skipIds: strin
     if (exercises.length >= 12) break;
   }
   return { name: draft.name.trim().slice(0, 80) || "Тренування", notes: draft.notes.trim().slice(0, 600), exercises, unknown };
+}
+
+/** A programme draft made safe to store: only allowed days, one workout per day, each resolved like a single plan. */
+export function resolveProgram(raw: unknown, library: LibraryItem[], allowedDays: string[]) {
+  const draft = programSchema.parse(raw);
+  const allowed = new Set(allowedDays);
+  const taken = new Set<string>();
+  const workouts: (ReturnType<typeof resolvePlan> & { date: string })[] = [];
+  for (const w of draft.workouts) {
+    const date = w.date.trim().slice(0, 10);
+    if (!allowed.has(date) || taken.has(date)) continue;
+    const plan = resolvePlan(w, library);
+    if (plan.exercises.length === 0) continue;
+    taken.add(date);
+    workouts.push({ ...plan, date });
+    if (workouts.length >= 7) break;
+  }
+  workouts.sort((a, b) => a.date.localeCompare(b.date));
+  return { notes: draft.notes.trim().slice(0, 800), workouts };
 }

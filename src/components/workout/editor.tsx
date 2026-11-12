@@ -12,6 +12,7 @@ import {
   Loader2,
   MoreHorizontal,
   Pause,
+  Pencil,
   Play,
   Plus,
   RotateCcw,
@@ -23,15 +24,15 @@ import {
   Watch,
 } from "lucide-react";
 import type { WorkoutStatus } from "@/db/schema";
-import { AiWorkoutNote } from "@/components/ai";
+import { AiPromptDialog, AiWorkoutNote } from "@/components/ai";
 import { deleteWorkoutAction, linkHealthWorkoutAction } from "@/lib/actions";
-import { supplementWorkoutAction } from "@/lib/ai-actions";
+import { reviseWorkoutAction, supplementWorkoutAction } from "@/lib/ai-actions";
 import type { AiNote } from "@/lib/ai-providers";
 import { cloneWorkout, hardNavigate, pushWorkout, readLocal, removeLocal, writeLocal } from "@/lib/client/offline";
-import { cx, EXERCISES_FORMS, fmtClock, fmtDate, fmtDuration, fmtNum, fmtTime, plural } from "@/lib/format";
+import { cx, EXERCISES_FORMS, fmtClock, fmtDate, fmtDateLong, fmtDuration, fmtNum, fmtTime, plural } from "@/lib/format";
 import { STATUS_LABEL } from "@/lib/labels";
 import { activeSeconds, type CExercise, type CExerciseInfo, type CLast, type CSet, type CWorkout } from "@/lib/shape";
-import { DEFAULT_REST, ExerciseCard } from "./exercise-card";
+import { DEFAULT_REST, ExerciseCard, ExerciseSummary } from "./exercise-card";
 import { ExercisePicker } from "./exercise-picker";
 import { FocusView } from "./focus";
 import { ActionSheet, NotesField, type SheetAction } from "./parts";
@@ -97,6 +98,11 @@ export function WorkoutEditor({
 
   const live = w.status === "in_progress";
   const done = w.status === "completed";
+  // A planned or finished workout opens for reading; numbers change only after "Редагувати".
+  // (A brand-new empty one opens ready to be filled in.)
+  const [locked, setLocked] = useState(initial.status !== "in_progress" && initial.exercises.length > 0);
+  const readOnly = locked && !live;
+  const startable = w.status === "planned" || w.status === "template";
   const tracked = live || done; // sets carry a "done" tick
 
   const setSaveState = useCallback((s: SaveState) => {
@@ -400,6 +406,18 @@ export function WorkoutEditor({
     setAiMsg({ text: r.added ? `Додано вправ: ${r.added}. ${r.why}` : `ШІ вважає, що тренування вже повне. ${r.why}` });
   };
 
+  // "Update with AI": the athlete says what changed, the plan is rebuilt on the server.
+  const [reviseOpen, setReviseOpen] = useState(false);
+  const revise = async (text: string) => {
+    const pushed = await saveNow();
+    if (pushed.status !== "ok" && pushed.status !== "clean") return "Спершу потрібен звʼязок із сервером — зміни ще не збережено.";
+    const r = await reviseWorkoutAction(id, text);
+    if (!r.ok) return r.error;
+    await refetch();
+    setAiMsg({ text: `Тренування оновлено. ${r.why}` });
+    return null;
+  };
+
   const menuActions: SheetAction[] = [
     ...(done
       ? [
@@ -408,7 +426,10 @@ export function WorkoutEditor({
         ]
       : []),
     ...(live ? [{ label: "Завершити тренування", icon: <Flag size={19} />, onSelect: () => setConfirmFinish(true) }] : []),
-    ...(ai && !done && !localOnly ? [{ label: "Доповнити з ШІ", icon: <Sparkles size={19} />, onSelect: supplement }] : []),
+    ...(ai && !localOnly && (w.status === "planned" || w.status === "template")
+      ? [{ label: "Оновити з ШІ", icon: <Sparkles size={19} />, onSelect: () => setReviseOpen(true) }]
+      : []),
+    ...(ai && !localOnly && live ? [{ label: "Доповнити з ШІ", icon: <Sparkles size={19} />, onSelect: supplement }] : []),
     ...(w.status !== "template" ? [{ label: "Зберегти як шаблон", icon: <Save size={19} />, onSelect: () => spawn("template") }] : []),
     { label: "Видалити тренування", icon: <Trash2 size={19} />, onSelect: remove, tone: "danger" as const },
   ];
@@ -427,6 +448,7 @@ export function WorkoutEditor({
     <div
       className={cx(
         "mx-auto max-w-2xl space-y-4",
+        startable && "pb-24",
         split && "lg:grid lg:max-w-none lg:grid-cols-2 lg:items-start lg:gap-6 lg:space-y-0 xl:gap-8",
       )}
     >
@@ -440,18 +462,35 @@ export function WorkoutEditor({
           <span className="hidden sm:inline-flex">
             <StatusChip status={w.status} />
           </span>
-          <SaveButton state={save} onSave={() => void saveNow()} />
+          {readOnly ? (
+            <button onClick={() => setLocked(false)} className="btn btn-sm btn-ghost ml-auto">
+              <Pencil size={15} /> Редагувати
+            </button>
+          ) : (
+            <>
+              <SaveButton state={save} onSave={() => void saveNow()} />
+              {!live && w.exercises.length > 0 && (
+                <button onClick={() => setLocked(true)} className="btn btn-sm btn-ghost">
+                  <Check size={15} strokeWidth={3} /> Готово
+                </button>
+              )}
+            </>
+          )}
           <button onClick={() => setMenuOpen(true)} aria-label="Інші дії з тренуванням" className="icon-btn size-9 bg-surface-2 text-ink">
             <MoreHorizontal size={19} />
           </button>
         </div>
-        <input
-          value={w.name}
-          onChange={(e) => persist({ ...cur(), name: e.target.value })}
-          aria-label="Назва тренування"
-          className="w-full bg-transparent text-[1.75rem] leading-tight font-bold tracking-tight outline-none placeholder:text-muted"
-          placeholder="Назва тренування"
-        />
+        {readOnly ? (
+          <h1 className="text-[1.75rem] leading-tight font-bold tracking-tight">{w.name || "Тренування"}</h1>
+        ) : (
+          <input
+            value={w.name}
+            onChange={(e) => persist({ ...cur(), name: e.target.value })}
+            aria-label="Назва тренування"
+            className="w-full bg-transparent text-[1.75rem] leading-tight font-bold tracking-tight outline-none placeholder:text-muted"
+            placeholder="Назва тренування"
+          />
+        )}
 
         {live && w.startedAt && (
           <div className={cx("card px-4 py-3", paused && "ring-2 ring-warning/60")}>
@@ -512,7 +551,13 @@ export function WorkoutEditor({
           </div>
         )}
 
-        {w.status === "planned" && (
+        {w.status === "planned" && readOnly && (
+          <div className="card flex items-center justify-between gap-3 px-4 py-3 text-[15px]">
+            <span className="text-muted">Дата</span>
+            <span className="font-medium first-letter:uppercase">{w.scheduledFor ? fmtDateLong(w.scheduledFor) : "Без дати"}</span>
+          </div>
+        )}
+        {w.status === "planned" && !readOnly && (
           <label className="card flex items-center justify-between gap-3 px-4 py-2.5 text-[15px]">
             <span>Дата</span>
             <input
@@ -524,11 +569,6 @@ export function WorkoutEditor({
           </label>
         )}
 
-        {(w.status === "planned" || w.status === "template") && (
-          <button disabled={busy} onClick={start} className="btn btn-primary w-full sm:w-auto">
-            <Play size={18} /> Почати тренування
-          </button>
-        )}
         {done && (
           <button disabled={busy} onClick={() => spawn("in_progress")} className="btn btn-primary w-full sm:w-auto">
             <RotateCcw size={18} /> Повторити зараз
@@ -542,7 +582,11 @@ export function WorkoutEditor({
           </p>
         )}
 
-        <NotesField value={w.notes} placeholder="Нотатки до тренування" onSave={(notes) => persist({ ...cur(), notes })} />
+        {readOnly ? (
+          w.notes && <p className="rounded-2xl bg-surface-2 px-3.5 py-3 text-[15px] leading-snug whitespace-pre-line text-ink-2">{w.notes}</p>
+        ) : (
+          <NotesField value={w.notes} placeholder="Нотатки до тренування" onSave={(notes) => persist({ ...cur(), notes })} />
+        )}
       </header>
 
       {done && ai && !localOnly && <AiWorkoutNote workoutId={id} initial={ai.note} auto={ai.auto} ready={save === "saved"} />}
@@ -604,6 +648,8 @@ export function WorkoutEditor({
           onAddExercise={() => setPicker({ mode: "add" })}
           onFinish={() => setConfirmFinish(true)}
         />
+      ) : readOnly ? (
+        w.exercises.map((e) => <ExerciseSummary key={e.id} e={e} tracked={tracked} />)
       ) : (
         <>
           {w.exercises.map((e, i) => (
@@ -638,6 +684,19 @@ export function WorkoutEditor({
       )}
       </div>
 
+      {/* The start button floats at the bottom: always within reach, never in the middle of the plan. */}
+      {startable && (
+        <div className="pointer-events-none fixed inset-x-0 bottom-[calc(4.25rem+env(safe-area-inset-bottom))] z-30 bg-gradient-to-t from-plane via-plane/80 to-transparent px-4 pt-8 pb-3 md:bottom-0 md:left-60 md:pb-6">
+          <button
+            disabled={busy}
+            onClick={start}
+            className="btn btn-primary pointer-events-auto mx-auto flex h-13 w-full max-w-md text-base shadow-[0_10px_30px_rgba(0,0,0,0.55)] md:h-12"
+          >
+            <Play size={19} fill="currentColor" /> Почати тренування
+          </button>
+        </div>
+      )}
+
       {picker && (
         <ExercisePicker
           title={picker.mode === "replace" ? "Замінити вправу" : "Додати вправу"}
@@ -648,6 +707,18 @@ export function WorkoutEditor({
       )}
 
       {rest && !(live && view === "focus") && <RestBar rest={rest} onAdjust={adjustRest} onDone={endRest} />}
+
+      {reviseOpen && (
+        <AiPromptDialog
+          title="Оновити з ШІ"
+          hint="Напишіть, що змінилось, — ШІ перезбере це тренування з урахуванням ваших цілей, показників і останніх навантажень. Якщо нічого не писати, він просто перевірить і покращить план."
+          placeholder="Напр.: завтра йду на йогу й болдеринг — розвантаж руки й плечі; або: є лише 30 хвилин"
+          submitLabel="Перезібрати тренування"
+          busyLabel="Перезбираю…"
+          onSubmit={revise}
+          onClose={() => setReviseOpen(false)}
+        />
+      )}
 
       {menuOpen && <ActionSheet title={w.name || "Тренування"} actions={menuActions} onClose={() => setMenuOpen(false)} />}
 
