@@ -1,8 +1,8 @@
 import { Suspense } from "react";
 import Link from "next/link";
-import { Bike, Check, Dumbbell, Flame, Play, Scale, Timer, Weight } from "lucide-react";
+import { Check, Dumbbell, Flame, Play, Scale, Timer, Weight } from "lucide-react";
 import { StackedBars } from "@/components/charts";
-import { Rings } from "@/components/rings";
+import { GoalsCard } from "@/components/goals-card";
 import { MuscleWeekCard } from "@/components/muscles/muscle-balance";
 import { Card, Empty, PageSkeleton, SectionTitle, Stat } from "@/components/ui";
 import { WeightQuick } from "@/components/weight-quick";
@@ -13,6 +13,7 @@ import { getUser } from "@/lib/auth";
 import { listCardio } from "@/lib/cardio";
 import { CARDIO_COLOR } from "@/lib/cardio-kinds";
 import { addDays, cx, dayOf, EXERCISES_FORMS, fmtDate, fmtDateLong, fmtDuration, fmtNum, fmtTime, plural, weekStart } from "@/lib/format";
+import { normalizeGoals } from "@/lib/goals";
 import { getMetricSeries } from "@/lib/health";
 import { BODY_MUSCLES, TARGET_MIN } from "@/lib/muscles";
 import { listWorkouts } from "@/lib/workouts";
@@ -96,15 +97,10 @@ async function Content() {
       <section>
         <SectionTitle>Цей тиждень</SectionTitle>
         <div className="mb-3 grid gap-3 lg:grid-cols-2">
-          <Card title="Цілі тижня">
-            <Rings
-              rings={[
-                { label: "Силові", value: week.cur.workouts, goal: 3, unit: "трен.", color: "var(--c-strength)", icon: <Dumbbell size={14} /> },
-                { label: "Кардіо", value: Math.round(cardioMin), goal: 150, unit: "хв", color: "var(--c-run)", icon: <Bike size={14} /> },
-                { label: "Мʼязи в нормі", value: musclesInNorm, goal: BODY_MUSCLES.length, unit: "груп", color: "var(--c-cycle)", icon: <Check size={14} strokeWidth={3} /> },
-              ]}
-            />
-          </Card>
+          <GoalsCard
+            goals={normalizeGoals(user.goals)}
+            values={{ workouts: week.cur.workouts, cardioMin: Math.round(cardioMin), muscles: musclesInNorm }}
+          />
           <Card title="Хвилини по днях">
             <StackedBars
               unit="хв"

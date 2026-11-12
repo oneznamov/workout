@@ -20,6 +20,8 @@ export const users = pgTable("users", {
   id: id(),
   username: text("username").notNull().unique(),
   passwordHash: text("password_hash").notNull(),
+  /** Weekly targets for the dashboard rings; null = defaults. */
+  goals: jsonb("goals").$type<{ workouts: number; cardioMin: number; muscles: number }>(),
   createdAt: createdAt(),
 });
 

@@ -9,6 +9,7 @@ import { apiTokens, EQUIPMENT, MUSCLE_GROUPS, TRACKING, users, type WorkoutStatu
 import { createSession, destroySession, generateApiToken, requireUserId } from "./auth";
 import { dayOf } from "./format";
 import { addManualCardio, deleteManualCardio } from "./cardio";
+import { normalizeGoals, type Goals } from "./goals";
 import * as health from "./health";
 import * as wk from "./workouts";
 import type { ExerciseInput, SetInput } from "./workouts";
@@ -255,4 +256,13 @@ export async function deleteCardioAction(id: string) {
   const userId = await requireUserId();
   await deleteManualCardio(userId, id);
   redirect("/cardio");
+}
+
+// ───────────────────────── Goals ─────────────────────────
+
+export async function saveGoalsAction(input: Goals) {
+  const userId = await requireUserId();
+  const goals = normalizeGoals(input);
+  await db.update(users).set({ goals }).where(eq(users.id, userId));
+  return goals;
 }

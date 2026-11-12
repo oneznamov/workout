@@ -8,6 +8,13 @@
       "when": 1794478889261,
       "tag": "0000_omniscient_whiplash",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1794486477471,
+      "tag": "0001_worthless_serpent_society",
+      "breakpoints": true
     }
   ]
 }
