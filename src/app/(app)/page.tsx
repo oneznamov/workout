@@ -5,7 +5,8 @@ import { Play, Settings } from "lucide-react";
 import { NewWorkoutButtons } from "@/components/workout/new-workout";
 import { WorkoutRow } from "@/components/workout/workout-row";
 import { Card, Empty, Stat } from "@/components/ui";
-import { getWeekSummary } from "@/lib/analytics";
+import { MuscleWeekCard } from "@/components/muscles/muscle-balance";
+import { getMuscleBalance, getWeekSummary } from "@/lib/analytics";
 import { getUser } from "@/lib/auth";
 import { addDays, dayOf, fmtDate, fmtDateLong, fmtDuration, fmtNum, fmtTime } from "@/lib/format";
 import { getMetricSeries } from "@/lib/health";
@@ -14,12 +15,13 @@ import { listWorkouts } from "@/lib/workouts";
 async function Content() {
   const user = await getUser();
   const today = dayOf();
-  const [active, planned, recent, week, metrics] = await Promise.all([
+  const [active, planned, recent, week, metrics, muscles] = await Promise.all([
     listWorkouts(user.id, { status: "in_progress", limit: 1 }),
     listWorkouts(user.id, { status: "planned", limit: 50 }),
     listWorkouts(user.id, { status: "completed", limit: 5 }),
     getWeekSummary(user.id),
     getMetricSeries(user.id, ["body_mass", "resting_heart_rate", "heart_rate_variability"], addDays(today, -60)),
+    getMuscleBalance(user.id, 1),
   ]);
   const upcoming = planned
     .filter((w) => !w.scheduledFor || w.scheduledFor >= today)
@@ -83,6 +85,10 @@ async function Content() {
           <Stat label="Підходів за тиждень" value={week.cur.sets} hint={`минулого: ${week.prev.sets}`} />
         )}
       </section>
+
+      <Card title="Мʼязи цього тижня">
+        <MuscleWeekCard data={muscles} />
+      </Card>
 
       <section>
         <div className="mb-2 flex items-center justify-between">

@@ -2,7 +2,7 @@ import "server-only";
 import type { McpServer } from "@modelcontextprotocol/server";
 import { z } from "zod";
 import { EQUIPMENT, MUSCLE_GROUPS, SET_TYPES, TRACKING } from "@/db/schema";
-import { getExerciseHistory, getTrainingAnalytics } from "./analytics";
+import { getExerciseHistory, getMuscleSummary, getTrainingAnalytics } from "./analytics";
 import { addDays, dayOf } from "./format";
 import * as health from "./health";
 import { METRIC_INFO } from "./labels";
@@ -392,6 +392,17 @@ export function registerWorkoutTools(server: McpServer, userId: string) {
       inputSchema: z.object({ weeks: z.number().int().min(1).max(104).default(12) }),
     },
     tool(({ weeks }) => getTrainingAnalytics(userId, weeks)),
+  );
+
+  server.registerTool(
+    "get_muscle_balance",
+    {
+      title: "Muscle balance",
+      description:
+        "Per-muscle-group training load: effective working sets this week and week by week, weekly average, status (none / low / below / optimal / high vs the 10–20 sets-per-week guideline), when each group was last trained and which exercises loaded it. Use it to find undertrained muscle groups and decide what the next workouts should target.",
+      inputSchema: z.object({ weeks: z.number().int().min(1).max(52).default(8) }),
+    },
+    tool(({ weeks }) => getMuscleSummary(userId, weeks)),
   );
 
   server.registerTool(

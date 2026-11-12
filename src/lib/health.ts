@@ -32,6 +32,11 @@ function num(v: unknown): number | null {
 const unitOf = (v: unknown): string => (isObj(v) && typeof v.units === "string" ? v.units : "");
 
 function toKcal(v: unknown): number | null {
+  // Health Auto Export v2 may send a per-minute series instead of a single total.
+  if (Array.isArray(v)) {
+    const parts = v.map(toKcal).filter((x): x is number => x != null);
+    return parts.length ? parts.reduce((a, b) => a + b, 0) : null;
+  }
   const n = num(v);
   if (n == null) return null;
   return /kj/i.test(unitOf(v)) ? n / 4.184 : n;
@@ -131,7 +136,13 @@ function parseMetrics(list: unknown[]): MetricPoint[] {
       if (!date) continue;
       let value: number | null;
       if (metric === "sleep_analysis") {
-        value = num(p.totalSleep) ?? num(p.asleep) ?? num(p.qty) ?? num(p.value);
+        const stages = [num(p.core), num(p.rem), num(p.deep)].filter((x): x is number => x != null);
+        value =
+          num(p.totalSleep) ??
+          num(p.asleep) ??
+          (stages.length ? stages.reduce((a, b) => a + b, 0) : null) ??
+          num(p.qty) ??
+          num(p.value);
       } else if (metric === "heart_rate") {
         value = num(p.Avg) ?? num(p.avg) ?? num(p.qty) ?? num(p.value);
       } else {
@@ -191,7 +202,7 @@ function parseWorkouts(list: unknown[]): WorkoutPoint[] {
       startAt,
       endAt,
       durationSec: duration != null ? Math.round(duration) : Math.round((endAt.getTime() - startAt.getTime()) / 1000),
-      activeKcal: toKcal(w.activeEnergyBurned ?? w.activeEnergy ?? w.activeKcal),
+      activeKcal: toKcal(w.activeEnergyBurned) ?? toKcal(w.activeEnergy) ?? toKcal(w.activeKcal),
       totalKcal: toKcal(w.totalEnergy ?? w.totalEnergyBurned ?? w.totalKcal),
       avgHr,
       maxHr,

@@ -54,9 +54,16 @@ export async function requireUserId(): Promise<string> {
   return id;
 }
 
-export const getUser = cache(async () => {
-  const id = await requireUserId();
+/** The signed-in user, verified against the database (a session of a deleted user counts as signed out). */
+export const getSessionUser = cache(async () => {
+  const id = await getUserId();
+  if (!id) return null;
   const [u] = await db.select({ id: users.id, username: users.username }).from(users).where(eq(users.id, id));
+  return u ?? null;
+});
+
+export const getUser = cache(async () => {
+  const u = await getSessionUser();
   if (!u) redirect("/login");
   return u;
 });

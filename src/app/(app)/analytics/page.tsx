@@ -1,9 +1,10 @@
 import { Suspense } from "react";
 import { PageSkeleton } from "@/components/ui";
 import Link from "next/link";
-import { RankBars, TrendChart } from "@/components/charts";
+import { TrendChart } from "@/components/charts";
+import { MuscleBalanceView } from "@/components/muscles/muscle-balance";
 import { Card, PageHeader, Segmented, Stat } from "@/components/ui";
-import { getTrainingAnalytics } from "@/lib/analytics";
+import { getMuscleBalance, getTrainingAnalytics } from "@/lib/analytics";
 import { requireUserId } from "@/lib/auth";
 import { addDays, fmtDate, fmtDuration, fmtNum } from "@/lib/format";
 import { MUSCLE_LABEL } from "@/lib/labels";
@@ -21,7 +22,7 @@ async function Content({ searchParams }: PageProps<"/analytics">) {
   const sp = await searchParams;
   const weeks = PERIODS.some((p) => p.value === sp.w) ? Number(sp.w) : 12;
   const userId = await requireUserId();
-  const a = await getTrainingAnalytics(userId, weeks);
+  const [a, muscles] = await Promise.all([getTrainingAnalytics(userId, weeks), getMuscleBalance(userId, weeks)]);
   const weekLabel = (w: string) => ({ label: fmtDate(w), hint: `${fmtDate(w)} – ${fmtDate(addDays(w, 6))}` });
 
   return (
@@ -39,7 +40,11 @@ async function Content({ searchParams }: PageProps<"/analytics">) {
           <Stat label="Тоннаж" value={fmtNum(a.totals.volume / 1000, 1)} unit="т" />
         </div>
 
-        <div className="grid gap-5 lg:grid-cols-2">
+        <Card title="Навантаження по мʼязах">
+          <MuscleBalanceView key={weeks} data={muscles} />
+        </Card>
+
+        <div className="grid gap-5 lg:grid-cols-3">
           <Card title="Тренувань на тиждень">
             <TrendChart kind="bar" integer data={a.weekly.map((w) => ({ ...weekLabel(w.week), value: w.workouts }))} />
           </Card>
@@ -48,9 +53,6 @@ async function Content({ searchParams }: PageProps<"/analytics">) {
           </Card>
           <Card title="Час у залі на тиждень, хв">
             <TrendChart kind="bar" unit="хв" data={a.weekly.map((w) => ({ ...weekLabel(w.week), value: w.durationMin }))} />
-          </Card>
-          <Card title="Робочі підходи за групами мʼязів">
-            <RankBars items={a.muscles.map((m) => ({ label: MUSCLE_LABEL[m.muscle], value: m.sets }))} />
           </Card>
         </div>
 

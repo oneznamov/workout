@@ -1,13 +1,13 @@
 import { Suspense } from "react";
 import { redirect } from "next/navigation";
-import { getUserId } from "@/lib/auth";
+import { getSessionUser } from "@/lib/auth";
 import { hasAnyUser } from "@/lib/actions";
 import { LoginForm } from "./login-form";
 
 export const metadata = { title: "Вхід" };
 
 async function Content() {
-  if (await getUserId()) redirect("/");
+  if (await getSessionUser()) redirect("/");
   const setup = !(await hasAnyUser());
   return <LoginForm setup={setup} />;
 }
