@@ -1,3 +1,4 @@
+import { cardioKind } from "./cardio-kinds";
 import { describeSet, type CWorkout } from "./shape";
 
 /**
@@ -87,6 +88,7 @@ export function buildTimeline(w: CWorkout): Timeline | null {
           index: i + 1,
           label: describeSet(e.exercise.tracking, s),
           work,
+          timed,
           at: s.completedAt ? +new Date(s.completedAt) : null,
         };
       }),
@@ -114,13 +116,34 @@ export function buildTimeline(w: CWorkout): Timeline | null {
     confidence = "high";
   } else {
     if (pts.length < 8) return null;
-    // Start from an even spread, then snap each set to the nearest heart-rate peak.
-    const total = (t1 - t0) / 1000;
-    const workTotal = items.reduce((a, it) => a + it.work, 0);
+    // Cardio at the very start or end that the watch recorded as its own activity
+    // (a warm-up run, a cool-down ride) has a known time — pin it there.
+    const watchCardio = w.health.filter((h) => cardioKind(h.activityType)).map((h) => ({ start: +new Date(h.startAt), end: +new Date(h.endAt) }));
+    const pinned = new Map<number, number>();
+    let from = t0;
+    let to = t1;
+    let lead = 0;
+    while (lead < items.length && items[lead].timed && watchCardio[lead] && watchCardio[lead].end <= t0 + (t1 - t0) / 2) {
+      pinned.set(lead, watchCardio[lead].end);
+      from = Math.max(from, watchCardio[lead].end);
+      lead++;
+    }
+    const lastSession = watchCardio[watchCardio.length - 1];
+    const tail = items.length - 1;
+    if (tail >= lead && items[tail].timed && lastSession && watchCardio.length > lead && lastSession.start >= t0 + (t1 - t0) / 2) {
+      pinned.set(tail, lastSession.end);
+      to = Math.min(to, lastSession.start);
+    }
+
+    // Everything else: start from an even spread, then snap each set to the nearest heart-rate peak.
+    const free = items.filter((_, i) => !pinned.has(i));
+    const total = Math.max(60, (to - from) / 1000);
+    const workTotal = free.reduce((a, it) => a + it.work, 0);
     const scale = workTotal > total * 0.9 ? (total * 0.9) / workTotal : 1;
-    const gap = Math.max(5, (total - workTotal * scale) / (items.length + 1));
-    let cursor = t0 / 1000 + gap;
-    const initial = items.map((it) => {
+    const gap = Math.max(5, (total - workTotal * scale) / (free.length + 1));
+    let cursor = from / 1000 + gap;
+    const initial = items.map((it, i) => {
+      if (pinned.has(i)) return pinned.get(i)!;
       cursor += it.work * scale;
       const end = cursor;
       cursor += gap;
@@ -133,6 +156,10 @@ export function buildTimeline(w: CWorkout): Timeline | null {
     let snapped = 0;
     let prevEnd = t0;
     ends = initial.map((guess, i) => {
+      if (pinned.has(i)) {
+        prevEnd = guess;
+        return guess;
+      }
       const reach = Math.max(45000, (gap * 1000) / 1.5);
       let best = -1;
       for (let p = 0; p < peaks.length; p++) {
@@ -148,11 +175,11 @@ export function buildTimeline(w: CWorkout): Timeline | null {
         end = peaks[best].t - lag;
         snapped++;
       }
-      end = clamp(end, prevEnd + items[i].work * 1000 * scale + 3000, t1);
+      end = clamp(end, prevEnd + items[i].work * 1000 * scale + 3000, to);
       prevEnd = end;
       return end;
     });
-    confidence = snapped >= items.length * 0.6 && dt <= 15 ? "medium" : "low";
+    confidence = snapped >= free.length * 0.6 && dt <= 15 ? "medium" : "low";
   }
 
   const sets: TimelineSet[] = [];
