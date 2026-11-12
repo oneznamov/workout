@@ -2,13 +2,15 @@
 
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
-import { Check, Crown, Link2, LogOut, Pencil, Share2, UserMinus, UserPlus, X } from "lucide-react";
+import { Check, Crown, Flag, Link2, LogOut, Pencil, Share2, UserMinus, UserPlus, X } from "lucide-react";
 import {
   cancelTeamInviteAction,
   createTeamLinkAction,
   inviteToTeamAction,
   joinTeamByLinkAction,
   leaveTeamAction,
+  reactToWorkoutAction,
+  setTeamChallengeAction,
   removeFromTeamAction,
   renameTeamAction,
   respondTeamInviteAction,
@@ -16,7 +18,7 @@ import {
   type TeamResult,
 } from "@/lib/actions";
 import { cx, fmtDate, fmtNum } from "@/lib/format";
-import { BOARD_METRICS, rank, type BoardMetric, type BoardRow } from "@/lib/team-logic";
+import { BOARD_METRICS, CHALLENGE_METRICS, challengeProgress, rank, REACTIONS, type BoardMetric, type BoardRow, type TeamChallenge } from "@/lib/team-logic";
 import { CopyField } from "./settings";
 
 const PLACE_TONE = ["bg-accent text-accent-ink", "bg-ink-2 text-black", "bg-activity text-black"];
@@ -336,5 +338,173 @@ export function JoinTeamButton({ token }: { token: string }) {
       </button>
       <ErrorLine error={error} />
     </>
+  );
+}
+
+/** Reactions under a workout in the feed: tap to cheer a teammate; on your own workout you see what you got. */
+export function FeedReactions({ workoutId, reactions, mine, own }: { workoutId: string; reactions: { emoji: string; count: number }[]; mine: string | null; own: boolean }) {
+  const { pending, run } = useTeamChange();
+  if (own) {
+    if (reactions.length === 0) return null;
+    return (
+      <div className="mt-1.5 flex gap-1.5" aria-label="Реакції команди">
+        {reactions.map((r) => (
+          <span key={r.emoji} className="num rounded-full bg-surface-2 px-2.5 py-1 text-sm">
+            {r.emoji} {r.count}
+          </span>
+        ))}
+      </div>
+    );
+  }
+  return (
+    <div className="mt-1.5 flex gap-1.5" role="group" aria-label="Відреагувати">
+      {REACTIONS.map((emoji) => {
+        const count = reactions.find((r) => r.emoji === emoji)?.count ?? 0;
+        const on = mine === emoji;
+        return (
+          <button
+            key={emoji}
+            disabled={pending}
+            aria-pressed={on}
+            onClick={() => run(() => reactToWorkoutAction(workoutId, on ? null : emoji))}
+            className={cx("num rounded-full px-2.5 py-1 text-sm transition active:scale-95", on ? "bg-accent/20 ring-1 ring-accent/60" : "bg-surface-2 hover:bg-surface-3", !on && count === 0 && "opacity-60")}
+          >
+            {emoji}
+            {count > 0 && ` ${count}`}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+/** The team's shared target for this week, with everyone's progress; the captain sets and changes it. */
+export function ChallengeCard({ challenge, rows, isCaptain }: { challenge: TeamChallenge | null; rows: BoardRow[]; isCaptain: boolean }) {
+  const { pending, error, run } = useTeamChange();
+  const [editing, setEditing] = useState(false);
+  const [metric, setMetric] = useState<string>(challenge?.metric ?? "workouts");
+  const [target, setTarget] = useState(String(challenge?.target ?? 3));
+  const [mode, setMode] = useState<"each" | "team">(challenge?.mode ?? "each");
+
+  if (editing || (!challenge && isCaptain)) {
+    const info = CHALLENGE_METRICS.find((m) => m.key === metric)!;
+    return (
+      <form
+        className="space-y-3"
+        onSubmit={(e) => {
+          e.preventDefault();
+          run(async () => {
+            const r = await setTeamChallengeAction({ metric, target: Number(target.replace(",", ".")), mode });
+            if (!r.error) setEditing(false);
+            return r;
+          });
+        }}
+      >
+        <p className="text-sm text-ink-2">Спільна мета на тиждень (з понеділка по неділю). Прогрес рахується сам.</p>
+        <div className="grid grid-cols-[minmax(0,1fr)_6.5rem] gap-2">
+          <select value={metric} onChange={(e) => setMetric(e.target.value)} aria-label="Показник" className="field">
+            {CHALLENGE_METRICS.map((m) => (
+              <option key={m.key} value={m.key}>
+                {m.label}
+                {m.unit && `, ${m.unit}`}
+              </option>
+            ))}
+          </select>
+          <input inputMode="decimal" value={target} onChange={(e) => setTarget(e.target.value)} aria-label={`Ціль${info.unit ? `, ${info.unit}` : ""}`} className="field num" />
+        </div>
+        <div className="flex rounded-full bg-surface-2 p-1" role="group" aria-label="Як рахувати">
+          {(
+            [
+              ["each", "Кожен сам"],
+              ["team", "Разом на всіх"],
+            ] as const
+          ).map(([v, label]) => (
+            <button key={v} type="button" onClick={() => setMode(v)} aria-pressed={mode === v} className={cx("flex-1 rounded-full px-3 py-1.5 text-[13px] font-medium", mode === v ? "bg-surface-3 text-ink" : "text-muted")}>
+              {label}
+            </button>
+          ))}
+        </div>
+        <div className="flex flex-wrap gap-2">
+          <button type="submit" disabled={pending} className="btn btn-primary btn-sm">
+            <Flag size={15} /> {challenge ? "Зберегти" : "Задати виклик"}
+          </button>
+          {challenge && (
+            <>
+              <button type="button" onClick={() => setEditing(false)} className="btn btn-ghost btn-sm">
+                Скасувати
+              </button>
+              <button
+                type="button"
+                disabled={pending}
+                onClick={() =>
+                  run(async () => {
+                    const r = await setTeamChallengeAction(null);
+                    if (!r.error) setEditing(false);
+                    return r;
+                  })
+                }
+                className="btn btn-danger btn-sm"
+              >
+                Прибрати
+              </button>
+            </>
+          )}
+        </div>
+        <ErrorLine error={error} />
+      </form>
+    );
+  }
+  if (!challenge) return <p className="text-sm text-muted">Капітан може задати спільну мету на тиждень — наприклад, по три тренування кожному.</p>;
+
+  const info = CHALLENGE_METRICS.find((m) => m.key === challenge.metric)!;
+  const state = challengeProgress(challenge, rows);
+  const unit = info.unit ? ` ${info.unit}` : "";
+  return (
+    <div className="space-y-3">
+      <div className="flex items-start justify-between gap-3">
+        <p className="text-[15px]">
+          <span className="font-semibold">
+            {info.label}: {fmtNum(challenge.target, info.digits)}
+            {unit}
+          </span>{" "}
+          <span className="text-ink-2">{challenge.mode === "team" ? "разом на всіх" : "кожному"}</span>
+          {state.done && <span className="ml-2 rounded-full bg-accent px-2 py-0.5 text-xs font-bold text-accent-ink">виконано</span>}
+        </p>
+        {isCaptain && (
+          <button onClick={() => setEditing(true)} aria-label="Змінити виклик" className="icon-btn size-8">
+            <Pencil size={15} />
+          </button>
+        )}
+      </div>
+      {challenge.mode === "team" && (
+        <div>
+          <div className="h-2.5 overflow-hidden rounded-full bg-surface-3">
+            <div className="h-full rounded-full bg-accent" style={{ width: `${Math.min(100, (state.total / challenge.target) * 100)}%` }} />
+          </div>
+          <p className="num mt-1 text-xs text-muted">
+            {fmtNum(state.total, info.digits)} з {fmtNum(challenge.target, info.digits)}
+            {unit}
+          </p>
+        </div>
+      )}
+      <ul className="space-y-2">
+        {state.people.map((p) => (
+          <li key={p.userId} className="flex items-center gap-3">
+            <span className={cx("w-24 shrink-0 truncate text-sm", p.me && "font-semibold")}>{p.name}</span>
+            {challenge.mode === "each" ? (
+              <span className="h-2 flex-1 overflow-hidden rounded-full bg-surface-3">
+                <span className={cx("block h-full rounded-full", p.done ? "bg-accent" : "bg-accent/55")} style={{ width: `${Math.min(100, (p.value / challenge.target) * 100)}%` }} />
+              </span>
+            ) : (
+              <span className="flex-1" />
+            )}
+            <span className="num w-16 shrink-0 text-right text-sm">
+              {fmtNum(p.value, info.digits)}
+              {challenge.mode === "each" && p.done && <Check size={13} strokeWidth={3} className="mb-0.5 ml-1 inline text-accent" />}
+            </span>
+          </li>
+        ))}
+      </ul>
+    </div>
   );
 }

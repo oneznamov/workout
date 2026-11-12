@@ -14,6 +14,7 @@ import {
 } from "drizzle-orm/pg-core";
 import type { AiProvider } from "../lib/ai-providers";
 import type { Profile } from "../lib/profile";
+import type { TeamChallenge } from "../lib/team-logic";
 
 const id = () => uuid("id").primaryKey().defaultRandom();
 const createdAt = () => timestamp("created_at", { withTimezone: true }).notNull().defaultNow();
@@ -60,8 +61,23 @@ export const teams = pgTable("teams", {
   /** Optional join link: the hash of its token and when it stops working. */
   linkHash: text("link_hash").unique(),
   linkExpiresAt: timestamp("link_expires_at", { withTimezone: true }),
+  /** This week's shared target, set by the captain; null = none. */
+  challenge: jsonb("challenge").$type<TeamChallenge>(),
   createdAt: createdAt(),
 });
+
+/** A teammate's reaction to a finished workout: one per person per workout. */
+export const workoutReactions = pgTable(
+  "workout_reactions",
+  {
+    id: id(),
+    workoutId: uuid("workout_id").notNull().references(() => workouts.id, { onDelete: "cascade" }),
+    userId: uuid("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+    emoji: text("emoji").notNull(),
+    createdAt: createdAt(),
+  },
+  (t) => [uniqueIndex("workout_reactions_one").on(t.workoutId, t.userId)],
+);
 
 /** One team per person. The member who joined first is the captain. */
 export const teamMembers = pgTable(

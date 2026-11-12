@@ -1,16 +1,19 @@
-/** Home-screen widgets: what exists, the default order and which are shown by default. */
+/**
+ * Home-screen widgets: what exists, the default order and which are shown by default.
+ * The default set is short on purpose — the rest is one tap away in "Налаштувати головну".
+ */
 export const WIDGETS = [
   { id: "goals", label: "Цілі тижня (кільця)", shown: true, wide: false },
-  { id: "minutes", label: "Хвилини по днях", shown: true, wide: false },
+  { id: "muscles", label: "Мʼязи цього тижня", shown: true, wide: false },
   { id: "coach", label: "Порада тренера (ШІ)", shown: true, wide: true },
   { id: "week", label: "Календар тижнів", shown: true, wide: true },
   { id: "mygoals", label: "Мої цілі: прогрес", shown: true, wide: false },
-  { id: "stats", label: "Показники тижня", shown: true, wide: true },
-  { id: "weight", label: "Вага тіла", shown: true, wide: false },
-  { id: "muscles", label: "Мʼязи цього тижня", shown: true, wide: false },
+  { id: "friends", label: "Команда: рейтинг тижня", shown: true, wide: false },
   { id: "plan", label: "За планом", shown: true, wide: true },
   { id: "recent", label: "Останні тренування", shown: true, wide: true },
-  { id: "friends", label: "Команда: рейтинг тижня", shown: true, wide: false },
+  { id: "minutes", label: "Хвилини по днях", shown: false, wide: false },
+  { id: "stats", label: "Показники тижня", shown: false, wide: true },
+  { id: "weight", label: "Вага тіла", shown: false, wide: false },
   { id: "cardio", label: "Останнє кардіо", shown: false, wide: true },
   { id: "vitals", label: "Пульс спокою, HRV, сон, кроки", shown: false, wide: true },
 ] as const;

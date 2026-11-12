@@ -1,11 +1,14 @@
 "use client";
 
 import { useEffect, useRef, useState, type ReactNode } from "react";
-import { Check, StickyNote, X } from "lucide-react";
-import type { Tracking } from "@/db/schema";
+import Link from "next/link";
+import { Check, CirclePlay, StickyNote, X } from "lucide-react";
+import type { MuscleGroup, Tracking } from "@/db/schema";
 import { exerciseFrames } from "@/lib/exercise-media";
 import { cx, fmtClock } from "@/lib/format";
 import type { CSet } from "@/lib/shape";
+import { workoutKind } from "@/lib/workout-kind";
+import { BodyIcon } from "./body-icon";
 
 // ───────────────────────── Set fields ─────────────────────────
 
@@ -66,7 +69,8 @@ export function NumInput({
   label: string;
   decimal: boolean;
   done?: boolean;
-  size?: "md" | "xl";
+  /** "hero" fills the one-set-at-a-time screen */
+  size?: "md" | "xl" | "hero";
 }) {
   const [text, setText] = useState(value == null ? "" : String(value));
   const [seen, setSeen] = useState(value);
@@ -97,7 +101,11 @@ export function NumInput({
       }}
       className={cx(
         "num w-full min-w-0 border border-transparent text-center font-semibold text-ink outline-none placeholder:text-muted/60 focus:border-accent",
-        size === "xl" ? "h-16 rounded-2xl bg-transparent text-[2.5rem]" : "h-12 rounded-xl text-xl",
+        size === "hero"
+          ? "h-[min(27vw,7.75rem)] rounded-2xl bg-transparent text-[min(24vw,7rem)] leading-none tracking-tight"
+          : size === "xl"
+            ? "h-16 rounded-2xl bg-transparent text-[2.5rem]"
+            : "h-12 rounded-xl text-xl",
         size === "md" && (done ? "bg-accent/15" : "bg-surface-2"),
       )}
     />
@@ -166,6 +174,21 @@ export function ActionSheet({ title, actions, onClose }: { title?: string; actio
 
 // ───────────────────────── Rest ring ─────────────────────────
 
+/** While a full-screen workout view is up, the page behind it must not scroll. */
+export function useLockScroll(active = true) {
+  useEffect(() => {
+    if (!active) return;
+    const root = document.documentElement;
+    const before = { root: root.style.overflow, body: document.body.style.overflow };
+    root.style.overflow = "hidden";
+    document.body.style.overflow = "hidden";
+    return () => {
+      root.style.overflow = before.root;
+      document.body.style.overflow = before.body;
+    };
+  }, [active]);
+}
+
 /**
  * Rest between sets, as large as the screen allows: the time left in huge digits that can be
  * read from the floor, a bar draining under them, the screen filling up as the rest runs out,
@@ -175,11 +198,14 @@ export function RestScreen({
   rest,
   onAdjust,
   onDone,
+  onTick,
   children,
 }: {
   rest: { endsAt: number; total: number };
   onAdjust: (deltaSec: number) => void;
   onDone: (natural: boolean) => void;
+  /** called once on each of the last three seconds */
+  onTick?: () => void;
   children?: ReactNode;
 }) {
   const [now, setNow] = useState(() => Date.now());
@@ -191,10 +217,17 @@ export function RestScreen({
   useEffect(() => {
     if (left <= 0) onDone(true);
   }, [left, onDone]);
+  useLockScroll();
+  const secondsLeft = Math.ceil(left);
+  useEffect(() => {
+    if (secondsLeft >= 1 && secondsLeft <= 3) onTick?.();
+    // Only the second changing matters here — not a new callback identity.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [secondsLeft]);
   const p = Math.min(1, Math.max(0, left / rest.total));
   const ending = left <= 5;
   return (
-    <div role="dialog" aria-label="Відпочинок" className="fixed inset-0 z-40 flex flex-col overflow-hidden bg-plane md:left-60">
+    <div role="dialog" aria-label="Відпочинок" className="fixed inset-0 z-40 flex touch-none flex-col overflow-hidden overscroll-none bg-plane md:left-60">
       <div
         aria-hidden="true"
         className={cx("absolute inset-x-0 bottom-0 transition-[height] duration-150 ease-linear", ending ? "bg-warning/20" : "bg-accent/[0.14]")}
@@ -236,28 +269,51 @@ export function RestScreen({
 
 // ───────────────────────── Exercise animation ─────────────────────────
 
-/** Small thumbnail; tap to open the two-frame "how to do it" animation. */
-export function ExerciseThumb({ name, size = 48 }: { name: string; size?: number }) {
+/**
+ * A calm pictogram instead of a photo: a small body with the exercise's main muscle lit.
+ * Tapping it (or the exercise name, see ExerciseName) opens the "how to do it" animation.
+ */
+export function ExerciseThumb({ name, muscle, size = 48 }: { name: string; muscle: MuscleGroup; size?: number }) {
   const frames = exerciseFrames(name);
   const [open, setOpen] = useState(false);
-  if (!frames) return null;
+  const icon = <BodyIcon kind={workoutKind({ [muscle]: 1 })} size={size} />;
+  if (!frames) return icon;
   return (
     <>
-      <button
-        onClick={() => setOpen(true)}
-        aria-label={`Показати, як виконувати: ${name}`}
-        className="shrink-0 overflow-hidden rounded-xl bg-surface-2 ring-1 ring-white/10"
-        style={{ width: size, height: size }}
-      >
-        {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img src={frames[0]} alt="" loading="lazy" className="size-full object-cover" />
+      <button onClick={() => setOpen(true)} aria-label={`Показати, як виконувати: ${name}`} className="shrink-0 rounded-2xl transition active:scale-95">
+        {icon}
       </button>
       {open && <ExerciseAnimation name={name} frames={frames} onClose={() => setOpen(false)} />}
     </>
   );
 }
 
-function ExerciseAnimation({ name, frames, onClose }: { name: string; frames: [string, string]; onClose: () => void }) {
+/**
+ * The exercise name. When there is a demonstration for it, tapping the name shows how the
+ * exercise is done (with a way on to its history); otherwise the name leads to the exercise page.
+ */
+export function ExerciseName({ name, exerciseId, className }: { name: string; exerciseId: string; className?: string }) {
+  const frames = exerciseFrames(name);
+  const [open, setOpen] = useState(false);
+  if (!frames) {
+    return (
+      <Link href={`/exercises/${exerciseId}`} className={cx("hover:underline", className)}>
+        {name}
+      </Link>
+    );
+  }
+  return (
+    <>
+      <button onClick={() => setOpen(true)} title="Як виконувати" className={cx("text-left decoration-muted/60 underline-offset-4 hover:underline", className)}>
+        {name}
+        <CirclePlay size={15} className="mb-0.5 ml-1.5 inline text-muted" aria-label="показати, як виконувати" />
+      </button>
+      {open && <ExerciseAnimation name={name} frames={frames} exerciseId={exerciseId} onClose={() => setOpen(false)} />}
+    </>
+  );
+}
+
+function ExerciseAnimation({ name, frames, exerciseId, onClose }: { name: string; frames: [string, string]; exerciseId?: string; onClose: () => void }) {
   const [frame, setFrame] = useState(0);
   const [playing, setPlaying] = useState(true);
   useEffect(() => {
@@ -294,6 +350,11 @@ function ExerciseAnimation({ name, frames, onClose }: { name: string; frames: [s
             <div className="text-xs text-muted">
               {frame === 0 ? "Початкове положення" : "Кінцеве положення"} · торкніться фото, щоб {playing ? "зупинити" : "продовжити"}
             </div>
+            {exerciseId && (
+              <Link href={`/exercises/${exerciseId}`} className="mt-1 inline-block text-sm text-accent">
+                Історія та прогрес у вправі →
+              </Link>
+            )}
           </div>
           <button onClick={onClose} aria-label="Закрити" className="icon-btn bg-surface-2">
             <X size={20} />
@@ -310,12 +371,15 @@ export function NotesField({
   value,
   placeholder,
   onSave,
+  startOpen = false,
 }: {
   value: string | null;
   placeholder: string;
   onSave: (v: string | null) => void;
+  /** show the field straight away even when there is no note yet */
+  startOpen?: boolean;
 }) {
-  const [open, setOpen] = useState(Boolean(value));
+  const [open, setOpen] = useState(Boolean(value) || startOpen);
   const [text, setText] = useState(value ?? "");
   const [seen, setSeen] = useState(value);
   if (seen !== value) {

@@ -2,11 +2,11 @@ import "server-only";
 import { randomBytes } from "node:crypto";
 import { and, asc, desc, eq, gt, gte, inArray, lt, ne, sql } from "drizzle-orm";
 import { db } from "@/db";
-import { healthWorkouts, sets, teamInvites, teamMembers, teams, users, workoutExercises, workouts } from "@/db/schema";
+import { healthWorkouts, sets, teamInvites, teamMembers, teams, users, workoutExercises, workoutReactions, workouts } from "@/db/schema";
 import { hashToken } from "./auth";
 import { cardioKind } from "./cardio-kinds";
 import { addDays, dayOf, weekStart } from "./format";
-import { displayName, weekStreak, type BoardRow } from "./team-logic";
+import { displayName, normalizeChallenge, REACTIONS, weekStreak, type BoardRow } from "./team-logic";
 
 const LINK_DAYS = 14;
 export const TEAM_MAX = 20;
@@ -91,6 +91,7 @@ export async function getMyTeam(userId: string) {
     members: members.map((m) => ({ ...m, captain: m.id === captainId, me: m.id === userId })),
     pending: pending.map((p) => ({ id: p.id, name: displayName(p.username) })),
     linkUntil: team.linkHash && team.linkExpiresAt && team.linkExpiresAt > new Date() ? team.linkExpiresAt : null,
+    challenge: normalizeChallenge(team.challenge),
   };
 }
 
@@ -302,11 +303,11 @@ export async function getLeaderboard(userId: string, period: BoardPeriod): Promi
   });
 }
 
-/** Teammates' latest finished workouts: who, what, when, how long, how much. */
-export async function getTeamFeed(userId: string, limit = 12) {
-  const mates = (await teamPeople(userId)).filter((p) => p.id !== userId);
-  if (mates.length === 0) return [];
-  const names = new Map(mates.map((f) => [f.id, f.name]));
+/** The team's latest finished workouts — everyone's, the user's own included — with the reactions each one got. */
+export async function getTeamFeed(userId: string, limit = 14) {
+  const people = await teamPeople(userId);
+  if (people.length < 2) return [];
+  const names = new Map(people.map((f) => [f.id, f.name]));
   const rows = await db
     .select({
       id: workouts.id,
@@ -322,13 +323,53 @@ export async function getTeamFeed(userId: string, limit = 12) {
     .where(and(inArray(workouts.userId, [...names.keys()]), eq(workouts.status, "completed"), lt(workouts.startedAt, new Date())))
     .orderBy(desc(workouts.startedAt))
     .limit(limit);
-  return rows.map((r) => ({
-    id: r.id,
-    who: names.get(r.userId) ?? "учасник",
-    name: r.name,
-    startedAt: r.startedAt,
-    activeSec: r.startedAt && r.endedAt ? Math.max(0, (r.endedAt.getTime() - r.startedAt.getTime()) / 1000 - r.pausedSec) : null,
-    sets: r.sets,
-    volume: Math.round(r.volume),
-  }));
+  const reactions = rows.length
+    ? await db
+        .select({ workoutId: workoutReactions.workoutId, userId: workoutReactions.userId, emoji: workoutReactions.emoji })
+        .from(workoutReactions)
+        .where(
+          inArray(
+            workoutReactions.workoutId,
+            rows.map((r) => r.id),
+          ),
+        )
+    : [];
+  return rows.map((r) => {
+    const got = reactions.filter((x) => x.workoutId === r.id);
+    return {
+      id: r.id,
+      who: names.get(r.userId) ?? "учасник",
+      own: r.userId === userId,
+      name: r.name,
+      startedAt: r.startedAt,
+      activeSec: r.startedAt && r.endedAt ? Math.max(0, (r.endedAt.getTime() - r.startedAt.getTime()) / 1000 - r.pausedSec) : null,
+      sets: r.sets,
+      volume: Math.round(r.volume),
+      reactions: REACTIONS.map((emoji) => ({ emoji, count: got.filter((x) => x.emoji === emoji).length })).filter((x) => x.count > 0),
+      mine: got.find((x) => x.userId === userId)?.emoji ?? null,
+    };
+  });
+}
+
+/** Leaves (or with `null` removes) the user's reaction to a teammate's finished workout. */
+export async function reactToWorkout(userId: string, workoutId: string, emoji: string | null) {
+  const [w] = await db.select({ owner: workouts.userId }).from(workouts).where(and(eq(workouts.id, workoutId), eq(workouts.status, "completed")));
+  if (!w || w.owner === userId) return;
+  if (!(await teamPeople(userId)).some((p) => p.id === w.owner)) throw new TeamError("Реагувати можна лише на тренування своєї команди.");
+  if (!emoji) {
+    await db.delete(workoutReactions).where(and(eq(workoutReactions.workoutId, workoutId), eq(workoutReactions.userId, userId)));
+    return;
+  }
+  if (!(REACTIONS as readonly string[]).includes(emoji)) return;
+  await db
+    .insert(workoutReactions)
+    .values({ workoutId, userId, emoji })
+    .onConflictDoUpdate({ target: [workoutReactions.workoutId, workoutReactions.userId], set: { emoji, createdAt: new Date() } });
+}
+
+/** Sets or clears the team's weekly challenge. Captain only. */
+export async function setTeamChallenge(userId: string, input: unknown) {
+  const team = await getMyTeam(userId);
+  if (!team?.isCaptain) throw new TeamError("Виклик тижня задає капітан.");
+  await db.update(teams).set({ challenge: input == null ? null : normalizeChallenge(input) }).where(eq(teams.id, team.id));
 }

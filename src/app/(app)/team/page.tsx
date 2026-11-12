@@ -1,7 +1,7 @@
 import { Suspense } from "react";
 import Link from "next/link";
 import { headers } from "next/headers";
-import { Leaderboard, MemberList, PeoplePicker, TeamInvites, TeamLinkCard, TeamName } from "@/components/team";
+import { ChallengeCard, FeedReactions, Leaderboard, MemberList, PeoplePicker, TeamInvites, TeamLinkCard, TeamName } from "@/components/team";
 import { Card, PageHeader, PageSkeleton, SectionTitle, Segmented } from "@/components/ui";
 import { getUser } from "@/lib/auth";
 import { fmtDate, fmtDuration, fmtNum, plural, SETS_FORMS } from "@/lib/format";
@@ -57,7 +57,11 @@ async function Content({ searchParams }: PageProps<"/team">) {
     );
   }
 
-  const [board, feed] = await Promise.all([getLeaderboard(user.id, period), getTeamFeed(user.id)]);
+  const [board, feed, weekBoard] = await Promise.all([
+    getLeaderboard(user.id, period),
+    getTeamFeed(user.id),
+    period === "week" ? null : getLeaderboard(user.id, "week"),
+  ]);
   return (
     <>
       <header className="mb-5 flex flex-wrap items-end justify-between gap-3">
@@ -84,7 +88,11 @@ async function Content({ searchParams }: PageProps<"/team">) {
           {team.pending.length > 0 && <p className="mt-3 text-xs text-muted">Чекаємо підтвердження: {team.pending.map((p) => p.name).join(", ")}.</p>}
         </Card>
 
-        <section>
+        <Card title="Виклик тижня">
+          <ChallengeCard key={JSON.stringify(team.challenge)} challenge={team.challenge} rows={weekBoard ?? board} isCaptain={team.isCaptain} />
+        </Card>
+
+        <section className="lg:row-span-2">
           <SectionTitle>Що нового в команді</SectionTitle>
           <div className="card divide-y divide-line">
             {feed.length === 0 && (
@@ -93,17 +101,18 @@ async function Content({ searchParams }: PageProps<"/team">) {
               </p>
             )}
             {feed.map((f) => (
-              <div key={f.id} className="flex items-center gap-3 px-4 py-3">
+              <div key={f.id} className="flex items-start gap-3 px-4 py-3">
                 <span className="grid size-9 shrink-0 place-items-center rounded-full bg-strength/20 text-sm font-bold text-strength uppercase">{f.who.slice(0, 1)}</span>
                 <div className="min-w-0 flex-1">
                   <div className="truncate text-[15px]">
-                    <span className="font-semibold">{f.who}</span> <span className="text-ink-2">· {f.name}</span>
+                    <span className="font-semibold">{f.own ? "Ви" : f.who}</span> <span className="text-ink-2">· {f.name}</span>
                   </div>
                   <div className="tabular truncate text-xs text-muted">
                     {fmtDate(f.startedAt, { weekday: "short", day: "numeric", month: "short" })}
                     {f.activeSec != null && ` · ${fmtDuration(f.activeSec)}`} · {plural(f.sets, SETS_FORMS)}
                     {f.volume > 0 && ` · ${fmtNum(f.volume)} кг`}
                   </div>
+                  <FeedReactions workoutId={f.id} reactions={f.reactions} mine={f.mine} own={f.own} />
                 </div>
               </div>
             ))}

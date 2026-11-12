@@ -4,14 +4,15 @@ import { ActivityCalendar, type DayActivity } from "@/components/activity-calend
 import { ReportCard, ReviewBacklog } from "@/components/ai";
 import { StackedBars, TrendChart } from "@/components/charts";
 import { MuscleBalanceView } from "@/components/muscles/muscle-balance";
-import { Badge, Card, PageHeader, PageSkeleton, SectionTitle, Segmented, Stat } from "@/components/ui";
+import { Badge, Card, Disclosure, PageHeader, PageSkeleton, SectionTitle, Segmented, Stat } from "@/components/ui";
 import { getAiState, getPeriodReport } from "@/lib/ai";
-import { getMuscleBalance, getRecords, getTrainingAnalytics } from "@/lib/analytics";
+import { getMuscleBalance, getRecords, getTrainingAnalytics, getWeekSummary } from "@/lib/analytics";
+import { BODY_MUSCLES, TARGET_MIN } from "@/lib/muscles";
 import { getUser } from "@/lib/auth";
 import { normalizeProfile } from "@/lib/profile";
 import { getCardioAnalytics } from "@/lib/cardio";
 import { CARDIO_COLOR, CARDIO_LABEL } from "@/lib/cardio-kinds";
-import { addDays, dayOf, durationParts, fmtDate, fmtDuration, fmtNum, fmtWeight } from "@/lib/format";
+import { addDays, dayOf, durationParts, fmtDate, fmtDuration, fmtNum, fmtWeight, weekStart } from "@/lib/format";
 import { MUSCLE_LABEL } from "@/lib/labels";
 import { listWorkouts } from "@/lib/workouts";
 
@@ -63,6 +64,15 @@ async function Content({ searchParams }: PageProps<"/analytics">) {
   const kcalPoints = chrono
     .filter((w) => w.activeKcal != null)
     .map((w) => ({ label: fmtDate(w.startedAt), value: Math.round(w.activeKcal!), hint: `${fmtDate(w.startedAt, { day: "numeric", month: "long" })} · ${w.name}` }));
+  // This week against the previous one.
+  const monday = weekStart(dayOf());
+  const [wk, weekRecords] = await Promise.all([getWeekSummary(userId), getRecords(userId, monday, 50)]);
+  const newRecords = weekRecords.filter((r) => r.isNew).length;
+  const lastCardioWeek = cardio.weekly.at(-1);
+  const cardioWeek = { km: (lastCardioWeek?.runKm ?? 0) + (lastCardioWeek?.cycleKm ?? 0) + (lastCardioWeek?.walkKm ?? 0), minutes: lastCardioWeek?.minutes ?? 0 };
+  const thisWeek = muscles.weeks.at(-1);
+  const musclesOk = BODY_MUSCLES.filter((m) => muscles.contributions.filter((c) => c.week === thisWeek && c.muscle === m).reduce((x, c) => x + c.sets, 0) >= TARGET_MIN).length;
+  const vs = (cur: number, prev: number, unit = "") => (prev === cur ? "як минулого тижня" : `${cur > prev ? "+" : "−"}${fmtNum(Math.abs(cur - prev))}${unit} до минулого`);
   const cardioKm = cardio.totals.run.distanceM / 1000 + cardio.totals.cycle.distanceM / 1000;
   const cardioCount = cardio.sessions.length;
 
@@ -70,8 +80,7 @@ async function Content({ searchParams }: PageProps<"/analytics">) {
     <>
       <PageHeader
         title="Аналітика"
-        subtitle={`${fmtDate(a.from, { day: "numeric", month: "short", year: "numeric" })} – сьогодні`}
-        actions={<Segmented options={PERIODS} current={String(weeks)} param="w" />}
+        subtitle="Тиждень одним поглядом, решта — нижче"
       />
       <div className="space-y-7">
         {ai && (
@@ -80,16 +89,45 @@ async function Content({ searchParams }: PageProps<"/analytics">) {
             <ReviewBacklog />
           </section>
         )}
+        {/* The week in one glance; everything deeper is folded below. */}
         <section>
-          <SectionTitle>Зведення</SectionTitle>
+          <SectionTitle action={<span className="text-xs text-muted">проти минулого тижня</span>}>Підсумок тижня</SectionTitle>
+          <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+            <Stat label="Силових" tone="text-strength" value={wk.cur.workouts} hint={vs(wk.cur.workouts, wk.prev.workouts)} />
+            <Stat label="Час у залі" tone="text-activity" {...durationParts(wk.cur.durationMin * 60)} hint={vs(wk.cur.durationMin, wk.prev.durationMin, " хв")} />
+            <Stat label="Тоннаж" tone="text-strength" value={fmtNum(wk.cur.volume / 1000, 1)} unit="т" hint={vs(Math.round(wk.cur.volume), Math.round(wk.prev.volume), " кг")} />
+            <Stat label="Кардіо" tone="text-run" value={fmtNum(cardioWeek.km, 1)} unit="км" hint={`${Math.round(cardioWeek.minutes)} хв`} />
+          </div>
+          <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
+            <div className="card flex items-center justify-between gap-3 px-4 py-3">
+              <span className="text-sm text-ink-2">Мʼязових груп у нормі</span>
+              <span className="num text-lg font-semibold">
+                {musclesOk}
+                <span className="text-muted">/{BODY_MUSCLES.length}</span>
+              </span>
+            </div>
+            <div className="card flex items-center justify-between gap-3 px-4 py-3">
+              <span className="text-sm text-ink-2">Нових рекордів за тиждень</span>
+              <span className={`num text-lg font-semibold ${newRecords ? "text-activity" : ""}`}>{newRecords}</span>
+            </div>
+          </div>
+        </section>
+
+        <div className="flex flex-wrap items-center justify-between gap-3 pt-1">
+          <h2 className="text-[1.35rem] font-bold tracking-tight">Детально</h2>
+          <Segmented options={PERIODS} current={String(weeks)} param="w" />
+        </div>
+
+        <Disclosure title="Загалом за період" hint={`${a.totals.workouts} тренувань · ${fmtNum(a.totals.volume / 1000, 1)} т · ${fmtNum(cardioKm, 1)} км кардіо`}>
           <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
             <Stat label="Силових" tone="text-strength" value={a.totals.workouts} hint={`≈ ${fmtNum(a.totals.workouts / weeks, 1)} на тиждень`} />
             <Stat label="Час у залі" tone="text-activity" {...durationParts(a.totals.durationMin * 60)} />
             <Stat label="Тоннаж" tone="text-strength" value={fmtNum(a.totals.volume / 1000, 1)} unit="т" hint={`${fmtNum(a.totals.sets)} підходів`} />
             <Stat label="Кардіо" tone="text-run" value={fmtNum(cardioKm, 1)} unit="км" hint={`${cardioCount} сесій · ${fmtDuration(cardio.weekly.reduce((s, w) => s + w.minutes, 0) * 60)}`} />
           </div>
-        </section>
+        </Disclosure>
 
+        <Disclosure title="Календар і частота" hint={`${activeDays} днів з тренуванням за період`}>
         <div className="grid gap-4 lg:grid-cols-2">
           <Card title="Календар активності" action={<span className="text-xs text-muted">{activeDays} днів з тренуванням</span>}>
             <ActivityCalendar from={a.from} weeks={weeks} today={dayOf()} days={days} />
@@ -98,16 +136,15 @@ async function Content({ searchParams }: PageProps<"/analytics">) {
             <TrendChart kind="bar" integer data={a.weekly.map((w) => ({ ...weekLabel(w.week), value: w.workouts }))} />
           </Card>
         </div>
+        </Disclosure>
 
-        <section>
-          <SectionTitle>Навантаження по мʼязах</SectionTitle>
-          <div className="card p-4">
+        <Disclosure title="Навантаження по мʼязах" hint="Карта тіла: що недобирає, що перебирає">
+          <div>
             <MuscleBalanceView key={weeks} data={muscles} sex={normalizeProfile(user.profile).sex} />
           </div>
-        </section>
+        </Disclosure>
 
-        <section>
-          <SectionTitle>Силові</SectionTitle>
+        <Disclosure title="Силові тренди" hint="Тоннаж і час у залі за тижнями">
           <div className="grid gap-4 lg:grid-cols-2">
             <Card title="Тоннаж на тиждень, кг">
               <TrendChart kind="bar" unit="кг" data={a.weekly.map((w) => ({ ...weekLabel(w.week), value: Math.round(w.volume) }))} />
@@ -116,10 +153,9 @@ async function Content({ searchParams }: PageProps<"/analytics">) {
               <TrendChart kind="bar" unit="хв" color="var(--c-activity)" data={a.weekly.map((w) => ({ ...weekLabel(w.week), value: w.durationMin }))} />
             </Card>
           </div>
-        </section>
+        </Disclosure>
 
-        <section>
-          <SectionTitle action={<Link href="/cardio" className="text-sm text-accent">Кардіо →</Link>}>Кардіо і пульс</SectionTitle>
+        <Disclosure title="Кардіо і пульс" hint="Кілометри, пульс і калорії на тренуваннях">
           <div className="grid gap-4 lg:grid-cols-3">
             <Card title="Кілометри за тижнями">
               <StackedBars
@@ -138,11 +174,13 @@ async function Content({ searchParams }: PageProps<"/analytics">) {
               <TrendChart kind="bar" data={kcalPoints} unit="ккал" color="var(--c-activity)" />
             </Card>
           </div>
-        </section>
+          <Link href="/cardio" className="mt-3 inline-block text-sm text-accent">
+            Усе про кардіо →
+          </Link>
+        </Disclosure>
 
-        <section>
-          <SectionTitle>Рекорди</SectionTitle>
-          <div className="card divide-y divide-line">
+        <Disclosure title="Рекорди" hint={`${records.length} вправ · нових за період: ${records.filter((r) => r.isNew).length}`}>
+          <div className="divide-y divide-line">
             {records.length === 0 && <p className="p-6 text-center text-sm text-muted">Рекорди зʼявляться після тренувань із вагою.</p>}
             {records.map((r) => (
               <Link key={r.exerciseId} href={`/exercises/${r.exerciseId}`} className="flex items-center gap-3 px-4 py-3 hover:bg-surface-2">
@@ -163,11 +201,10 @@ async function Content({ searchParams }: PageProps<"/analytics">) {
               </Link>
             ))}
           </div>
-        </section>
+        </Disclosure>
 
-        <section>
-          <SectionTitle>Вправи за період</SectionTitle>
-          <div className="card p-4">
+        <Disclosure title="Вправи за період" hint={`${a.exercises.length} вправ: тренування, підходи, найкращий результат`}>
+          <div>
             {a.exercises.length === 0 ? (
               <p className="py-6 text-center text-sm text-muted">Поки немає даних</p>
             ) : (
@@ -202,7 +239,7 @@ async function Content({ searchParams }: PageProps<"/analytics">) {
               </div>
             )}
           </div>
-        </section>
+        </Disclosure>
       </div>
     </>
   );

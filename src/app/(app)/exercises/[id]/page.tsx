@@ -54,7 +54,7 @@ async function Content({ params }: PageProps<"/exercises/[id]">) {
         actions={ex.userId ? <ArchiveExerciseButton id={ex.id} /> : undefined}
       />
       <div className="mb-5 flex flex-wrap items-center gap-1.5">
-        <ExerciseThumb name={ex.name} size={56} />
+        <ExerciseThumb name={ex.name} muscle={ex.muscle} size={56} />
         <Badge tone="accent">{MUSCLE_LABEL[ex.muscle]}</Badge>
         {ex.secondaryMuscles.map((m) => (
           <Badge key={m}>{MUSCLE_LABEL[m]}</Badge>

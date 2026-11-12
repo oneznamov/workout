@@ -297,3 +297,21 @@ describe("goals and progression", () => {
     expect(suggestWeight({ weight: 60, reps: 8 }, undefined)).toBeNull();
   });
 });
+
+import { challengeProgress, normalizeChallenge } from "@/lib/team-logic";
+
+describe("team challenge", () => {
+  const row = (name: string, workouts: number, me = false): BoardRow => ({ userId: name, name, me, workouts, activeMin: 0, volume: 0, sets: 0, cardioKm: 0, streak: 0 });
+  it("accepts only a known metric with a positive target", () => {
+    expect(normalizeChallenge({ metric: "workouts", target: 3, mode: "team" })).toEqual({ metric: "workouts", target: 3, mode: "team" });
+    expect(normalizeChallenge({ metric: "workouts", target: "4" })).toEqual({ metric: "workouts", target: 4, mode: "each" });
+    expect(normalizeChallenge({ metric: "streak", target: 3 })).toBeNull();
+    expect(normalizeChallenge({ metric: "sets", target: 0 })).toBeNull();
+  });
+  it("is done when everyone gets there, or when the team adds up to it", () => {
+    const rows = [row("a", 3), row("b", 1)];
+    expect(challengeProgress({ metric: "workouts", target: 3, mode: "each" }, rows)).toMatchObject({ total: 4, done: false });
+    expect(challengeProgress({ metric: "workouts", target: 4, mode: "team" }, rows)).toMatchObject({ total: 4, done: true });
+    expect(challengeProgress({ metric: "workouts", target: 1, mode: "each" }, rows).done).toBe(true);
+  });
+});

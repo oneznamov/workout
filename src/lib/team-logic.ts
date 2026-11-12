@@ -38,3 +38,30 @@ export function rank(rows: BoardRow[], metric: BoardMetric) {
 }
 
 export const displayName = (username: string) => username.split("@")[0];
+
+/** Reactions a teammate can leave on a finished workout. */
+export const REACTIONS = ["💪", "🔥", "👏"] as const;
+
+/** A shared weekly target: everyone reaches it on their own, or the team adds up to it together. */
+export type TeamChallenge = { metric: Exclude<BoardMetric, "streak">; target: number; mode: "each" | "team" };
+export const CHALLENGE_METRICS = BOARD_METRICS.filter((m) => m.key !== "streak");
+
+export function normalizeChallenge(input: unknown): TeamChallenge | null {
+  if (!input || typeof input !== "object") return null;
+  const c = input as Record<string, unknown>;
+  const metric = CHALLENGE_METRICS.find((m) => m.key === c.metric)?.key;
+  const target = Number(c.target);
+  if (!metric || !Number.isFinite(target) || target <= 0) return null;
+  return { metric: metric as TeamChallenge["metric"], target: Math.round(target * 10) / 10, mode: c.mode === "team" ? "team" : "each" };
+}
+
+/** Where everyone stands against the challenge this week. */
+export function challengeProgress(challenge: TeamChallenge, rows: BoardRow[]) {
+  const people = rows.map((r) => ({ userId: r.userId, name: r.name, me: r.me, value: r[challenge.metric], done: r[challenge.metric] >= challenge.target }));
+  const total = people.reduce((a, p) => a + p.value, 0);
+  return {
+    people: people.sort((a, b) => b.value - a.value || a.name.localeCompare(b.name)),
+    total,
+    done: challenge.mode === "team" ? total >= challenge.target : people.length > 0 && people.every((p) => p.done),
+  };
+}

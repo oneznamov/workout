@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useRef, useState, useTransition } from "react";
 import {
   Check,
+  ChevronLeft,
   CloudOff,
   Copy,
   Flag,
@@ -713,8 +714,30 @@ export function WorkoutEditor({
           w={w}
           last={last}
           rest={rest}
+          progress={{ done: doneSets, total: totalSets }}
+          bar={
+            <div className="flex shrink-0 items-center gap-2">
+              <Link href={localOnly ? "/train" : "/workouts"} aria-label="До списку тренувань" className="icon-btn size-10 bg-surface-2 text-ink">
+                <ChevronLeft size={21} />
+              </Link>
+              <div className="min-w-0 flex-1">
+                <div className="caps truncate">{w.name || "Тренування"}</div>
+                <Elapsed compact workout={w} done={doneSets} sets={totalSets} />
+              </div>
+              <button onClick={togglePause} aria-label="Поставити на паузу" className="icon-btn size-10 bg-surface-2 text-ink">
+                <Pause size={18} fill="currentColor" />
+              </button>
+              <button onClick={() => setView("list")} aria-label="Усі вправи списком" title="Усі вправи списком" className="icon-btn size-10 bg-surface-2 text-ink">
+                <LayoutList size={18} />
+              </button>
+              <button onClick={() => setMenuOpen(true)} aria-label="Інші дії з тренуванням" className="icon-btn size-10 bg-surface-2 text-ink">
+                <MoreHorizontal size={19} />
+              </button>
+            </div>
+          }
           onRestAdjust={adjustRest}
           onRestDone={endRest}
+          onRestTick={() => tick(audio.current)}
           onNotes={(weId, notes) => persist(mapExercise(weId, (x) => ({ ...x, notes })))}
           onPatchSet={patchSet}
           onToggleSet={toggleSet}
@@ -886,7 +909,7 @@ function Mini({ label, value, unit, hint, tone }: { label: string; value: string
   );
 }
 
-function Elapsed({ workout, done, sets }: { workout: CWorkout; done: number; sets: number }) {
+function Elapsed({ workout, done, sets, compact }: { workout: CWorkout; done: number; sets: number; compact?: boolean }) {
   const [now, setNow] = useState(() => Date.now());
   useEffect(() => {
     const iv = setInterval(() => setNow(Date.now()), 1000);
@@ -894,6 +917,18 @@ function Elapsed({ workout, done, sets }: { workout: CWorkout; done: number; set
   }, []);
   const total = workout.startedAt ? (now - +new Date(workout.startedAt)) / 1000 : 0;
   const paused = Boolean(workout.pausedAt);
+  if (compact) {
+    return (
+      <div suppressHydrationWarning className="flex items-baseline gap-2">
+        <span className="num text-[1.4rem] leading-none font-semibold text-accent" role="timer">
+          {fmtClock(activeSeconds(workout, now))}
+        </span>
+        <span className="num text-xs text-muted">
+          {done} з {sets}
+        </span>
+      </div>
+    );
+  }
   return (
     // The clock differs between server render and hydration by design.
     <div suppressHydrationWarning>
@@ -1045,21 +1080,33 @@ function createAudio(): AudioContext | null {
   }
 }
 
+/** Plays one tone; a browser may have put the audio to sleep while the phone rested, so wake it first. */
+function tone(ctx: AudioContext, freq: number, at: number, length: number, volume: number) {
+  const osc = ctx.createOscillator();
+  const gain = ctx.createGain();
+  osc.frequency.value = freq;
+  gain.gain.setValueAtTime(volume, at);
+  gain.gain.exponentialRampToValueAtTime(0.001, at + length);
+  osc.connect(gain).connect(ctx.destination);
+  osc.start(at);
+  osc.stop(at + length);
+}
+
+/** Rest is over: three clear rising tones, and a vibration where the device allows it (Android; iOS does not). */
 function beep(ctx: AudioContext | null) {
   try {
-    navigator.vibrate?.([200, 100, 200]);
+    navigator.vibrate?.([250, 120, 250, 120, 400]);
   } catch {
     /* not supported */
   }
   if (!ctx) return;
-  for (const [i, freq] of [880, 880, 1175].entries()) {
-    const osc = ctx.createOscillator();
-    const gain = ctx.createGain();
-    osc.frequency.value = freq;
-    gain.gain.value = 0.15;
-    osc.connect(gain).connect(ctx.destination);
-    const t = ctx.currentTime + i * 0.22;
-    osc.start(t);
-    osc.stop(t + 0.15);
-  }
+  void ctx.resume().catch(() => undefined);
+  for (const [i, freq] of [880, 880, 1320].entries()) tone(ctx, freq, ctx.currentTime + i * 0.28, i === 2 ? 0.5 : 0.2, 0.3);
+}
+
+/** A soft tick on each of the last three seconds of the rest — time to get into position. */
+function tick(ctx: AudioContext | null) {
+  if (!ctx) return;
+  void ctx.resume().catch(() => undefined);
+  tone(ctx, 660, ctx.currentTime, 0.09, 0.12);
 }

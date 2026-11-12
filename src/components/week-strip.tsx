@@ -9,7 +9,8 @@ const WEEKDAYS = ["Пн", "Вт", "Ср", "Чт", "Пт", "Сб", "Нд"];
 
 /**
  * The week at a glance — and the weeks around it: swipe (or scroll) sideways to look back at
- * what was done and ahead at what is planned. Opens on the current week.
+ * what was done and ahead at what is planned. Opens on the current week; a wide screen shows
+ * the weeks before and after it as well. Weekends are tinted.
  */
 export function WeekStrip({ weeks, today, current }: { weeks: StripDay[][]; today: string; current: number }) {
   const strip = useRef<HTMLDivElement>(null);
@@ -22,7 +23,9 @@ export function WeekStrip({ weeks, today, current }: { weeks: StripDay[][]; toda
     const place = () => {
       if (placed || el.clientWidth === 0) return;
       placed = true;
-      el.scrollLeft = el.clientWidth * current;
+      // Centre the current week: on a phone it fills the strip, on a wide screen three weeks sit side by side.
+      const week = el.children[current] as HTMLElement | undefined;
+      if (week) el.scrollLeft = week.offsetLeft - (el.clientWidth - week.clientWidth) / 2;
       observer.disconnect();
     };
     const observer = new ResizeObserver(place);
@@ -38,7 +41,7 @@ export function WeekStrip({ weeks, today, current }: { weeks: StripDay[][]; toda
       aria-label="Тижні: гортайте вбік"
     >
       {weeks.map((week, i) => (
-        <div key={week[0].day} className="w-full shrink-0 snap-center p-3">
+        <div key={week[0].day} className={cx("w-full shrink-0 snap-center p-3 lg:w-1/3", i !== current && "lg:opacity-70")}>
           <div className={cx("caps mb-2 text-center", i === current && "text-ink-2")}>
             {i === current ? "Цей тиждень" : `${fmtDate(week[0].day)} – ${fmtDate(week[6].day)}`}
           </div>
@@ -46,7 +49,8 @@ export function WeekStrip({ weeks, today, current }: { weeks: StripDay[][]; toda
             {week.map((d, j) => (
               <div
                 key={d.day}
-                className="flex flex-col items-center gap-1.5"
+                // Saturday and Sunday sit on a slightly lighter column, so the week reads at a glance.
+                className={cx("flex flex-col items-center gap-1.5 rounded-xl py-1.5", j >= 5 && "bg-white/[0.045]")}
                 aria-label={`${fmtDate(d.day)}: ${d.done ? "силове виконано" : d.planned ? "заплановано" : "без силового"}${d.cardio ? ", було кардіо" : ""}`}
               >
                 <span className={cx("text-[11px] font-semibold", d.day === today ? "text-accent" : "text-muted")}>{WEEKDAYS[j]}</span>

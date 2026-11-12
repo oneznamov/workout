@@ -413,6 +413,14 @@ export async function renameTeamAction(name: string) {
   return teamChange((userId) => team.renameTeam(userId, name));
 }
 
+export async function reactToWorkoutAction(workoutId: string, emoji: string | null) {
+  return teamChange((userId) => team.reactToWorkout(userId, workoutId, emoji));
+}
+
+export async function setTeamChallengeAction(challenge: { metric: string; target: number; mode: "each" | "team" } | null) {
+  return teamChange((userId) => team.setTeamChallenge(userId, challenge));
+}
+
 export async function createTeamLinkAction() {
   return team.createTeamLink(await requireUserId());
 }

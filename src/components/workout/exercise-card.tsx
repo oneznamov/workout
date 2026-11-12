@@ -1,13 +1,12 @@
 "use client";
 
-import Link from "next/link";
 import { useState } from "react";
 import { ArrowDown, ArrowLeftRight, ArrowUp, Check, Minus, MoreHorizontal, Plus, Timer, Trash2 } from "lucide-react";
 import type { SetType } from "@/db/schema";
 import { cx, fmtClock, fmtDate } from "@/lib/format";
 import { MUSCLE_LABEL, SET_TYPE_LABEL, SET_TYPE_SHORT } from "@/lib/labels";
 import { describeSet, type CExercise, type CLast, type CSet } from "@/lib/shape";
-import { ActionSheet, columnsFor, ExerciseThumb, NotesField, NumInput } from "./parts";
+import { ActionSheet, columnsFor, ExerciseName, ExerciseThumb, NotesField, NumInput } from "./parts";
 
 export const DEFAULT_REST = 90;
 const REST_OPTIONS = [30, 45, 60, 90, 120, 150, 180, 240, 300];
@@ -64,11 +63,9 @@ export function ExerciseCard({
   return (
     <section className="card p-3.5 sm:p-4">
       <div className="flex items-center gap-3">
-        <ExerciseThumb name={e.exercise.name} />
+        <ExerciseThumb name={e.exercise.name} muscle={e.exercise.muscle} />
         <div className="min-w-0 flex-1">
-          <Link href={`/exercises/${e.exercise.id}`} className="block truncate text-[17px] font-semibold hover:underline">
-            {e.exercise.name}
-          </Link>
+          <ExerciseName name={e.exercise.name} exerciseId={e.exercise.id} className="block w-full truncate text-[17px] font-semibold" />
           <div className="truncate text-xs text-muted">
             {e.exercise.nameUk ? `${e.exercise.nameUk} · ` : ""}
             {MUSCLE_LABEL[e.exercise.muscle]}
@@ -218,11 +215,9 @@ export function ExerciseSummary({ e, tracked }: { e: CExercise; tracked: boolean
   return (
     <section className="card p-3.5 sm:p-4">
       <div className="flex items-center gap-3">
-        <ExerciseThumb name={e.exercise.name} />
+        <ExerciseThumb name={e.exercise.name} muscle={e.exercise.muscle} />
         <div className="min-w-0 flex-1">
-          <Link href={`/exercises/${e.exercise.id}`} className="block truncate text-[17px] font-semibold hover:underline">
-            {e.exercise.name}
-          </Link>
+          <ExerciseName name={e.exercise.name} exerciseId={e.exercise.id} className="block w-full truncate text-[17px] font-semibold" />
           <div className="truncate text-xs text-muted">
             {e.exercise.nameUk ? `${e.exercise.nameUk} · ` : ""}
             {MUSCLE_LABEL[e.exercise.muscle]}
