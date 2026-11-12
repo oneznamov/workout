@@ -57,6 +57,13 @@
       "when": 1794492603052,
       "tag": "0007_ambiguous_star_brand",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1794493389689,
+      "tag": "0008_parallel_roughhouse",
+      "breakpoints": true
     }
   ]
 }

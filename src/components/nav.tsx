@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import type { ReactNode } from "react";
 import { Activity, BarChart3, Bike, Dumbbell, HeartPulse, Home, Settings, Users } from "lucide-react";
 import { cx } from "@/lib/format";
 import { ConnectionBadge } from "./connection";
@@ -13,7 +14,7 @@ const items = [
   { href: "/exercises", label: "Вправи", icon: Dumbbell, desktopOnly: true },
   { href: "/analytics", label: "Аналітика", icon: BarChart3 },
   { href: "/health", label: "Здоров'я", icon: HeartPulse },
-  { href: "/friends", label: "Друзі", icon: Users, desktopOnly: true },
+  { href: "/team", label: "Команда", icon: Users, desktopOnly: true },
   { href: "/settings", label: "Налаштування", icon: Settings, desktopOnly: true },
 ];
 
@@ -28,7 +29,8 @@ function Brand() {
   );
 }
 
-export function Nav() {
+/** `teamBadge` is a small mark shown next to "Команда" while an invitation is waiting for an answer. */
+export function Nav({ teamBadge }: { teamBadge?: ReactNode }) {
   const pathname = usePathname();
   const active = (i: (typeof items)[number], mobile = false) => {
     if (i.href === "/") return pathname === "/";
@@ -56,6 +58,7 @@ export function Nav() {
             >
               <i.icon size={19} />
               {i.label}
+              {i.href === "/team" && <span className="ml-auto">{teamBadge}</span>}
             </Link>
           ))}
         </nav>
@@ -71,8 +74,9 @@ export function Nav() {
           <Brand />
           <div className="flex items-center gap-1">
             <ConnectionBadge compact />
-            <Link href="/friends" aria-label="Друзі" className={cx("icon-btn size-9", pathname.startsWith("/friends") && "text-accent")}>
+            <Link href="/team" aria-label="Команда" className={cx("icon-btn relative size-9", pathname.startsWith("/team") && "text-accent")}>
               <Users size={19} />
+              <span className="absolute top-1 right-1">{teamBadge}</span>
             </Link>
             <Link href="/settings" aria-label="Налаштування" className="icon-btn size-9">
               <Settings size={19} />

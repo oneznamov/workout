@@ -5,7 +5,7 @@ import { and, desc, eq, gt, isNull, sql } from "drizzle-orm";
 import { db } from "@/db";
 import { invites, users, workouts } from "@/db/schema";
 import { hashToken } from "./auth";
-import { addFriendship } from "./friends";
+import { joinInviterTeam, pruneEmptyTeams } from "./team";
 
 const INVITE_DAYS = 7;
 
@@ -71,8 +71,8 @@ export async function acceptInvite(token: string, username: string, password: st
   try {
     const [user] = await db.insert(users).values({ username, passwordHash }).returning({ id: users.id });
     await db.update(invites).set({ usedBy: user.id }).where(eq(invites.id, invite.id));
-    // Whoever invited you is your first friend — no second step needed.
-    if (origin?.createdBy) await addFriendship(origin.createdBy, user.id);
+    // Whoever invited you takes you into their team — no second step needed.
+    if (origin?.createdBy) await joinInviterTeam(origin.createdBy, user.id).catch(() => undefined);
     return { userId: user.id };
   } catch {
     await db.update(invites).set({ usedAt: null }).where(eq(invites.id, invite.id));
@@ -97,4 +97,5 @@ export async function listUsers() {
 /** Removes a user and everything they recorded. Admins cannot be removed this way. */
 export async function deleteUser(id: string) {
   await db.delete(users).where(and(eq(users.id, id), eq(users.isAdmin, false)));
+  await pruneEmptyTeams();
 }

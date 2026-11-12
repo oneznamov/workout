@@ -5,7 +5,7 @@ import { CoachCard } from "@/components/ai";
 import { CardioRow } from "@/components/cardio/cardio-row";
 import { StackedBars } from "@/components/charts";
 import { DashboardCustomizer } from "@/components/dashboard-customizer";
-import { Leaderboard } from "@/components/friends";
+import { Leaderboard } from "@/components/team";
 import { GoalsCard } from "@/components/goals-card";
 import { MuscleWeekCard } from "@/components/muscles/muscle-balance";
 import { Card, Empty, PageSkeleton, SectionTitle, Stat } from "@/components/ui";
@@ -19,7 +19,7 @@ import { listCardio } from "@/lib/cardio";
 import { CARDIO_COLOR } from "@/lib/cardio-kinds";
 import { resolveDashboard, type WidgetId } from "@/lib/dashboard";
 import { addDays, cx, dayOf, EXERCISES_FORMS, fmtDate, fmtDateLong, fmtDuration, fmtNum, fmtTime, plural, weekStart } from "@/lib/format";
-import { getLeaderboard } from "@/lib/friends";
+import { getLeaderboard, listMyTeamInvites } from "@/lib/team";
 import { normalizeGoals } from "@/lib/goals";
 import { getMetricSeries } from "@/lib/health";
 import { BODY_MUSCLES, TARGET_MIN } from "@/lib/muscles";
@@ -34,7 +34,7 @@ async function Content() {
   const widgets = resolveDashboard(user.dashboard);
   const on = (id: WidgetId) => widgets.some((w) => w.id === id && w.visible);
 
-  const [active, planned, recent, week, weights, muscles, cardio, vitals, board, ai, coach] = await Promise.all([
+  const [active, planned, recent, week, weights, muscles, cardio, vitals, board, ai, coach, teamInvites] = await Promise.all([
     listWorkouts(user.id, { status: "in_progress", limit: 1 }),
     listWorkouts(user.id, { status: "planned", limit: 50 }),
     listWorkouts(user.id, { status: "completed", limit: 20 }),
@@ -48,6 +48,7 @@ async function Content() {
     on("friends") ? getLeaderboard(user.id, "week") : [],
     on("coach") ? getAiState(user.id) : null,
     on("coach") ? getCoachNote(user.id) : null,
+    listMyTeamInvites(user.id),
   ]);
 
   const upcoming = planned
@@ -172,14 +173,14 @@ async function Content() {
     coach: ai ? <CoachCard initial={coach} auto={ai.auto} /> : null,
     friends:
       board.length > 1 ? (
-        <Card title="Друзі цього тижня" action={<Link href="/friends" className="text-xs text-accent">Рейтинг →</Link>}>
+        <Card title="Команда цього тижня" action={<Link href="/team" className="text-xs text-accent">Рейтинг →</Link>}>
           <Leaderboard rows={board} compact />
         </Card>
       ) : (
-        <Link href="/friends" className="card flex h-full items-center justify-between gap-3 p-4 hover:bg-surface-2">
+        <Link href="/team" className="card flex h-full items-center justify-between gap-3 p-4 hover:bg-surface-2">
           <span>
-            <span className="block text-[15px] font-semibold">Змагайтесь із друзями</span>
-            <span className="block text-xs text-muted">Додайте друга за посиланням — зʼявиться рейтинг тижня</span>
+            <span className="block text-[15px] font-semibold">Зберіть команду</span>
+            <span className="block text-xs text-muted">Запросіть когось із застосунку — зʼявиться рейтинг тижня</span>
           </span>
           <span className="text-accent">→</span>
         </Link>
@@ -208,6 +209,18 @@ async function Content() {
         <p className="caps first-letter:uppercase">{fmtDateLong(new Date())}</p>
         <h1 className="truncate text-[2rem] leading-tight font-bold tracking-tight">Привіт, {user.username.split("@")[0]}</h1>
       </header>
+
+      {teamInvites.length > 0 && (
+        <Link href="/team" className="flex items-center justify-between gap-3 rounded-[20px] bg-accent/12 p-4 ring-1 ring-accent/40">
+          <span className="min-w-0">
+            <span className="caps block text-accent">Запрошення в команду</span>
+            <span className="block text-[15px] font-semibold">
+              {teamInvites[0].by} запрошує вас у «{teamInvites[0].teamName}»
+            </span>
+          </span>
+          <span className="shrink-0 text-sm font-semibold text-accent">Відповісти →</span>
+        </Link>
+      )}
 
       {active[0] ? (
         <Link href={`/workouts/${active[0].id}`} className="flex items-center gap-4 rounded-[20px] bg-accent p-5 text-accent-ink">

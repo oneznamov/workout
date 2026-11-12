@@ -10,12 +10,12 @@ import { bumpSessionVersion, createSession, destroySession, generateApiToken, ge
 import { dayOf } from "./format";
 import { addManualCardio, deleteManualCardio } from "./cardio";
 import { WIDGETS } from "./dashboard";
-import { addFriendship, createFriendLink, findFriendLink, removeFriendship, revokeFriendLink } from "./friends";
 import { normalizeGoals, type Goals } from "./goals";
 import { acceptInvite, createInvite, deleteUser, revokeInvite } from "./invites";
 import { clearFailedLogins, clientIp, loginBlockedFor, recordFailedLogin } from "./rate-limit";
 import { completePasswordReset, createPasswordReset } from "./resets";
 import * as health from "./health";
+import * as team from "./team";
 import * as wk from "./workouts";
 import type { ExerciseInput, SetInput } from "./workouts";
 
@@ -52,7 +52,7 @@ export async function loginAction(_prev: AuthState, formData: FormData): Promise
   }
   await clearFailedLogins(username);
   await createSession(user.id, user.sessionVersion);
-  // Come back to where the visitor was heading (e.g. a friend link), local paths only.
+  // Come back to where the visitor was heading (e.g. a team link), local paths only.
   const next = String(formData.get("next") ?? "");
   redirect(/^\/(?!\/)[\w\-./#?=&%]*$/.test(next) ? next : "/");
 }
@@ -355,27 +355,57 @@ export async function clearErrorsAction() {
   await db.delete(errorLog);
 }
 
-// ───────────────────────── Friends ─────────────────────────
+// ───────────────────────── Team ─────────────────────────
 
-export async function createFriendLinkAction() {
+export type TeamResult = { error?: string };
+
+/** Runs a team change; a refusal meant for the user comes back as text instead of a crash. */
+async function teamChange(fn: (userId: string) => Promise<unknown>): Promise<TeamResult> {
   const userId = await requireUserId();
-  return createFriendLink(userId);
+  try {
+    await fn(userId);
+    return {};
+  } catch (e) {
+    if (e instanceof team.TeamError) return { error: e.message };
+    throw e;
+  }
 }
 
-export async function revokeFriendLinkAction() {
-  const userId = await requireUserId();
-  await revokeFriendLink(userId);
+export async function inviteToTeamAction(targetId: string) {
+  return teamChange((userId) => team.inviteToTeam(userId, targetId));
 }
 
-export async function acceptFriendLinkAction(token: string) {
-  const userId = await requireUserId();
-  const owner = await findFriendLink(token);
-  if (!owner) throw new Error("invalid link");
-  await addFriendship(userId, owner.userId);
-  redirect("/friends");
+export async function cancelTeamInviteAction(targetId: string) {
+  return teamChange((userId) => team.cancelTeamInvite(userId, targetId));
 }
 
-export async function removeFriendAction(friendId: string) {
-  const userId = await requireUserId();
-  await removeFriendship(userId, friendId);
+export async function respondTeamInviteAction(inviteId: string, accept: boolean) {
+  return teamChange((userId) => team.respondTeamInvite(userId, inviteId, accept));
 }
+
+export async function leaveTeamAction() {
+  return teamChange((userId) => team.leaveTeam(userId));
+}
+
+export async function removeFromTeamAction(targetId: string) {
+  return teamChange((userId) => team.removeFromTeam(userId, targetId));
+}
+
+export async function renameTeamAction(name: string) {
+  return teamChange((userId) => team.renameTeam(userId, name));
+}
+
+export async function createTeamLinkAction() {
+  return team.createTeamLink(await requireUserId());
+}
+
+export async function revokeTeamLinkAction() {
+  await team.revokeTeamLink(await requireUserId());
+}
+
+export async function joinTeamByLinkAction(token: string): Promise<TeamResult> {
+  const r = await teamChange((userId) => team.joinTeamByLink(userId, token));
+  if (r.error) return r;
+  redirect("/team");
+}
+

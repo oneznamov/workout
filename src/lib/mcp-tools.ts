@@ -8,7 +8,7 @@ import { getExerciseHistory, getMuscleSummary, getTrainingAnalytics } from "./an
 import { addManualCardio, listCardio } from "./cardio";
 import { CARDIO_LABEL, paceLabel } from "./cardio-kinds";
 import { addDays, dayOf } from "./format";
-import { getLeaderboard } from "./friends";
+import { getLeaderboard } from "./team";
 import { normalizeGoals } from "./goals";
 import * as health from "./health";
 import { toClientWorkout } from "./shape";
@@ -534,10 +534,10 @@ export function registerWorkoutTools(server: McpServer, userId: string) {
   );
 
   server.registerTool(
-    "get_friends_leaderboard",
+    "get_team_leaderboard",
     {
-      title: "Friends leaderboard",
-      description: "Training totals of the user and their friends for a period (workouts, active minutes, volume in kg, sets, cardio km, weeks-in-a-row streak). Use it for motivation and friendly comparison.",
+      title: "Team leaderboard",
+      description: "Training totals of the user and everyone in their team for a period (workouts, active minutes, volume in kg, sets, cardio km, weeks-in-a-row streak). Use it for motivation and friendly comparison.",
       inputSchema: z.object({ period: z.enum(["week", "month", "all"]).default("week") }),
     },
     tool(async ({ period }) => (await getLeaderboard(userId, period)).map(({ userId: _id, ...row }) => { void _id; return row; })),

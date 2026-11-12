@@ -84,7 +84,7 @@ describe("workout time", () => {
   });
 });
 
-import { rank, weekStreak, type BoardRow } from "@/lib/friends-logic";
+import { rank, weekStreak, type BoardRow } from "@/lib/team-logic";
 
 describe("friends", () => {
   it("counts weeks in a row, keeping the streak alive before this week's first workout", () => {

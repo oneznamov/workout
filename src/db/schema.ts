@@ -74,6 +74,41 @@ export const friendLinks = pgTable("friend_links", {
   expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
 });
 
+/** A small circle that trains "together": everyone in a team sees everyone else's training totals. */
+export const teams = pgTable("teams", {
+  id: id(),
+  name: text("name").notNull(),
+  /** Optional join link: the hash of its token and when it stops working. */
+  linkHash: text("link_hash").unique(),
+  linkExpiresAt: timestamp("link_expires_at", { withTimezone: true }),
+  createdAt: createdAt(),
+});
+
+/** One team per person. The member who joined first is the captain. */
+export const teamMembers = pgTable(
+  "team_members",
+  {
+    id: id(),
+    teamId: uuid("team_id").notNull().references(() => teams.id, { onDelete: "cascade" }),
+    userId: uuid("user_id").notNull().unique().references(() => users.id, { onDelete: "cascade" }),
+    joinedAt: timestamp("joined_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index("team_members_team").on(t.teamId)],
+);
+
+/** "Join our team" — waits until the invited person accepts or declines it in the app. */
+export const teamInvites = pgTable(
+  "team_invites",
+  {
+    id: id(),
+    teamId: uuid("team_id").notNull().references(() => teams.id, { onDelete: "cascade" }),
+    userId: uuid("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+    invitedBy: uuid("invited_by").notNull().references(() => users.id, { onDelete: "cascade" }),
+    createdAt: createdAt(),
+  },
+  (t) => [uniqueIndex("team_invites_pair").on(t.teamId, t.userId), index("team_invites_user").on(t.userId)],
+);
+
 /** One-time links an admin hands out so a user can set a new password. */
 export const passwordResets = pgTable("password_resets", {
   id: id(),
