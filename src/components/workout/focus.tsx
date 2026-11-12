@@ -8,6 +8,9 @@ import { suggestWeight } from "@/lib/progression";
 import { describeSet, type CExercise, type CLast, type CSet, type CWorkout } from "@/lib/shape";
 import { ActionSheet, columnsFor, ExerciseName, ExerciseThumb, NotesField, NumInput, RestScreen, useLockScroll } from "./parts";
 
+/** What each big number is, spelled out with its unit. */
+const COLUMN_NAME: Record<string, string> = { w: "Вага, кг", r: "Повторення", d: "Час, сек", km: "Дистанція, км", min: "Час, хв" };
+
 /**
  * One thing at a time, on the whole screen — the same way the rest countdown looks: the set
  * to do now in huge digits with − and + beside them, one big "done" button under the thumb,
@@ -117,18 +120,30 @@ export function FocusView({
                 </button>
               </div>
 
-              <div className="mt-4 flex items-center justify-between gap-3">
-                <span className="text-[1.6rem] leading-none font-bold">
-                  Підхід <span className="num text-accent">{index + 1}</span>
-                  <span className="num text-muted"> з {current.sets.length}</span>
-                </span>
-                {/* Every set of this exercise as a dot: done, the one in hand, still ahead. */}
-                <span className="flex items-center gap-1.5" aria-hidden="true">
-                  {current.sets.map((s, i) => (
-                    <span key={s.id} className={cx("size-2.5 rounded-full", s.completed ? "bg-accent" : i === index ? "bg-ink ring-2 ring-accent" : "bg-surface-3")} />
-                  ))}
-                </span>
+              <div className="mt-4 text-[1.6rem] leading-none font-bold">
+                Підхід <span className="num text-accent">{index + 1}</span>
+                <span className="num text-muted"> з {current.sets.length}</span>
               </div>
+              {/* Every set of this exercise with its numbers: what is done, the one in hand, what is still ahead. */}
+              <ol className="-mx-5 mt-2.5 flex shrink-0 touch-pan-x gap-1.5 overflow-x-auto px-5 [scrollbar-width:none]" aria-label="Підходи цієї вправи">
+                {current.sets.map((s, i) => {
+                  const text = cardio ? (s.durationSec ? `${Math.round(s.durationSec / 60)} хв` : "кардіо") : describeSet(current.exercise.tracking, s);
+                  return (
+                    <li
+                      key={s.id}
+                      aria-current={i === index ? "step" : undefined}
+                      aria-label={`Підхід ${i + 1}: ${text}${s.completed ? ", виконано" : i === index ? ", зараз" : ", попереду"}`}
+                      className={cx(
+                        "num flex shrink-0 items-center gap-1.5 rounded-full px-3 py-1.5 text-[13px] font-semibold whitespace-nowrap",
+                        s.completed ? "bg-accent/15 text-accent" : i === index ? "bg-ink text-plane" : "bg-surface-2 text-muted",
+                      )}
+                    >
+                      {s.completed ? <Check size={13} strokeWidth={3} /> : <span className="opacity-60">{i + 1}</span>}
+                      {text}
+                    </li>
+                  );
+                })}
+              </ol>
               {set.type !== "normal" && <span className="mt-2 self-start rounded-full bg-warning/20 px-2.5 py-0.5 text-xs font-semibold text-warning">{SET_TYPE_LABEL[set.type]}</span>}
 
               {cardio ? (
@@ -155,33 +170,40 @@ export function FocusView({
                 </div>
               ) : (
               /* The numbers of this set, as big as the rest countdown. */
-              <div className="flex min-h-0 flex-1 flex-col justify-center gap-1">
+              <div className="flex min-h-0 flex-1 flex-col justify-center gap-2.5">
                 {cols.map((c) => {
+                  // Two big numbers must not be mistaken for one another: each sits in its own panel
+                  // under its own name, and the count (reps) is drawn in the accent colour.
+                  const count = c.key === "r";
                   const fallback = (prev?.sets[index] ? c.get(prev.sets[index] as CSet) : null) ?? (index > 0 ? c.get(current.sets[index - 1]) : null) ?? 0;
                   const value = c.get(set);
                   const bump = (dir: 1 | -1) => {
                     const next = Math.max(0, Math.round(((value ?? fallback) + dir * c.step) * 100) / 100);
                     onPatchSet(current.id, set.id, c.set(next));
                   };
+                  const name = COLUMN_NAME[c.key] ?? c.label;
                   return (
-                    <div key={c.key} className="flex items-center gap-2">
-                      <button onClick={() => bump(-1)} aria-label={`Менше: ${c.label}`} className="icon-btn size-14 bg-surface-2 text-ink">
-                        <Minus size={26} />
-                      </button>
-                      <div className="min-w-0 flex-1 text-center">
-                        <NumInput
-                          size="hero"
-                          label={c.label}
-                          decimal={c.decimal}
-                          value={value}
-                          placeholder={fallback ? String(fallback) : "0"}
-                          onChange={(v) => onPatchSet(current.id, set.id, c.set(v))}
-                        />
-                        <div className="caps -mt-1">{c.label}</div>
+                    <div key={c.key} className={cx("rounded-[28px] px-2.5 pt-2.5 pb-2", count ? "bg-accent/[0.09] ring-1 ring-accent/30" : "bg-surface")}>
+                      <div className={cx("caps text-center", count ? "text-accent" : "text-ink-2")}>{c.label === "+кг" ? "Додаткова вага, кг" : name}</div>
+                      <div className="flex items-center gap-2">
+                        <button onClick={() => bump(-1)} aria-label={`Менше: ${name}`} className="icon-btn size-13 bg-surface-2 text-ink">
+                          <Minus size={24} />
+                        </button>
+                        <div className="min-w-0 flex-1 text-center">
+                          <NumInput
+                            size="hero"
+                            accent={count}
+                            label={name}
+                            decimal={c.decimal}
+                            value={value}
+                            placeholder={fallback ? String(fallback) : "0"}
+                            onChange={(v) => onPatchSet(current.id, set.id, c.set(v))}
+                          />
+                        </div>
+                        <button onClick={() => bump(1)} aria-label={`Більше: ${name}`} className="icon-btn size-13 bg-surface-2 text-ink">
+                          <Plus size={24} />
+                        </button>
                       </div>
-                      <button onClick={() => bump(1)} aria-label={`Більше: ${c.label}`} className="icon-btn size-14 bg-surface-2 text-ink">
-                        <Plus size={26} />
-                      </button>
                     </div>
                   );
                 })}

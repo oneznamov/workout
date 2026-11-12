@@ -64,6 +64,7 @@ export function NumInput({
   decimal,
   done,
   size = "md",
+  accent,
 }: {
   value: number | null;
   onChange: (v: number | null) => void;
@@ -73,6 +74,8 @@ export function NumInput({
   done?: boolean;
   /** "hero" fills the one-set-at-a-time screen */
   size?: "md" | "xl" | "hero";
+  /** digits in the accent colour — tells one big number from another */
+  accent?: boolean;
 }) {
   const [text, setText] = useState(value == null ? "" : String(value));
   const [seen, setSeen] = useState(value);
@@ -102,9 +105,10 @@ export function NumInput({
         if (n === null || Number.isFinite(n)) onChange(n);
       }}
       className={cx(
-        "num w-full min-w-0 border border-transparent text-center font-semibold text-ink outline-none placeholder:text-muted/60 focus:border-accent",
+        "num w-full min-w-0 border border-transparent text-center font-semibold outline-none placeholder:text-muted/60 focus:border-accent",
+        accent ? "text-accent" : "text-ink",
         size === "hero"
-          ? "h-[min(27vw,7.75rem)] rounded-2xl bg-transparent text-[min(24vw,7rem)] leading-none tracking-tight"
+          ? "h-[min(27vw,7.75rem,13dvh)] rounded-2xl bg-transparent text-[min(24vw,7rem,11.5dvh)] leading-none tracking-tight"
           : size === "xl"
             ? "h-16 rounded-2xl bg-transparent text-[2.5rem]"
             : "h-12 rounded-xl text-xl",
