@@ -9,10 +9,12 @@ import { EQUIPMENT_LABEL, MUSCLE_LABEL, TRACKING_LABEL } from "@/lib/labels";
 import type { CExerciseInfo } from "@/lib/shape";
 
 export function ExercisePicker({
+  title = "Додати вправу",
   exercises,
   onPick,
   onClose,
 }: {
+  title?: string;
   exercises: CExerciseInfo[];
   onPick: (e: CExerciseInfo) => void;
   onClose: () => void;
@@ -42,17 +44,17 @@ export function ExercisePicker({
   }, [q, muscle, exercises, extra]);
 
   return (
-    <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/60 md:items-center" onClick={onClose}>
+    <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/70 md:items-center" onClick={onClose}>
       <div
         role="dialog"
         aria-modal="true"
-        aria-label="Додати вправу"
-        className="flex h-[88dvh] w-full max-w-xl flex-col rounded-t-2xl border border-line bg-surface md:h-[80dvh] md:rounded-2xl"
+        aria-label={title}
+        className="flex h-[90dvh] w-full max-w-xl flex-col rounded-t-[28px] bg-surface md:h-[80dvh] md:rounded-[28px]"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-center justify-between gap-2 p-4 pb-2">
-          <h2 className="text-lg font-semibold">{creating ? "Нова вправа" : "Додати вправу"}</h2>
-          <button onClick={onClose} aria-label="Закрити" className="grid size-9 place-items-center rounded-lg hover:bg-white/10">
+          <h2 className="text-xl font-bold">{creating ? "Нова вправа" : title}</h2>
+          <button onClick={onClose} aria-label="Закрити" className="icon-btn bg-surface-2">
             <X size={20} />
           </button>
         </div>
@@ -96,10 +98,10 @@ export function ExercisePicker({
                 <li key={e.id}>
                   <button
                     onClick={() => onPick(e)}
-                    className="flex w-full items-center justify-between gap-3 rounded-lg px-3 py-2.5 text-left hover:bg-white/5"
+                    className="flex w-full items-center justify-between gap-3 rounded-xl px-3 py-2.5 text-left hover:bg-surface-2"
                   >
                     <span className="min-w-0">
-                      <span className="block truncate text-sm">{e.name}</span>
+                      <span className="block truncate text-[15px] font-medium">{e.name}</span>
                       <span className="block truncate text-xs text-muted">
                         {e.nameUk ? `${e.nameUk} · ` : ""}
                         {MUSCLE_LABEL[e.muscle]} · {EQUIPMENT_LABEL[e.equipment]}
@@ -128,8 +130,8 @@ function Chip({ active, onClick, children }: { active: boolean; onClick: () => v
     <button
       onClick={onClick}
       className={cx(
-        "shrink-0 rounded-full border px-3 py-1 text-xs whitespace-nowrap",
-        active ? "border-accent bg-accent/20 text-ink" : "border-line text-ink-2 hover:bg-white/5",
+        "shrink-0 rounded-full px-3.5 py-1.5 text-[13px] font-medium whitespace-nowrap",
+        active ? "bg-accent text-accent-ink" : "bg-surface-2 text-ink-2 hover:bg-surface-3",
       )}
     >
       {children}

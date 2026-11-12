@@ -12,7 +12,7 @@ export function CopyField({ value, label }: { value: string; label?: string }) {
   const [copied, setCopied] = useState(false);
   return (
     <div className="flex items-stretch gap-2">
-      <code className="min-w-0 flex-1 overflow-x-auto rounded-lg border border-line bg-plane px-3 py-2 font-mono text-xs whitespace-nowrap text-ink-2" aria-label={label}>
+      <code className="min-w-0 flex-1 overflow-x-auto rounded-xl bg-plane px-3 py-2.5 font-mono text-xs whitespace-nowrap text-ink-2" aria-label={label}>
         {value}
       </code>
       <button
@@ -22,7 +22,7 @@ export function CopyField({ value, label }: { value: string; label?: string }) {
           setTimeout(() => setCopied(false), 1500);
         }}
         aria-label="Скопіювати"
-        className="btn btn-ghost px-3"
+        className="icon-btn bg-surface-2"
       >
         {copied ? <Check size={16} /> : <Copy size={16} />}
       </button>
@@ -56,7 +56,7 @@ export function TokensManager({ tokens, origin }: { tokens: TokenRow[]; origin: 
       </form>
 
       {fresh && (
-        <div className="space-y-3 rounded-xl border border-accent/40 bg-accent/10 p-4">
+        <div className="space-y-3 rounded-2xl bg-accent/10 p-4">
           <p className="text-sm">Новий токен — скопіюйте зараз, пізніше його не буде видно:</p>
           <CopyField value={fresh} label="Токен" />
           <p className="text-xs text-ink-2">Адреса для Claude (звичайний конектор у claude.ai):</p>
@@ -86,7 +86,7 @@ export function TokensManager({ tokens, origin }: { tokens: TokenRow[]; origin: 
                     router.refresh();
                   })
                 }
-                className="grid size-8 shrink-0 place-items-center rounded-lg text-muted hover:bg-white/10 hover:text-critical"
+                className="icon-btn size-9 hover:text-critical"
               >
                 <Trash2 size={16} />
               </button>

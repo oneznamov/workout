@@ -1,8 +1,8 @@
 import { Suspense } from "react";
-import { PageSkeleton } from "@/components/ui";
 import { NewWorkoutButtons } from "@/components/workout/new-workout";
 import { WorkoutRow } from "@/components/workout/workout-row";
-import { Empty, PageHeader } from "@/components/ui";
+import Link from "next/link";
+import { Empty, PageHeader, PageSkeleton, SectionTitle } from "@/components/ui";
 import { requireUserId } from "@/lib/auth";
 import { listWorkouts } from "@/lib/workouts";
 
@@ -20,7 +20,15 @@ async function Content() {
 
   return (
     <>
-      <PageHeader title="Тренування" actions={<NewWorkoutButtons />} />
+      <PageHeader
+        title="Тренування"
+        subtitle={
+          <Link href="/exercises" className="text-accent">
+            Бібліотека вправ →
+          </Link>
+        }
+        actions={<NewWorkoutButtons />}
+      />
       <div className="space-y-8">
         {active.length > 0 && (
           <Section title="Зараз триває">
@@ -54,8 +62,8 @@ async function Content() {
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <section>
-      <h2 className="mb-2 text-sm font-medium text-ink-2">{title}</h2>
-      <div className="grid gap-2 lg:grid-cols-2">{children}</div>
+      <SectionTitle>{title}</SectionTitle>
+      <div className="grid gap-3 lg:grid-cols-2">{children}</div>
     </section>
   );
 }

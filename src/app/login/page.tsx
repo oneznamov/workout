@@ -16,7 +16,7 @@ export default function LoginPage() {
   return (
     <main className="flex min-h-dvh items-center justify-center p-4">
       <div className="w-full max-w-sm">
-        <h1 className="mb-1 text-2xl font-semibold">Workout</h1>
+        <h1 className="mb-1 text-[2rem] font-bold tracking-tight">Workout</h1>
         <Suspense fallback={<p className="text-muted">Завантаження…</p>}>
           <Content />
         </Suspense>

@@ -33,8 +33,8 @@ export function ExerciseBrowser({ exercises }: { exercises: (CExerciseInfo & { c
             key={m ?? "all"}
             onClick={() => setMuscle(m)}
             className={cx(
-              "shrink-0 rounded-full border px-3 py-1 text-xs whitespace-nowrap",
-              muscle === m ? "border-accent bg-accent/20 text-ink" : "border-line text-ink-2 hover:bg-white/5",
+              "shrink-0 rounded-full px-3.5 py-1.5 text-[13px] font-medium whitespace-nowrap",
+              muscle === m ? "bg-accent text-accent-ink" : "bg-surface text-ink-2 hover:bg-surface-2",
             )}
           >
             {m ? MUSCLE_LABEL[m] : "Усі"}
@@ -43,14 +43,14 @@ export function ExerciseBrowser({ exercises }: { exercises: (CExerciseInfo & { c
       </div>
       {groups.map((g) => (
         <section key={g.m}>
-          <h2 className="mb-2 text-sm font-medium text-ink-2">
-            {MUSCLE_LABEL[g.m]} <span className="text-muted">· {g.items.length}</span>
+          <h2 className="mb-2 text-[1.2rem] font-bold tracking-tight">
+            {MUSCLE_LABEL[g.m]} <span className="text-sm font-medium text-muted">{g.items.length}</span>
           </h2>
           <ul className="card grid divide-y divide-line overflow-hidden sm:grid-cols-2 sm:divide-y-0">
             {g.items.map((e) => (
               <li key={e.id}>
-                <Link href={`/exercises/${e.id}`} className="block px-4 py-2.5 hover:bg-white/5">
-                  <span className="block truncate text-sm">
+                <Link href={`/exercises/${e.id}`} className="block px-4 py-3 hover:bg-surface-2">
+                  <span className="block truncate text-[15px] font-medium">
                     {e.name}
                     {e.custom && <span className="ml-2 text-xs text-accent">своя</span>}
                   </span>

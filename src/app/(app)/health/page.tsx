@@ -18,6 +18,26 @@ const PERIODS = [
   { value: "365", label: "Рік" },
 ];
 const BODY = ["body_mass", "body_fat_percentage", "lean_body_mass"];
+const COLOR: Record<string, string> = {
+  body_mass: "var(--c-body)",
+  body_fat_percentage: "var(--c-body)",
+  resting_heart_rate: "var(--c-heart)",
+  heart_rate_variability: "var(--c-heart)",
+  walking_heart_rate_average: "var(--c-heart)",
+  vo2_max: "var(--c-cycle)",
+  respiratory_rate: "var(--c-cycle)",
+  blood_oxygen_saturation: "var(--c-cycle)",
+  sleep_analysis: "var(--c-sleep)",
+};
+const TONE: Record<string, string> = {
+  "var(--c-body)": "text-body",
+  "var(--c-heart)": "text-heart",
+  "var(--c-cycle)": "text-cycle",
+  "var(--c-sleep)": "text-sleep",
+  "var(--c-activity)": "text-activity",
+};
+const colorOf = (metric: string) => COLOR[metric] ?? "var(--c-activity)";
+
 const ORDER = [
   "resting_heart_rate",
   "heart_rate_variability",
@@ -71,10 +91,11 @@ async function Content({ searchParams }: PageProps<"/health">) {
       <div className="space-y-5">
         <Card
           title="Вага тіла, кг"
+          tone="text-body"
           action={
             lastWeight && (
-              <span className="tabular text-sm">
-                <span className="font-semibold">{fmtNum(lastWeight.value, 1)} кг</span>
+              <span className="text-sm">
+                <span className="num text-lg font-semibold">{fmtNum(lastWeight.value, 1)} кг</span>
                 {change != null && (
                   <span className="ml-2 text-xs text-muted">
                     {change > 0 ? "+" : change < 0 ? "−" : ""}
@@ -85,7 +106,7 @@ async function Content({ searchParams }: PageProps<"/health">) {
             )
           }
         >
-          <TrendChart data={points("body_mass")} unit="кг" digits={1} height={220} />
+          <TrendChart data={points("body_mass")} unit="кг" digits={1} height={220} color="var(--c-body)" />
           <div className="mt-4 border-t border-line pt-4">
             <WeightForm today={today} />
           </div>
@@ -108,8 +129,8 @@ async function Content({ searchParams }: PageProps<"/health">) {
         </Card>
 
         {of("body_fat_percentage").length > 0 && (
-          <Card title="Жир, %">
-            <TrendChart data={points("body_fat_percentage")} unit="%" digits={1} />
+          <Card title="Жир, %" tone="text-body">
+            <TrendChart data={points("body_fat_percentage")} unit="%" digits={1} color="var(--c-body)" />
           </Card>
         )}
 
@@ -129,18 +150,23 @@ async function Content({ searchParams }: PageProps<"/health">) {
               const vals = data.map((d) => d.value);
               const avg = vals.length ? vals.reduce((a, b) => a + b, 0) / vals.length : null;
               return (
-                <Card
-                  key={m}
-                  title={`${info.label}${info.unit ? `, ${info.unit}` : ""}`}
-                  action={
-                    avg != null && (
-                      <span className="tabular text-xs text-muted">
-                        у середньому <span className="text-ink">{fmtNum(avg, info.digits)}</span>
-                      </span>
-                    )
-                  }
-                >
-                  <TrendChart data={data} kind={info.agg === "sum" ? "bar" : "line"} unit={info.unit} digits={info.digits} />
+                <Card key={m} title={info.label} tone={TONE[colorOf(m)]}>
+                  {avg != null && (
+                    <div className="mb-2">
+                      <div className="caps">У середньому</div>
+                      <div className="num text-[1.75rem] leading-none font-semibold">
+                        {fmtNum(avg, info.digits)}
+                        {info.unit && <span className="ml-1 text-sm font-medium text-muted">{info.unit}</span>}
+                      </div>
+                    </div>
+                  )}
+                  <TrendChart
+                    data={data}
+                    kind={info.agg === "sum" ? "bar" : "line"}
+                    unit={info.unit}
+                    digits={info.digits}
+                    color={colorOf(m)}
+                  />
                 </Card>
               );
             })}
@@ -159,7 +185,7 @@ async function Content({ searchParams }: PageProps<"/health">) {
                     </span>
                   </span>
                   <span className="flex items-center gap-3 text-xs text-ink-2">
-                    {h.avgHr != null && <span>♥ {fmtNum(h.avgHr)}</span>}
+                    {h.avgHr != null && <span className="text-heart">♥ {fmtNum(h.avgHr)}</span>}
                     {h.activeKcal != null && <span>{fmtNum(h.activeKcal)} ккал</span>}
                     {h.workoutId ? (
                       <Link href={`/workouts/${h.workoutId}`} className="text-accent">

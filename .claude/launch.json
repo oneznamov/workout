@@ -1,6 +1,7 @@
 {
   "version": "0.0.1",
   "configurations": [
-    { "name": "workout-dev", "runtimeExecutable": "pnpm", "runtimeArgs": ["dev", "--port", "3210"], "port": 3210 }
+    { "name": "workout-dev", "runtimeExecutable": "pnpm", "runtimeArgs": ["dev", "--port", "3210"], "port": 3210 },
+    { "name": "workout-prod", "runtimeExecutable": "pnpm", "runtimeArgs": ["start", "--port", "3211"], "port": 3211 }
   ]
 }

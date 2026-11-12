@@ -176,8 +176,8 @@ function parseHrSamples(v: unknown): HrSample[] | null {
   }
   if (out.length === 0) return null;
   out.sort((a, b) => a.t.localeCompare(b.t));
-  // Keep payloads small: at most ~600 points per workout.
-  const step = Math.ceil(out.length / 600);
+  // Keep payloads small but fine enough to see single sets: at most ~1500 points per workout.
+  const step = Math.ceil(out.length / 1500);
   return step > 1 ? out.filter((_, i) => i % step === 0) : out;
 }
 

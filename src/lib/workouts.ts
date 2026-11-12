@@ -501,3 +501,170 @@ export async function replaceSets(userId: string, weId: string, items: SetInput[
   if (items.length) await db.insert(sets).values(items.map((s, i) => setValues(weId, i, s)));
   await touch(we.workoutId);
 }
+
+// ───────────────────────── Device sync ─────────────────────────
+
+export type SnapshotInput = {
+  name: string;
+  status: WorkoutStatus;
+  scheduledFor: string | null;
+  startedAt: Date | null;
+  endedAt: Date | null;
+  notes: string | null;
+  exercises: {
+    id: string;
+    exerciseId: string;
+    restSeconds: number | null;
+    notes: string | null;
+    sets: {
+      id: string;
+      type: SetType;
+      weight: number | null;
+      reps: number | null;
+      durationSec: number | null;
+      distanceM: number | null;
+      completed: boolean;
+      completedAt: Date | null;
+    }[];
+  }[];
+  deletedExerciseIds: string[];
+  deletedSetIds: string[];
+};
+
+/**
+ * Saves a whole workout as edited on a device (possibly offline, possibly created there).
+ * Rows are upserted by id and only explicitly deleted ids are removed, so anything added
+ * on the server meanwhile (e.g. by Claude) survives the merge.
+ */
+export async function saveSnapshot(userId: string, id: string, snap: SnapshotInput) {
+  const [existing] = await db.select().from(workouts).where(eq(workouts.id, id));
+  if (existing && existing.userId !== userId) throw new NotFoundError("Тренування не знайдено");
+  await assertExercisesVisible(userId, snap.exercises.map((e) => e.exerciseId));
+
+  const meta = {
+    name: snap.name.trim() || "Тренування",
+    status: snap.status,
+    scheduledFor: snap.scheduledFor,
+    startedAt: snap.startedAt,
+    endedAt: snap.endedAt,
+    notes: snap.notes,
+    updatedAt: new Date(),
+  };
+  if (existing) await db.update(workouts).set(meta).where(eq(workouts.id, id));
+  else await db.insert(workouts).values({ id, userId, ...meta });
+
+  const ownExercises = db.select({ id: workoutExercises.id }).from(workoutExercises).where(eq(workoutExercises.workoutId, id));
+  if (snap.deletedSetIds.length) {
+    await db.delete(sets).where(and(inArray(sets.id, snap.deletedSetIds), inArray(sets.workoutExerciseId, ownExercises)));
+  }
+  if (snap.deletedExerciseIds.length) {
+    await db
+      .delete(workoutExercises)
+      .where(and(inArray(workoutExercises.id, snap.deletedExerciseIds), eq(workoutExercises.workoutId, id)));
+  }
+
+  if (snap.exercises.length) {
+    await db
+      .insert(workoutExercises)
+      .values(
+        snap.exercises.map((e, i) => ({
+          id: e.id,
+          workoutId: id,
+          exerciseId: e.exerciseId,
+          position: i,
+          restSeconds: e.restSeconds,
+          notes: e.notes,
+        })),
+      )
+      .onConflictDoUpdate({
+        target: workoutExercises.id,
+        set: {
+          exerciseId: sql`excluded.exercise_id`,
+          position: sql`excluded.position`,
+          restSeconds: sql`excluded.rest_seconds`,
+          notes: sql`excluded.notes`,
+        },
+        // Never touch a row that belongs to another workout.
+        setWhere: sql`workout_exercises.workout_id = excluded.workout_id`,
+      });
+
+    const confirmed = new Set(
+      (
+        await db
+          .select({ id: workoutExercises.id })
+          .from(workoutExercises)
+          .where(and(eq(workoutExercises.workoutId, id), inArray(workoutExercises.id, snap.exercises.map((e) => e.id))))
+      ).map((r) => r.id),
+    );
+    const now = new Date();
+    const rows = snap.exercises
+      .filter((e) => confirmed.has(e.id))
+      .flatMap((e) =>
+        e.sets.map((s, j) => ({
+          id: s.id,
+          workoutExerciseId: e.id,
+          position: j,
+          type: s.type,
+          weight: s.weight,
+          reps: s.reps,
+          durationSec: s.durationSec,
+          distanceM: s.distanceM,
+          completed: s.completed,
+          completedAt: s.completed ? (s.completedAt ?? now) : null,
+        })),
+      );
+    if (rows.length) {
+      await db
+        .insert(sets)
+        .values(rows)
+        .onConflictDoUpdate({
+          target: sets.id,
+          set: {
+            position: sql`excluded.position`,
+            type: sql`excluded.type`,
+            weight: sql`excluded.weight`,
+            reps: sql`excluded.reps`,
+            durationSec: sql`excluded.duration_sec`,
+            distanceM: sql`excluded.distance_m`,
+            completed: sql`excluded.completed`,
+            completedAt: sql`excluded.completed_at`,
+          },
+          setWhere: sql`sets.workout_exercise_id = excluded.workout_exercise_id`,
+        });
+    }
+  }
+
+  // Just finished (or logged as finished): keep only what was done and attach watch data.
+  if (snap.status === "completed" && existing?.status !== "completed") {
+    await db.execute(sql`
+      delete from ${sets} s using ${workoutExercises} we
+      where s.workout_exercise_id = we.id and we.workout_id = ${id} and not s.completed`);
+    await db.execute(sql`
+      delete from ${workoutExercises} we
+      where we.workout_id = ${id} and not exists (select 1 from ${sets} s where s.workout_exercise_id = we.id)`);
+    await linkHealthWorkouts(userId);
+  }
+
+  return getWorkout(userId, id);
+}
+
+/** Full detail of every workout the user may want to open without a connection. */
+export async function listWorkoutsFull(userId: string, statuses: WorkoutStatus[], limit = 40) {
+  return db.query.workouts.findMany({
+    where: and(eq(workouts.userId, userId), inArray(workouts.status, statuses)),
+    orderBy: [desc(workouts.updatedAt)],
+    limit,
+    with: {
+      exercises: {
+        orderBy: [asc(workoutExercises.position)],
+        with: {
+          exercise: {
+            columns: { id: true, name: true, nameUk: true, muscle: true, equipment: true, tracking: true },
+          },
+          sets: { orderBy: [asc(sets.position)] },
+        },
+      },
+      healthWorkouts: { orderBy: [asc(healthWorkouts.startAt)] },
+    },
+  });
+}

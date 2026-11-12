@@ -10,6 +10,8 @@ export type CSet = {
   durationSec: number | null;
   distanceM: number | null;
   completed: boolean;
+  /** ISO time the set was ticked off (drives the workout timeline). */
+  completedAt: string | null;
 };
 
 export type CExerciseInfo = {
@@ -78,7 +80,7 @@ type ServerWorkout = {
     restSeconds: number | null;
     notes: string | null;
     exercise: CExerciseInfo;
-    sets: (Omit<CSet, never> & Record<string, unknown>)[];
+    sets: (Omit<CSet, "completedAt"> & { completedAt: Date | null })[];
   }[];
   healthWorkouts: {
     id: string;
@@ -118,6 +120,7 @@ export function toClientWorkout(w: ServerWorkout): CWorkout {
         durationSec: s.durationSec,
         distanceM: s.distanceM,
         completed: s.completed,
+        completedAt: s.completedAt?.toISOString() ?? null,
       })),
     })),
     health: w.healthWorkouts.map((h) => ({
@@ -166,3 +169,17 @@ export function describeSet(
     }
   }
 }
+
+/** What the device sends when saving: the whole workout plus explicit deletions. */
+export type WorkoutSnapshot = {
+  workout: CWorkout;
+  deletedExerciseIds: string[];
+  deletedSetIds: string[];
+};
+
+export type OfflineBundle = {
+  workouts: CWorkout[];
+  exercises: CExerciseInfo[];
+  last: CLast;
+  fetchedAt: string;
+};

@@ -4,10 +4,10 @@ import type { ReactNode } from "react";
 import type { MuscleGroup } from "@/db/schema";
 import { fmtNum } from "@/lib/format";
 import { MUSCLE_LABEL } from "@/lib/labels";
-import { muscleStatus, STATUS_INFO } from "@/lib/muscles";
+import { loadColor, muscleStatus, STATUS_INFO } from "@/lib/muscles";
 
-const SURFACE = "#1a1a19";
-const BODY = "#272725";
+const SURFACE = "#1c1c1e";
+const BODY = "#2c2c2e";
 
 type Values = Partial<Record<MuscleGroup, number>>;
 
@@ -59,8 +59,8 @@ function Region({
   const interactive = Boolean(onSelect);
   return (
     <g
-      fill={info.fill}
-      stroke={isSelected ? "#f0efec" : SURFACE}
+      fill={loadColor(v)}
+      stroke={isSelected ? "#ffffff" : SURFACE}
       strokeWidth={2}
       strokeLinejoin="round"
       role={interactive ? "button" : undefined}

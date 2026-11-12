@@ -58,7 +58,7 @@ export function DeleteMetricButton({ metric, day }: { metric: string; day: strin
           router.refresh();
         })
       }
-      className="grid size-7 place-items-center rounded-md text-muted hover:bg-white/10 hover:text-ink"
+      className="icon-btn size-8"
     >
       <X size={14} />
     </button>

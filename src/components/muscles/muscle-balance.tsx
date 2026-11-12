@@ -8,9 +8,10 @@ import { addDays, cx, fmtDate, fmtNum } from "@/lib/format";
 import { MUSCLE_LABEL } from "@/lib/labels";
 import {
   BODY_MUSCLES,
+  LOAD_STOPS,
+  loadColor,
   muscleStatus,
   STATUS_INFO,
-  STATUS_ORDER,
   TARGET_MAX,
   TARGET_MIN,
   type MuscleBalance,
@@ -56,16 +57,24 @@ function needsWork(data: MuscleBalance, totals: Record<MuscleGroup, number>) {
 }
 
 function Legend() {
+  const max = LOAD_STOPS[LOAD_STOPS.length - 1][0];
+  const gradient = LOAD_STOPS.map(([v, c]) => `${c} ${(v / max) * 100}%`).join(", ");
   return (
-    <ul className="flex flex-wrap gap-x-3 gap-y-1 text-xs text-ink-2" aria-label="Шкала: підходів на тиждень">
-      {STATUS_ORDER.map((s) => (
-        <li key={s} className="flex items-center gap-1.5">
-          <span className="size-2.5 rounded-[3px]" style={{ background: STATUS_INFO[s].fill }} />
-          <span className="tabular">{STATUS_INFO[s].range}</span>
-          <span className="text-muted">{STATUS_INFO[s].label.toLowerCase()}</span>
-        </li>
-      ))}
-    </ul>
+    <div aria-label="Шкала навантаження на тиждень: від нуля до тридцяти і більше">
+      <div className="h-2.5 rounded-full" style={{ background: `linear-gradient(to right, ${gradient})` }} />
+      <div className="tabular relative mt-1 h-4 text-[11px] text-muted">
+        {[0, 5, 10, 20, 30].map((v) => (
+          <span key={v} className="absolute -translate-x-1/2 first:translate-x-0 last:-translate-x-full" style={{ left: `${(v / max) * 100}%` }}>
+            {v === 30 ? "30+" : v}
+          </span>
+        ))}
+      </div>
+      <div className="mt-0.5 flex justify-between text-[11px] text-muted">
+        <span>мало</span>
+        <span>норма 10–20</span>
+        <span>забагато</span>
+      </div>
+    </div>
   );
 }
 
@@ -83,8 +92,8 @@ export function MuscleWeekCard({ data }: { data: MuscleBalance }) {
           {todo.length ? (
             <ul className="mt-1.5 flex flex-wrap gap-1.5">
               {todo.map((m) => (
-                <li key={m} className="flex items-center gap-1.5 rounded-full border border-line px-2.5 py-1 text-xs">
-                  <span className="size-2 rounded-[2px]" style={{ background: STATUS_INFO[muscleStatus(totals[m])].fill }} />
+                <li key={m} className="flex items-center gap-1.5 rounded-full bg-surface-2 px-2.5 py-1 text-xs">
+                  <span className="size-2 rounded-full" style={{ background: loadColor(totals[m]) }} />
                   {MUSCLE_LABEL[m]}
                   <span className="tabular text-muted">{fmtNum(totals[m], 1)}</span>
                 </li>
@@ -117,7 +126,7 @@ export function MuscleBalanceView({ data }: { data: MuscleBalance }) {
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <div className="inline-flex rounded-lg border border-line bg-plane p-0.5" role="group" aria-label="Режим">
+        <div className="inline-flex rounded-full bg-surface-2 p-1" role="group" aria-label="Режим">
           {(
             [
               ["week", "По тижнях"],
@@ -128,7 +137,7 @@ export function MuscleBalanceView({ data }: { data: MuscleBalance }) {
               key={m}
               onClick={() => setMode(m)}
               aria-pressed={mode === m}
-              className={cx("rounded-md px-3 py-1 text-xs", mode === m ? "bg-white/10 text-ink" : "text-muted hover:text-ink")}
+              className={cx("rounded-full px-3.5 py-1.5 text-[13px] font-medium", mode === m ? "bg-surface-3 text-ink" : "text-muted hover:text-ink")}
             >
               {label}
             </button>
@@ -140,7 +149,7 @@ export function MuscleBalanceView({ data }: { data: MuscleBalance }) {
               onClick={() => setIndex(Math.max(0, safeIndex - 1))}
               disabled={safeIndex === 0}
               aria-label="Попередній тиждень"
-              className="grid size-8 place-items-center rounded-lg border border-line hover:bg-white/10 disabled:opacity-30"
+              className="icon-btn size-9 bg-surface-2"
             >
               <ChevronLeft size={16} />
             </button>
@@ -152,7 +161,7 @@ export function MuscleBalanceView({ data }: { data: MuscleBalance }) {
               onClick={() => setIndex(Math.min(data.weeks.length - 1, safeIndex + 1))}
               disabled={isCurrent}
               aria-label="Наступний тиждень"
-              className="grid size-8 place-items-center rounded-lg border border-line hover:bg-white/10 disabled:opacity-30"
+              className="icon-btn size-9 bg-surface-2"
             >
               <ChevronRight size={16} />
             </button>
@@ -169,7 +178,7 @@ export function MuscleBalanceView({ data }: { data: MuscleBalance }) {
         </div>
 
         <div className="space-y-4">
-          <div className="rounded-xl border border-line bg-plane p-3">
+          <div className="rounded-2xl bg-surface-2 p-3.5">
             <div className="text-xs text-muted">
               {mode === "week" ? "Варто пропрацювати цього тижня" : "Відстають у середньому"} · орієнтир {TARGET_MIN}–{TARGET_MAX} підходів на групу
             </div>
@@ -190,27 +199,27 @@ export function MuscleBalanceView({ data }: { data: MuscleBalance }) {
                     onClick={() => setSelected(selected === m ? null : m)}
                     aria-pressed={selected === m}
                     className={cx(
-                      "grid w-full grid-cols-[6.5rem_1fr_auto] items-center gap-3 rounded-lg px-2 py-1.5 text-left text-sm hover:bg-white/5",
-                      selected === m && "bg-white/10",
+                      "grid w-full grid-cols-[6.5rem_1fr_auto] items-center gap-3 rounded-xl px-2 py-1.5 text-left text-sm hover:bg-surface-2",
+                      selected === m && "bg-surface-2",
                     )}
                   >
                     <span className="truncate">{MUSCLE_LABEL[m]}</span>
                     <span className="relative h-2.5">
                       {/* target band */}
                       <span
-                        className="absolute inset-y-0 rounded-[2px] bg-white/[0.07]"
+                        className="absolute inset-y-0 rounded-full bg-white/[0.09]"
                         style={{ left: `${(TARGET_MIN / BAR_MAX) * 100}%`, width: `${((TARGET_MAX - TARGET_MIN) / BAR_MAX) * 100}%` }}
                       />
                       <span className="absolute inset-y-0 left-0 w-px bg-axis" />
                       {v > 0 && (
                         <span
-                          className="absolute inset-y-0 left-0 rounded-r-[4px]"
-                          style={{ width: `${Math.max(1.5, Math.min(100, (v / BAR_MAX) * 100))}%`, background: info.fill }}
+                          className="absolute inset-y-0 left-0 rounded-full"
+                          style={{ width: `${Math.max(2.5, Math.min(100, (v / BAR_MAX) * 100))}%`, background: loadColor(v) }}
                         />
                       )}
                     </span>
-                    <span className="tabular w-28 text-right">
-                      {fmtNum(v, 1)} <span className="text-xs text-muted">· {info.label.toLowerCase()}</span>
+                    <span className="w-28 text-right">
+                      <span className="num font-semibold">{fmtNum(v, 1)}</span> <span className="text-xs text-muted">· {info.label.toLowerCase()}</span>
                     </span>
                   </button>
                 </li>
@@ -263,10 +272,10 @@ function MuscleDetail({
     ref.current?.scrollIntoView({ behavior: "smooth", block: "nearest" });
   }, [muscle]);
   return (
-    <div ref={ref} className="scroll-mb-24 rounded-xl border border-line bg-plane p-4">
+    <div ref={ref} className="scroll-mb-24 rounded-2xl bg-surface-2 p-4">
       <div className="flex flex-wrap items-baseline justify-between gap-2">
         <h3 className="flex items-center gap-2 font-medium">
-          <span className="size-3 rounded-[3px]" style={{ background: info.fill }} />
+          <span className="size-3 rounded-full" style={{ background: loadColor(value) }} />
           {MUSCLE_LABEL[muscle]}
         </h3>
         <span className="tabular text-sm text-ink-2">

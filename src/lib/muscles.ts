@@ -30,6 +30,33 @@ export const STATUS_INFO: Record<MuscleStatus, { label: string; range: string; f
 };
 export const STATUS_ORDER: MuscleStatus[] = ["none", "low", "below", "optimal", "high"];
 
+/** Heat scale: untouched → a faint tint → green/lime in the target range → orange/red when overdone. */
+export const LOAD_STOPS: [number, string][] = [
+  [0, "#3a3a3c"],
+  [3, "#40c8e0"],
+  [7, "#30d158"],
+  [12, "#a4e83c"],
+  [18, "#ffd60a"],
+  [24, "#ff9f0a"],
+  [30, "#ff453a"],
+];
+
+const hex = (c: string) => [1, 3, 5].map((i) => parseInt(c.slice(i, i + 2), 16));
+
+/** Color for a weekly load value, interpolated along LOAD_STOPS. */
+export function loadColor(load: number): string {
+  if (!(load > 0)) return LOAD_STOPS[0][1];
+  const last = LOAD_STOPS[LOAD_STOPS.length - 1];
+  if (load >= last[0]) return last[1];
+  const i = LOAD_STOPS.findIndex(([v]) => v > load);
+  const [v0, c0] = LOAD_STOPS[i - 1];
+  const [v1, c1] = LOAD_STOPS[i];
+  const t = (load - v0) / (v1 - v0);
+  const a = hex(c0);
+  const b = hex(c1);
+  return `rgb(${a.map((x, k) => Math.round(x + (b[k] - x) * t)).join(" ")})`;
+}
+
 export type MuscleContribution = { week: string; muscle: MuscleGroup; exerciseId: string; name: string; sets: number };
 
 export type MuscleBalance = {

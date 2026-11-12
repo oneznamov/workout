@@ -2,6 +2,7 @@ import { Suspense } from "react";
 import { PageSkeleton } from "@/components/ui";
 import { desc, eq } from "drizzle-orm";
 import { headers } from "next/headers";
+import { InstallCard } from "@/components/install";
 import { CopyField, LogoutButton, PasswordForm, TokensManager } from "@/components/settings";
 import { Card, PageHeader } from "@/components/ui";
 import { db } from "@/db";
@@ -25,6 +26,10 @@ async function Content() {
     <>
       <PageHeader title="Налаштування" subtitle={`Акаунт: ${user.username}`} actions={<LogoutButton />} />
       <div className="space-y-5">
+        <Card title="Застосунок на телефоні та робота офлайн">
+          <InstallCard />
+        </Card>
+
         <Card title="Токени доступу">
           <p className="mb-4 text-sm text-ink-2">
             Токен дає доступ до ваших даних без пароля — для Claude та для синхронізації Apple Health. Створіть окремий токен
@@ -70,8 +75,9 @@ async function Content() {
             </li>
             <li>
               Створіть дві автоматизації: <span className="text-ink">Health Metrics</span> (вага, пульс спокою, HRV, VO₂ max,
-              кроки, калорії, сон; агрегація — по днях) і <span className="text-ink">Workouts</span> (увімкніть «Include
-              Heart Rate Data»). Період синхронізації — щогодини або частіше.
+              кроки, калорії, сон; Summarize Data — по днях) і <span className="text-ink">Workouts</span> (увімкніть «Include
+              Workout Metrics», Time Grouping — <span className="text-ink">Seconds</span>: так пульс точніший і краще видно
+              відпочинок між підходами). Date Range — Default, синхронізація щогодини або частіше.
             </li>
           </ol>
           <div className="mt-3">
