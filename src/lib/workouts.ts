@@ -175,6 +175,10 @@ export async function listWorkouts(
         where we.workout_id = "workouts"."id" and (s.completed or "workouts"."status" <> 'completed'))`,
       volume: sql<number>`(select coalesce(sum(s.weight * s.reps), 0)::float from sets s join workout_exercises we on we.id = s.workout_exercise_id
         where we.workout_id = "workouts"."id" and s.completed)`,
+      /** Exercises per primary muscle, e.g. {"chest": 2, "back": 3} — names the workout and draws its pictogram. */
+      muscles: sql<Partial<Record<MuscleGroup, number>> | null>`(select jsonb_object_agg(t.muscle, t.n) from (
+        select e.muscle, count(*)::int as n from workout_exercises we join exercises e on e.id = we.exercise_id
+        where we.workout_id = "workouts"."id" group by e.muscle) t)`,
       avgHr: sql<number | null>`(select avg(h.avg_hr)::float from health_workouts h where h.workout_id = "workouts"."id")`,
       activeKcal: sql<number | null>`(select sum(h.active_kcal)::float from health_workouts h where h.workout_id = "workouts"."id")`,
     })

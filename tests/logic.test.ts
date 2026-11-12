@@ -182,3 +182,27 @@ describe("sealed secrets", () => {
     expect(unseal("garbage")).toBeNull();
   });
 });
+
+import { workoutKind } from "@/lib/workout-kind";
+
+describe("workout kind", () => {
+  it("names a workout by what it trains", () => {
+    expect(workoutKind(null).label).toBe("Без вправ");
+    expect(workoutKind({ quads: 2, hamstrings: 1, calves: 1, core: 1 }).label).toBe("Ноги");
+    expect(workoutKind({ chest: 3, triceps: 1 }).label).toBe("Груди");
+    expect(workoutKind({ chest: 2, shoulders: 2, triceps: 1 }).label).toBe("Жимове");
+    expect(workoutKind({ back: 2, biceps: 2, forearms: 1 }).label).toBe("Тягове");
+    expect(workoutKind({ back: 3, biceps: 2 }).label).toBe("Тягове");
+    expect(workoutKind({ back: 4, biceps: 1 }).label).toBe("Спина");
+    expect(workoutKind({ biceps: 2, triceps: 2, shoulders: 1 }).label).toBe("Руки");
+    expect(workoutKind({ chest: 2, back: 2, shoulders: 1, core: 1 }).label).toBe("Верх тіла");
+    expect(workoutKind({ chest: 1, back: 2, quads: 2, core: 1, shoulders: 1 }).label).toBe("Фулбоді");
+    expect(workoutKind({ core: 3, chest: 1 }).label).toBe("Прес");
+    expect(workoutKind({ cardio: 2 })).toMatchObject({ label: "Кардіо", cardio: true });
+  });
+  it("lights only the zones that are trained", () => {
+    expect(workoutKind({ quads: 2 }).zones).toEqual({ shoulders: false, torso: false, arms: false, core: false, legs: true });
+    expect(workoutKind({ full_body: 1 }).zones).toEqual({ shoulders: true, torso: true, arms: true, core: true, legs: true });
+    expect(workoutKind({ back: 1, biceps: 1 }).zones).toMatchObject({ torso: true, arms: true, legs: false });
+  });
+});
