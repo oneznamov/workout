@@ -96,6 +96,10 @@ export async function listUsers() {
 
 /** Removes a user and everything they recorded. Admins cannot be removed this way. */
 export async function deleteUser(id: string) {
-  await db.delete(users).where(and(eq(users.id, id), eq(users.isAdmin, false)));
+  const [u] = await db.select({ id: users.id }).from(users).where(and(eq(users.id, id), eq(users.isAdmin, false)));
+  if (!u) return;
+  // Workouts go first: they point at the account's own exercises, which otherwise block the removal.
+  await db.delete(workouts).where(eq(workouts.userId, id));
+  await db.delete(users).where(eq(users.id, id));
   await pruneEmptyTeams();
 }

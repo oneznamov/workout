@@ -2,9 +2,10 @@
 
 import { useRouter } from "next/navigation";
 import { useActionState, useState, useTransition } from "react";
-import { Check, Copy, Download, KeyRound, LogOut, ShieldCheck, Trash2 } from "lucide-react";
+import { Check, Copy, Download, KeyRound, LogOut, ShieldCheck, Trash2, Upload } from "lucide-react";
 import { changePasswordAction, createTokenAction, deleteTokenAction, logoutAction, signOutOthersAction } from "@/lib/actions";
 import { fmtDate } from "@/lib/format";
+import type { ImportResult } from "@/lib/import-schema";
 
 export type TokenRow = { id: string; name: string; prefix: string; createdAt: string; lastUsedAt: string | null };
 
@@ -134,21 +135,103 @@ export function LogoutButton() {
 }
 
 /** Download a copy of everything, and sign every other device out. */
-export function DataAndSecurity() {
+type ImportState = { busy?: boolean; error?: string; result?: ImportResult };
+
+/** Reads an export file on the device and sends it up in parts small enough for one request each. */
+async function uploadExport(file: File): Promise<ImportResult> {
+  const data = JSON.parse(await file.text()) as Record<string, unknown>;
+  if (data.format !== "workout-export") throw new Error("format");
+  // Watch sessions come back by themselves with the next Apple Health sync — and they are heavy.
+  delete data.watchWorkouts;
+  const metrics = Array.isArray(data.healthMetrics) ? (data.healthMetrics as unknown[]) : [];
+  const parts: Record<string, unknown>[] = [{ ...data, healthMetrics: [] }];
+  for (let i = 0; i < metrics.length; i += 4000) parts.push({ format: data.format, version: data.version, healthMetrics: metrics.slice(i, i + 4000) });
+  const total: ImportResult = { workouts: 0, programs: 0, exercises: 0, metrics: 0, notes: 0, skipped: 0, profile: false };
+  for (const part of parts) {
+    const res = await fetch("/api/import", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(part) });
+    if (!res.ok) throw new Error(res.status === 400 ? "format" : res.status === 413 ? "size" : "server");
+    const { result } = (await res.json()) as { result: ImportResult };
+    total.workouts += result.workouts;
+    total.programs += result.programs;
+    total.exercises += result.exercises;
+    total.metrics += result.metrics;
+    total.notes += result.notes;
+    total.skipped += result.skipped;
+    total.profile ||= result.profile;
+  }
+  return total;
+}
+
+const IMPORT_ERROR: Record<string, string> = {
+  format: "Це не файл експорту Workout — потрібен JSON, збережений кнопкою «Усі дані».",
+  size: "Файл завеликий для імпорту.",
+  server: "Не вдалося імпортувати. Перевірте звʼязок і спробуйте ще раз.",
+};
+
+export function DataAndSecurity({ ai = false }: { ai?: boolean }) {
+  const router = useRouter();
   const [done, setDone] = useState(false);
+  const [withAi, setWithAi] = useState(ai);
+  const [imp, setImp] = useState<ImportState>({});
   const [pending, start] = useTransition();
+  const onFile = async (file: File | undefined) => {
+    if (!file) return;
+    setImp({ busy: true });
+    try {
+      setImp({ result: await uploadExport(file) });
+      router.refresh();
+    } catch (e) {
+      const code = e instanceof SyntaxError ? "format" : e instanceof Error && e.message in IMPORT_ERROR ? e.message : "server";
+      setImp({ error: IMPORT_ERROR[code] });
+    }
+  };
+  const r = imp.result;
   return (
     <div className="space-y-4">
       <div>
-        <p className="mb-2 text-sm text-ink-2">Копія всіх ваших даних — зберігайте час від часу як резерв.</p>
+        <p className="mb-2 text-sm text-ink-2">Копія всіх ваших даних: тренування, програми з історією змін, профіль, показники — і пояснення ШІ до його планів.</p>
         <div className="grid gap-2 sm:flex">
-          <a href="/api/export" download className="btn btn-ghost">
+          <a href={withAi ? "/api/export?ai=1" : "/api/export"} download className="btn btn-ghost">
             <Download size={17} /> Усі дані (JSON)
           </a>
           <a href="/api/export?format=csv" download className="btn btn-ghost">
             <Download size={17} /> Підходи таблицею (CSV)
           </a>
         </div>
+        {ai && (
+          <label className="mt-2.5 flex items-start gap-2.5 text-sm text-ink-2">
+            <input type="checkbox" checked={withAi} onChange={(e) => setWithAi(e.target.checked)} className="mt-0.5 size-4 accent-[var(--accent)]" />
+            <span>Додати свіжий короткий аналіз від ШІ: де ви зараз і чому він складав плани саме так. Файл готується до пів хвилини.</span>
+          </label>
+        )}
+      </div>
+      <div>
+        <p className="mb-2 text-sm text-ink-2">Імпорт із такого файлу лише додає те, чого бракує: наявні тренування й записи не змінюються.</p>
+        <label className={`btn btn-ghost w-full sm:w-auto ${imp.busy ? "pointer-events-none opacity-60" : ""}`}>
+          <Upload size={17} /> {imp.busy ? "Імпортую…" : "Імпортувати з файлу"}
+          <input
+            type="file"
+            accept="application/json,.json"
+            className="sr-only"
+            disabled={imp.busy}
+            onChange={(e) => {
+              void onFile(e.target.files?.[0]);
+              e.target.value = "";
+            }}
+          />
+        </label>
+        {imp.error && (
+          <p role="alert" className="mt-2 text-sm text-critical">
+            {imp.error}
+          </p>
+        )}
+        {r && (
+          <p role="status" className="mt-2 text-sm text-good">
+            Додано: тренувань — {r.workouts}, програм — {r.programs}, вправ — {r.exercises}, записів показників — {r.metrics}
+            {r.notes > 0 && `, оглядів ШІ — ${r.notes}`}
+            {r.profile && ", доповнено профіль"}.{r.skipped > 0 && ` Пропущено (вже є або ще триває): ${r.skipped}.`}
+          </p>
+        )}
       </div>
       <div>
         <p className="mb-2 text-sm text-ink-2">Якщо телефон загубився або ви входили на чужому пристрої:</p>

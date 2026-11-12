@@ -12,7 +12,7 @@ import { seal, unseal } from "./crypto";
 import { addDays, dayOf } from "./format";
 import { normalizeGoals } from "./goals";
 import { linkHealthWorkouts } from "./health";
-import { addRevision, clearUpcoming, createProgram, getProgram, programText, updateProgram } from "./programs";
+import { addRevision, clearUpcoming, createProgram, getProgram, listPrograms, programText, updateProgram } from "./programs";
 import { toClientWorkout } from "./shape";
 import { buildTimeline } from "./timeline";
 import {
@@ -309,6 +309,32 @@ export async function coachNote(userId: string, force = false): Promise<AiNote> 
 
 Write today's coaching note for the home screen, about 80–130 words: how this week is going against the weekly targets and the athlete's goals, which muscle groups are falling behind, and what to do in the next session (name a few exercises). If a goal looks unrealistic or already reached given the data, say so and suggest how to adjust it.`;
   return writeNote(userId, "coach", dayOf(), await askText(cfg, { system: SYSTEM, prompt }), cfg.model);
+}
+
+/** The note written for the last data export, if there is one. */
+export const getExportInsight = (userId: string) => readNote(userId, "report", "export");
+
+/**
+ * A short piece that travels with a data export: where the athlete stands, and how and why
+ * the AI built the plans and programmes in it — so the reasoning is not lost with the app.
+ */
+export async function exportInsight(userId: string): Promise<AiNote> {
+  const cfg = await getAiConfig(userId);
+  const [context, all, planned] = await Promise.all([athleteContext(userId), listPrograms(userId), listWorkoutsFull(userId, ["planned"], 12)]);
+  const recent = all.slice(-3);
+  const programmes = await Promise.all(recent.map((p) => programText(userId, p.id)));
+  const prompt = `${context}
+
+Programmes (the newest last):
+${programmes.join("\n\n") || "none yet"}
+
+Planned workouts with the notes written when they were planned:
+${planned.map((w) => `${workoutText(w, false)}${w.notes ? `\n  Why (note from planning): ${w.notes}` : ""}`).join("\n") || "none"}
+
+The athlete is exporting their data and wants your reasoning to go with it. Write 200–280 words in two parts, each starting with its label and a colon (no markdown).
+«Аналіз:» — where the athlete stands now: what is progressing, what lags behind, what recovery, effort ratings and pauses say.
+«Як приймались рішення:» — how and why the plans and programmes above are built the way they are: which facts in the data (goals, recent sets and weights, effort ratings, muscle load, pauses, Apple Watch sessions, the athlete's own wishes) led to the choice of exercises, weights, number of sessions a week and progression. Give two or three concrete examples with numbers. If nothing has been planned yet, say what a plan would be based on.`;
+  return writeNote(userId, "report", "export", await askText(cfg, { system: SYSTEM, prompt }), cfg.model);
 }
 
 // ───────────────────────── Planning ─────────────────────────

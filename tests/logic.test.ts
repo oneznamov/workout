@@ -428,3 +428,40 @@ describe("home widgets", () => {
     expect(kept.find((w) => w.id === "minutes")?.visible).toBe(true);
   });
 });
+
+describe("data import", () => {
+  it("reads an export leniently: odd values fall back, unknown fields are ignored", async () => {
+    const { importSchema } = await import("@/lib/import-schema");
+    const parsed = importSchema.parse({
+      format: "workout-export",
+      version: 1,
+      somethingNew: true,
+      workouts: [
+        {
+          id: "not-a-uuid",
+          name: "Ноги",
+          status: "completed",
+          startedAt: "2026-11-10T10:00:00.000Z",
+          endedAt: "nonsense",
+          effort: 14,
+          exercises: [{ name: " Back Squat ", muscle: "unknown", equipment: "barbell", tracking: "weight_reps", sets: [{ type: "weird", weight: 60, reps: 8, completed: true }] }],
+        },
+      ],
+    });
+    const w = parsed.workouts[0];
+    expect(w.id).toBeUndefined();
+    expect(w.endedAt).toBeNull();
+    expect(w.effort).toBeNull();
+    expect(w.pausedSec).toBe(0);
+    expect(w.exercises[0]).toMatchObject({ name: "Back Squat", muscle: "full_body" });
+    expect(w.exercises[0].sets[0]).toMatchObject({ type: "normal", weight: 60, reps: 8, completed: true });
+    expect(parsed.programs).toEqual([]);
+    expect(parsed.healthMetrics).toEqual([]);
+  });
+
+  it("refuses a file that is not a Workout export", async () => {
+    const { importSchema } = await import("@/lib/import-schema");
+    expect(importSchema.safeParse({ format: "something-else", version: 1 }).success).toBe(false);
+    expect(importSchema.safeParse({ format: "workout-export", version: 2, workouts: [{ name: "x", status: "flying", exercises: [] }] }).success).toBe(false);
+  });
+});

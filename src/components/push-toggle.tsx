@@ -41,8 +41,8 @@ export function PushToggle() {
   return (
     <div className="space-y-3">
       <p className="text-sm text-ink-2">
-        Коли відпочинок між підходами закінчується, а телефон заблокований або відкрито інший застосунок, прийде сповіщення зі звуком. Вмикається
-        окремо на кожному пристрої.
+        Коли відпочинок між підходами закінчується, приходить сповіщення зі звуком — і на заблокованому екрані, і коли застосунок відкрито.
+        Вмикається окремо на кожному пристрої.
       </p>
       <button onClick={() => void toggle()} disabled={busy || !state.ready} className={cx("btn", state.on ? "btn-ghost" : "btn-primary")}>
         {state.on ? <BellOff size={17} /> : <Bell size={17} />}

@@ -67,7 +67,7 @@ async function Content() {
           </Card>
 
           <Disclosure title="Резервна копія та безпека" hint="Завантажити дані, вийти на інших пристроях">
-            <DataAndSecurity />
+            <DataAndSecurity ai={Boolean(ai)} />
           </Disclosure>
 
           <Disclosure title="Змінити пароль">
