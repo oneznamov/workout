@@ -173,6 +173,7 @@ export async function listWorkouts(
       endedAt: workouts.endedAt,
       pausedSec: workouts.pausedSec,
       notes: workouts.notes,
+      effort: workouts.effort,
       exerciseCount: sql<number>`(select count(*)::int from workout_exercises we where we.workout_id = "workouts"."id")`,
       setCount: sql<number>`(select count(*)::int from sets s join workout_exercises we on we.id = s.workout_exercise_id
         where we.workout_id = "workouts"."id" and (s.completed or "workouts"."status" <> 'completed'))`,
@@ -343,7 +344,7 @@ export async function createWorkout(userId: string, input: WorkoutInput) {
 export async function updateWorkout(
   userId: string,
   id: string,
-  patch: { name?: string; notes?: string | null; scheduledFor?: string | null; startedAt?: Date; endedAt?: Date },
+  patch: { name?: string; notes?: string | null; scheduledFor?: string | null; startedAt?: Date; endedAt?: Date; effort?: number | null },
 ) {
   await ownWorkout(userId, id);
   await db
@@ -523,6 +524,8 @@ export type SnapshotInput = {
   pausedSec: number;
   pausedAt: Date | null;
   notes: string | null;
+  /** undefined = the device does not know about the rating; leave what is stored */
+  effort?: number | null;
   exercises: {
     id: string;
     exerciseId: string;
@@ -562,6 +565,7 @@ export async function saveSnapshot(userId: string, id: string, snap: SnapshotInp
     pausedSec: snap.pausedSec,
     pausedAt: snap.status === "in_progress" ? snap.pausedAt : null,
     notes: snap.notes,
+    ...(snap.effort !== undefined ? { effort: snap.effort } : {}),
     updatedAt: new Date(),
   };
   if (existing) await db.update(workouts).set(meta).where(eq(workouts.id, id));

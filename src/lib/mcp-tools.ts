@@ -91,6 +91,7 @@ async function describeWorkout(userId: string, id: string, includeHeartRate = fa
     duration_min: w.startedAt && w.endedAt ? Math.round((w.endedAt.getTime() - w.startedAt.getTime()) / 60000) : null,
     paused_min: Math.round(w.pausedSec / 60),
     notes: w.notes,
+    effort: w.effort,
     exercises: w.exercises.map((we) => ({
       workout_exercise_id: we.id,
       exercise_id: we.exercise.id,
@@ -231,6 +232,7 @@ export function registerWorkoutTools(server: McpServer, userId: string) {
         volume_kg: Math.round(w.volume),
         avg_hr: w.avgHr != null ? Math.round(w.avgHr) : null,
         active_kcal: w.activeKcal != null ? Math.round(w.activeKcal) : null,
+        effort: w.effort,
         notes: w.notes,
       }));
     }),
@@ -307,12 +309,20 @@ export function registerWorkoutTools(server: McpServer, userId: string) {
     {
       title: "Update workout",
       description:
-        "Updates a workout's name, notes or date. Passing `exercises` REPLACES the whole exercise/set list — use that for planned workouts and templates. For a workout that is in_progress prefer add_exercise_to_workout / update_workout_exercise / remove_workout_exercise so sets already performed are kept.",
+        "Updates a workout's name, notes, date or effort rating. Passing `exercises` REPLACES the whole exercise/set list — use that for planned workouts and templates. For a workout that is in_progress prefer add_exercise_to_workout / update_workout_exercise / remove_workout_exercise so sets already performed are kept.",
       inputSchema: z.object({
         workout_id: z.string(),
         name: z.string().optional(),
         notes: z.string().nullable().optional(),
         date: day.nullable().optional(),
+        effort: z
+          .number()
+          .int()
+          .min(1)
+          .max(10)
+          .nullable()
+          .optional()
+          .describe("How hard the finished workout felt to the athlete: 1–3 easy, 4–6 moderate, 7–8 hard, 9–10 all out. Set it only from what the athlete says; null clears it."),
         exercises: z.array(exerciseSchema).optional(),
       }),
     },
@@ -321,6 +331,7 @@ export function registerWorkoutTools(server: McpServer, userId: string) {
         ...(a.name != null ? { name: a.name } : {}),
         ...(a.notes !== undefined ? { notes: a.notes } : {}),
         ...(a.date !== undefined ? { scheduledFor: a.date } : {}),
+        ...(a.effort !== undefined ? { effort: a.effort } : {}),
       });
       if (a.exercises) await wk.replaceWorkoutPlan(userId, a.workout_id, await toExerciseInputs(userId, a.exercises));
       return describeWorkout(userId, a.workout_id);

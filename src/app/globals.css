@@ -65,6 +65,21 @@
 html {
   -webkit-text-size-adjust: 100%;
   background: var(--plane);
+  /* A page growing past the window must not push everything sideways when the scrollbar appears. */
+  scrollbar-gutter: stable;
+}
+
+/* Loading placeholders stay out of sight for a moment: a quick page never flashes grey blocks. */
+@keyframes skeleton-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+.skeleton-body {
+  animation: skeleton-in 0.3s ease-out 0.45s both;
 }
 
 body {

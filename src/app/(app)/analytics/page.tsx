@@ -11,6 +11,7 @@ import { BODY_MUSCLES, TARGET_MIN } from "@/lib/muscles";
 import { getUser } from "@/lib/auth";
 import { normalizeProfile } from "@/lib/profile";
 import { getCardioAnalytics } from "@/lib/cardio";
+import { averageEffort, effortLevel } from "@/lib/effort";
 import { CARDIO_COLOR, CARDIO_LABEL, paceLabel } from "@/lib/cardio-kinds";
 import { addDays, dayOf, durationParts, fmtDate, fmtDuration, fmtNum, fmtWeight, weekStart } from "@/lib/format";
 import { MUSCLE_LABEL } from "@/lib/labels";
@@ -70,6 +71,16 @@ async function Content({ searchParams }: PageProps<"/analytics">) {
   const kcalPoints = chrono
     .filter((w) => w.activeKcal != null)
     .map((w) => ({ label: fmtDate(w.startedAt), value: Math.round(w.activeKcal!), hint: `${fmtDate(w.startedAt, { day: "numeric", month: "long" })} · ${w.name}` }));
+  // How hard the workouts felt, as the athlete rated them.
+  const rated = chrono.filter((w) => w.effort != null);
+  const effortPoints = rated.map((w) => ({
+    label: fmtDate(w.startedAt),
+    value: w.effort!,
+    hint: `${fmtDate(w.startedAt, { day: "numeric", month: "long" })} · ${w.name}`,
+    display: `${w.effort}/10 · ${effortLevel(w.effort!).label}`,
+  }));
+  const effortAvg = averageEffort(rated.map((w) => w.effort));
+  const effortShare = (lo: number, hi: number) => rated.filter((w) => w.effort! >= lo && w.effort! <= hi).length;
   // Cardio details: one kind or both, pace (run) or speed (ride) per session, oldest → newest.
   const kind = KINDS.some((k) => k.value === sp.k) ? String(sp.k) : "all";
   const shownKinds: ("run" | "cycle")[] = kind === "all" ? ["run", "cycle"] : [kind as "run" | "cycle"];
@@ -91,6 +102,7 @@ async function Content({ searchParams }: PageProps<"/analytics">) {
   const monday = weekStart(dayOf());
   const [wk, weekRecords] = await Promise.all([getWeekSummary(userId), getRecords(userId, monday, 50)]);
   const newRecords = weekRecords.filter((r) => r.isNew).length;
+  const weekEffort = averageEffort(sessions.filter((w) => w.startedAt && dayOf(w.startedAt) >= monday).map((w) => w.effort));
   const lastCardioWeek = cardio.weekly.at(-1);
   const cardioWeek = { km: (lastCardioWeek?.runKm ?? 0) + (lastCardioWeek?.cycleKm ?? 0) + (lastCardioWeek?.walkKm ?? 0), minutes: lastCardioWeek?.minutes ?? 0 };
   const thisWeek = muscles.weeks.at(-1);
@@ -133,6 +145,18 @@ async function Content({ searchParams }: PageProps<"/analytics">) {
               <span className="text-sm text-ink-2">Нових рекордів за тиждень</span>
               <span className={`num text-lg font-semibold ${newRecords ? "text-activity" : ""}`}>{newRecords}</span>
             </div>
+            {weekEffort != null && (
+              <div className="card flex items-center justify-between gap-3 px-4 py-3 sm:col-span-2">
+                <span className="text-sm text-ink-2">Середнє зусилля за тиждень</span>
+                <span className="flex items-baseline gap-2">
+                  <span className={`text-sm font-semibold ${effortLevel(Math.round(weekEffort)).text}`}>{effortLevel(Math.round(weekEffort)).label}</span>
+                  <span className="num text-lg font-semibold">
+                    {fmtNum(weekEffort, 1)}
+                    <span className="text-muted">/10</span>
+                  </span>
+                </span>
+              </div>
+            )}
           </div>
         </section>
 
@@ -176,6 +200,49 @@ async function Content({ searchParams }: PageProps<"/analytics">) {
               <TrendChart kind="bar" unit="хв" color="var(--c-activity)" data={a.weekly.map((w) => ({ ...weekLabel(w.week), value: w.durationMin }))} />
             </Card>
           </div>
+        </Disclosure>
+
+        <Disclosure
+          title="Зусилля"
+          hint={effortAvg != null ? `Середнє ${fmtNum(effortAvg, 1)}/10 · оцінено ${rated.length} з ${sessions.length} тренувань` : "Оцініть тренування після завершення — тут зʼявиться динаміка"}
+        >
+          {rated.length === 0 ? (
+            <p className="py-6 text-center text-sm text-muted">Поки немає оцінених тренувань. Після завершення тренування позначте, наскільки важко було, від 1 до 10.</p>
+          ) : (
+            <div className="grid gap-4 lg:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]">
+              <Card title="Зусилля за тренуваннями, 1–10">
+                <TrendChart kind="bar" integer data={effortPoints} color="var(--c-activity)" />
+              </Card>
+              <Card title="Як розподілились">
+                <ul className="space-y-2.5 text-[15px]">
+                  {(
+                    [
+                      [1, 3],
+                      [4, 6],
+                      [7, 8],
+                      [9, 10],
+                    ] as const
+                  ).map(([lo, hi]) => {
+                    const level = effortLevel(lo);
+                    const n = effortShare(lo, hi);
+                    return (
+                      <li key={lo}>
+                        <div className="flex items-baseline justify-between gap-3">
+                          <span>
+                            <span className="font-semibold">{level.label}</span> <span className="text-xs text-muted">{lo}–{hi}</span>
+                          </span>
+                          <span className="num font-semibold">{n}</span>
+                        </div>
+                        <div className="mt-1 h-1.5 overflow-hidden rounded-full bg-surface-2">
+                          <div className="h-full rounded-full" style={{ width: `${(n / rated.length) * 100}%`, background: level.color }} />
+                        </div>
+                      </li>
+                    );
+                  })}
+                </ul>
+              </Card>
+            </div>
+          )}
         </Disclosure>
 
         <Disclosure title="Кардіо і пульс" hint="Біг і вело: дистанція, темп, пульс, калорії" defaultOpen={sp.k != null}>
@@ -303,7 +370,7 @@ async function Content({ searchParams }: PageProps<"/analytics">) {
 
 export default function Page(props: PageProps<"/analytics">) {
   return (
-    <Suspense fallback={<PageSkeleton />}>
+    <Suspense fallback={<PageSkeleton title="Аналітика" subtitle="Тиждень одним поглядом, решта — нижче" />}>
       <Content {...props} />
     </Suspense>
   );

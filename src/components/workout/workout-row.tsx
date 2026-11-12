@@ -4,6 +4,7 @@ import { cx, dayOf, EXERCISES_FORMS, fmtDate, fmtDateLong, fmtDuration, fmtNum, 
 import { workoutKind } from "@/lib/workout-kind";
 import type { WorkoutListItem } from "@/lib/workouts";
 import { BodyIcon } from "./body-icon";
+import { EffortTag } from "./effort";
 import { RescheduleButtons } from "./reschedule";
 
 const DAY_FORMS: [string, string, string] = ["день", "дні", "днів"];
@@ -101,6 +102,7 @@ export function WorkoutRow({ w, sick = false }: { w: WorkoutListItem; sick?: boo
               <Flame size={11} className="text-activity" /> {fmtNum(w.activeKcal)} ккал
             </span>
           )}
+          {w.effort != null && <EffortTag value={w.effort} />}
         </div>
       </div>
       <ChevronRight size={18} className="shrink-0 text-muted" />
@@ -129,7 +131,7 @@ export function WorkoutList({ rows, className }: { rows: WorkoutListItem[]; clas
 }
 
 const HISTORY_COLS =
-  "grid grid-cols-[minmax(0,1fr)_9.5rem_5.5rem_4.5rem_5.5rem_1rem] items-center gap-x-4 px-4 xl:grid-cols-[minmax(0,1fr)_9.5rem_5.5rem_4.5rem_5.5rem_3.5rem_5rem_1rem]";
+  "grid grid-cols-[minmax(0,1fr)_9.5rem_5.5rem_4.5rem_5.5rem_1rem] items-center gap-x-4 px-4 xl:grid-cols-[minmax(0,1fr)_9.5rem_5.5rem_4.5rem_5.5rem_4.5rem_3.5rem_5rem_1rem]";
 
 /** Desktop: finished workouts as a table — one line each, numbers in columns that can be compared down the page. */
 export function WorkoutTable({ rows, className }: { rows: WorkoutListItem[]; className?: string }) {
@@ -142,6 +144,7 @@ export function WorkoutTable({ rows, className }: { rows: WorkoutListItem[]; cla
         <span role="columnheader" className="text-right">Час</span>
         <span role="columnheader" className="text-right">Підходи</span>
         <span role="columnheader" className="text-right">Тоннаж</span>
+        <span role="columnheader" className="hidden text-right xl:block">Зусилля</span>
         <span role="columnheader" className="hidden text-right xl:block">Пульс</span>
         <span role="columnheader" className="hidden text-right xl:block">Ккал</span>
         <span />
@@ -171,6 +174,7 @@ export function WorkoutTable({ rows, className }: { rows: WorkoutListItem[]; cla
             <span role="cell" className="num text-right text-[15px] font-semibold text-strength">{fmtDuration(duration)}</span>
             <span role="cell" className="text-right text-ink-2">{w.setCount}</span>
             <span role="cell" className="text-right text-ink-2">{w.volume > 0 ? `${fmtNum(w.volume)} кг` : "—"}</span>
+            <span role="cell" className="hidden justify-end text-ink-2 xl:flex">{w.effort != null ? <EffortTag value={w.effort} /> : <span className="text-muted">—</span>}</span>
             <span role="cell" className="hidden items-center justify-end gap-1 text-ink-2 xl:flex">
               {w.avgHr != null ? (
                 <>

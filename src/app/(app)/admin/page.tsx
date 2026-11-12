@@ -76,7 +76,7 @@ async function Content() {
 
 export default function Page() {
   return (
-    <Suspense fallback={<PageSkeleton />}>
+    <Suspense fallback={<PageSkeleton title="Користувачі" />}>
       <Content />
     </Suspense>
   );

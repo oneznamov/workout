@@ -47,7 +47,7 @@ async function Content({ searchParams }: PageProps<"/team">) {
   if (!team) {
     return (
       <>
-        <PageHeader title="Команда" subtitle="Змагайтесь зі своїми: хто більше тренувався цього тижня" />
+        <PageHeader title="Команда" subtitle={<span className="block truncate">Хто зі своїх більше тренувався цього тижня</span>} />
         <div className="max-w-3xl space-y-4">
           <TeamInvites invites={invites} currentTeam={null} />
           <Card title="Зберіть команду">{add}</Card>
@@ -132,7 +132,7 @@ async function Content({ searchParams }: PageProps<"/team">) {
 
 export default function Page(props: PageProps<"/team">) {
   return (
-    <Suspense fallback={<PageSkeleton />}>
+    <Suspense fallback={<PageSkeleton title="Команда" />}>
       <Content {...props} />
     </Suspense>
   );

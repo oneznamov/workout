@@ -16,6 +16,7 @@ function workout(setEnds: (number | null)[], hr?: { t: string; bpm: number }[]):
     pausedSec: 0,
     pausedAt: null,
     notes: null,
+    effort: null,
     updatedAt: iso(1800),
     exercises: [
       {

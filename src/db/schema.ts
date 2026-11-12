@@ -289,6 +289,8 @@ export const workouts = pgTable(
     /** Set while the workout is paused right now. */
     pausedAt: timestamp("paused_at", { withTimezone: true }),
     notes: text("notes"),
+    /** How hard the finished workout felt to the athlete: 1 (very easy) – 10 (all out). */
+    effort: integer("effort"),
     createdAt: createdAt(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   },

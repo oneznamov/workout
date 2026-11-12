@@ -199,7 +199,18 @@ function Section({ title, children }: { title: string; children: React.ReactNode
 
 export default function Page(props: PageProps<"/workouts">) {
   return (
-    <Suspense fallback={<PageSkeleton />}>
+    <Suspense
+      fallback={
+        <PageSkeleton
+          title="Тренування"
+          subtitle={
+            <Link href="/exercises" className="text-accent">
+              Бібліотека вправ →
+            </Link>
+          }
+        />
+      }
+    >
       <Content {...props} />
     </Suspense>
   );

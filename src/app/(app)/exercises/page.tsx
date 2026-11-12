@@ -12,7 +12,7 @@ async function Content() {
   const exercises = await listExercises(userId);
   return (
     <>
-      <PageHeader title="Вправи" subtitle={`${exercises.length} вправ у бібліотеці · свої можна додати під час тренування`} />
+      <PageHeader title="Вправи" subtitle={<span className="block truncate">{exercises.length} вправ · свої додаються під час тренування</span>} />
       <ExerciseBrowser
         exercises={exercises.map(({ id, name, nameUk, muscle, equipment, tracking, custom }) => ({ id, name, nameUk, muscle, equipment, tracking, custom }))}
       />
@@ -22,7 +22,7 @@ async function Content() {
 
 export default function Page() {
   return (
-    <Suspense fallback={<PageSkeleton />}>
+    <Suspense fallback={<PageSkeleton title="Вправи" />}>
       <Content />
     </Suspense>
   );

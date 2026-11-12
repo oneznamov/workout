@@ -37,6 +37,7 @@ import { cloneWorkout, hardNavigate, pushWorkout, readLocal, removeLocal, writeL
 import { addDays, cx, dayOf, EXERCISES_FORMS, fmtClock, fmtDate, fmtDateLong, fmtDuration, fmtNum, fmtTime, plural } from "@/lib/format";
 import { STATUS_LABEL } from "@/lib/labels";
 import { activeSeconds, type CExercise, type CExerciseInfo, type CLast, type CSet, type CWorkout } from "@/lib/shape";
+import { EffortCard, EffortScale } from "./effort";
 import { DEFAULT_REST, ExerciseCard, ExerciseSummary } from "./exercise-card";
 import { ExercisePicker } from "./exercise-picker";
 import { FocusView } from "./focus";
@@ -81,6 +82,8 @@ export function WorkoutEditor({
   const saveRef = useRef<SaveState>("saved");
   const [picker, setPicker] = useState<Picker>(null);
   const [confirmFinish, setConfirmFinish] = useState(false);
+  /** The rating picked in the "finish" dialog, before the workout is closed. */
+  const [finishEffort, setFinishEffort] = useState<number | null>(null);
   useLockScroll(confirmFinish);
   const [menuOpen, setMenuOpen] = useState(false);
   // During a workout: one set at a time ("focus") or the whole list.
@@ -344,7 +347,15 @@ export function WorkoutEditor({
     const end = new Date();
     const open = cur().pausedAt ? Math.max(0, Math.round((+end - +new Date(cur().pausedAt!)) / 1000)) : 0;
     persist(
-      { ...cur(), status: "completed", endedAt: end.toISOString(), pausedSec: (cur().pausedSec ?? 0) + open, pausedAt: null, exercises: kept },
+      {
+        ...cur(),
+        status: "completed",
+        endedAt: end.toISOString(),
+        pausedSec: (cur().pausedSec ?? 0) + open,
+        pausedAt: null,
+        effort: finishEffort ?? cur().effort ?? null,
+        exercises: kept,
+      },
       { sets: removedSets, exercises: removedExercises },
     );
     // Once the result is on the server, reload what depends on it: new records, the AI review.
@@ -355,6 +366,11 @@ export function WorkoutEditor({
 
   const resume = () => {
     persist({ ...cur(), status: "in_progress", endedAt: null });
+    void saveNow();
+  };
+
+  const rate = (effort: number | null) => {
+    persist({ ...cur(), effort });
     void saveNow();
   };
 
@@ -679,6 +695,8 @@ export function WorkoutEditor({
         )}
       </header>
 
+      {done && <EffortCard value={w.effort ?? null} onChange={rate} />}
+
       {done && records.length > 0 && (
         <section className="rounded-[20px] bg-activity/12 p-4 ring-1 ring-activity/40">
           <h2 className="flex items-center gap-2 text-[17px] font-bold text-activity">
@@ -860,6 +878,10 @@ export function WorkoutEditor({
               Виконано {doneSets} з {totalSets} підходів.
               {totalSets > doneSets && ` ${totalSets - doneSets} невідмічених буде прибрано із запису.`}
             </p>
+            <div>
+              <div className="mb-2 text-[15px] font-semibold">Наскільки важко було?</div>
+              <EffortScale value={finishEffort} onChange={setFinishEffort} />
+            </div>
             <div className="flex gap-2">
               <button onClick={() => setConfirmFinish(false)} className="btn btn-ghost flex-1">
                 Ще ні

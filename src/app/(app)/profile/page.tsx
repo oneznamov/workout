@@ -169,7 +169,7 @@ async function Content({ searchParams }: PageProps<"/profile">) {
     <>
       <PageHeader
         title="Профіль"
-        subtitle={facts.length ? facts.join(" · ") : "Розкажіть про себе — плани й аналіз стануть точнішими"}
+        subtitle={<span className="block truncate">{facts.length ? facts.join(" · ") : "Розкажіть про себе — аналіз стане точнішим"}</span>}
         actions={<Segmented options={PERIODS} current={String(days)} param="d" label="Період графіків" />}
       />
       <div className="grid grid-cols-1 gap-5 lg:grid-cols-2 lg:items-start">
@@ -301,7 +301,7 @@ async function Content({ searchParams }: PageProps<"/profile">) {
 
 export default function Page(props: PageProps<"/profile">) {
   return (
-    <Suspense fallback={<PageSkeleton />}>
+    <Suspense fallback={<PageSkeleton title="Профіль" />}>
       <Content {...props} />
     </Suspense>
   );

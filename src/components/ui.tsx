@@ -131,12 +131,41 @@ export function Segmented({
   );
 }
 
-export function PageSkeleton() {
+/**
+ * What a page shows while its data loads. The heading is the real one and stands exactly where
+ * it will stay, so switching pages does not make the screen jump; the grey blocks below appear
+ * only if loading takes noticeably long.
+ */
+export function PageSkeleton({ title, subtitle, variant }: { title?: string; subtitle?: ReactNode; variant?: "home" }) {
+  const blocks = (
+    <div className="skeleton-body space-y-4">
+      <div className="h-32 animate-pulse rounded-[20px] bg-surface" />
+      <div className="h-64 animate-pulse rounded-[20px] bg-surface" />
+    </div>
+  );
+  const line = <span className="invisible">–</span>;
+  if (variant === "home") {
+    return (
+      <div className="space-y-6" aria-label="Завантаження" aria-busy="true">
+        <header>
+          <p className="caps">{line}</p>
+          <h1 className="truncate text-[2rem] leading-tight font-bold tracking-tight">Привіт</h1>
+        </header>
+        {blocks}
+      </div>
+    );
+  }
   return (
-    <div className="animate-pulse space-y-4" aria-label="Завантаження" aria-busy="true">
-      <div className="h-9 w-48 rounded-xl bg-surface" />
-      <div className="h-32 rounded-[20px] bg-surface" />
-      <div className="h-64 rounded-[20px] bg-surface" />
+    <div aria-label="Завантаження" aria-busy="true">
+      {title ? (
+        <PageHeader title={title} subtitle={subtitle ?? line} />
+      ) : (
+        <header className="mb-5">
+          <p className="text-sm">{line}</p>
+          <div className="skeleton-body h-10 w-48 animate-pulse rounded-xl bg-surface" />
+        </header>
+      )}
+      {blocks}
     </div>
   );
 }

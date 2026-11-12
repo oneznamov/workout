@@ -283,7 +283,7 @@ async function Content() {
 
 export default function Page() {
   return (
-    <Suspense fallback={<PageSkeleton />}>
+    <Suspense fallback={<PageSkeleton variant="home" />}>
       <Content />
     </Suspense>
   );

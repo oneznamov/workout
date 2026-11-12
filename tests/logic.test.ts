@@ -350,3 +350,23 @@ describe("programmes", () => {
     expect(resolveProgram({ workouts: [w] }, library, ["2026-11-14"])).toMatchObject({ name: "", forecast: "", notes: "" });
   });
 });
+
+describe("effort rating", () => {
+  it("accepts whole numbers from 1 to 10 only", async () => {
+    const { normalizeEffort } = await import("@/lib/effort");
+    expect(normalizeEffort(7)).toBe(7);
+    expect(normalizeEffort("4")).toBe(4);
+    expect(normalizeEffort(6.6)).toBe(7);
+    expect(normalizeEffort(0)).toBeNull();
+    expect(normalizeEffort(11)).toBeNull();
+    expect(normalizeEffort("")).toBeNull();
+    expect(normalizeEffort(null)).toBeNull();
+  });
+
+  it("names the level and averages only rated workouts", async () => {
+    const { averageEffort, effortLevel } = await import("@/lib/effort");
+    expect([1, 3, 4, 6, 7, 8, 9, 10].map((n) => effortLevel(n).key)).toEqual(["easy", "easy", "moderate", "moderate", "hard", "hard", "max", "max"]);
+    expect(averageEffort([8, null, 5, undefined])).toBe(6.5);
+    expect(averageEffort([null])).toBeNull();
+  });
+});

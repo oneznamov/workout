@@ -56,6 +56,8 @@ export type CWorkout = {
   pausedSec: number;
   pausedAt: string | null;
   notes: string | null;
+  /** the athlete's own rating of a finished workout, 1–10 */
+  effort: number | null;
   updatedAt: string;
   exercises: CExercise[];
   health: CHealthWorkout[];
@@ -79,6 +81,7 @@ type ServerWorkout = {
   pausedSec: number;
   pausedAt: Date | null;
   notes: string | null;
+  effort: number | null;
   updatedAt: Date;
   exercises: {
     id: string;
@@ -113,6 +116,7 @@ export function toClientWorkout(w: ServerWorkout): CWorkout {
     pausedSec: w.pausedSec,
     pausedAt: w.pausedAt?.toISOString() ?? null,
     notes: w.notes,
+    effort: w.effort,
     updatedAt: w.updatedAt.toISOString(),
     exercises: w.exercises.map((we) => ({
       id: we.id,
