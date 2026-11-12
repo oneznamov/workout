@@ -1,0 +1,65 @@
+import { Suspense } from "react";
+import Link from "next/link";
+import { headers } from "next/headers";
+import { notFound } from "next/navigation";
+import { InviteManager, UserList } from "@/components/admin";
+import { Card, PageHeader, PageSkeleton } from "@/components/ui";
+import { getAdmin } from "@/lib/auth";
+import { listInvites, listUsers } from "@/lib/invites";
+
+export const metadata = { title: "Користувачі" };
+
+async function Content() {
+  const admin = await getAdmin();
+  if (!admin) notFound();
+  const h = await headers();
+  const host = h.get("x-forwarded-host") ?? h.get("host") ?? "localhost:3000";
+  const origin = `${h.get("x-forwarded-proto") ?? (host.startsWith("localhost") ? "http" : "https")}://${host}`;
+  const [users, invites] = await Promise.all([listUsers(), listInvites()]);
+  const iso = (d: Date | string | null) => (d ? new Date(d).toISOString() : null);
+
+  return (
+    <>
+      <PageHeader
+        title="Користувачі"
+        subtitle={
+          <Link href="/settings" className="text-accent">
+            ← Налаштування
+          </Link>
+        }
+      />
+      <div className="space-y-5">
+        <Card title="Запросити">
+          <p className="mb-4 text-sm text-ink-2">
+            Реєстрація закрита. Новий користувач може зайти вперше лише за посиланням-запрошенням: там він сам задає логін і
+            двічі вводить пароль.
+          </p>
+          <InviteManager
+            origin={origin}
+            invites={invites.map((i) => ({
+              ...i,
+              createdAt: iso(i.createdAt)!,
+              expiresAt: iso(i.expiresAt)!,
+              usedAt: iso(i.usedAt),
+            }))}
+          />
+        </Card>
+        <Card title={`Акаунти · ${users.length}`}>
+          <UserList
+            selfId={admin.id}
+            users={users.map((u) => ({ ...u, createdAt: iso(u.createdAt)!, lastWorkoutAt: iso(u.lastWorkoutAt) }))}
+          />
+          <p className="mt-3 text-xs text-muted">Кожен бачить лише власні тренування, показники й токени.</p>
+        </Card>
+      </div>
+    </>
+  );
+}
+
+export default function Page() {
+  return (
+    <Suspense fallback={<PageSkeleton />}>
+      <Content />
+    </Suspense>
+  );
+}

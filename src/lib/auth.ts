@@ -58,7 +58,7 @@ export async function requireUserId(): Promise<string> {
 export const getSessionUser = cache(async () => {
   const id = await getUserId();
   if (!id) return null;
-  const [u] = await db.select({ id: users.id, username: users.username, goals: users.goals }).from(users).where(eq(users.id, id));
+  const [u] = await db.select({ id: users.id, username: users.username, goals: users.goals, isAdmin: users.isAdmin }).from(users).where(eq(users.id, id));
   return u ?? null;
 });
 
@@ -95,4 +95,10 @@ export function tokenFromRequest(req: Request): string | null {
   if (h?.toLowerCase().startsWith("bearer ")) return h.slice(7).trim();
   const url = new URL(req.url);
   return url.searchParams.get("key") ?? req.headers.get("x-api-key");
+}
+
+/** For admin-only pages and actions: the signed-in admin, or null. */
+export async function getAdmin() {
+  const u = await getSessionUser();
+  return u?.isAdmin ? u : null;
 }

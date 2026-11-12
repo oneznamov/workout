@@ -22,7 +22,21 @@ export const users = pgTable("users", {
   passwordHash: text("password_hash").notNull(),
   /** Weekly targets for the dashboard rings; null = defaults. */
   goals: jsonb("goals").$type<{ workouts: number; cardioMin: number; muscles: number }>(),
+  /** Can manage users and invitations. The first account is the admin. */
+  isAdmin: boolean("is_admin").notNull().default(false),
   createdAt: createdAt(),
+});
+
+/** One-time sign-up links. Registration is closed; an invite is the only way in. */
+export const invites = pgTable("invites", {
+  id: id(),
+  tokenHash: text("token_hash").notNull().unique(),
+  note: text("note"),
+  createdBy: uuid("created_by").references(() => users.id, { onDelete: "set null" }),
+  createdAt: createdAt(),
+  expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+  usedAt: timestamp("used_at", { withTimezone: true }),
+  usedBy: uuid("used_by").references(() => users.id, { onDelete: "set null" }),
 });
 
 /** Personal access tokens used by Claude (MCP) and the Apple Health exporter. */

@@ -27,8 +27,10 @@ async function Content() {
             Бібліотека вправ →
           </Link>
         }
-        actions={<NewWorkoutButtons />}
       />
+      <div className="mb-6">
+        <NewWorkoutButtons />
+      </div>
       <div className="space-y-8">
         {active.length > 0 && (
           <Section title="Зараз триває">

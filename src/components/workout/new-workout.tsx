@@ -19,15 +19,15 @@ export function NewWorkoutButtons({ compact, localOnly }: { compact?: boolean; l
       else hardNavigate(`/train#${w.id}`);
     });
   return (
-    <div className="flex flex-wrap gap-2">
-      <button disabled={pending} onClick={() => create("in_progress")} className="btn btn-primary">
+    <div className="grid w-full max-w-md grid-cols-2 gap-2">
+      <button disabled={pending} onClick={() => create("in_progress")} className={compact ? "btn btn-primary px-3" : "btn btn-primary col-span-2"}>
         <Play size={18} /> Почати зараз
       </button>
-      <button disabled={pending} onClick={() => create("planned")} className="btn btn-ghost">
+      <button disabled={pending} onClick={() => create("planned")} className="btn btn-ghost px-3">
         <CalendarPlus size={17} /> Запланувати
       </button>
       {!compact && (
-        <button disabled={pending} onClick={() => create("template")} className="btn btn-ghost">
+        <button disabled={pending} onClick={() => create("template")} className="btn btn-ghost px-3">
           <LayoutTemplate size={17} /> Шаблон
         </button>
       )}

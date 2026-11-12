@@ -39,7 +39,7 @@ export function TokensManager({ tokens, origin }: { tokens: TokenRow[]; origin: 
   return (
     <div className="space-y-4">
       <form
-        className="flex flex-wrap gap-2"
+        className="grid gap-2 sm:flex"
         onSubmit={(e) => {
           e.preventDefault();
           start(async () => {
@@ -101,14 +101,14 @@ export function TokensManager({ tokens, origin }: { tokens: TokenRow[]; origin: 
 export function PasswordForm() {
   const [state, action, pending] = useActionState(changePasswordAction, undefined);
   return (
-    <form action={action} className="flex flex-wrap items-end gap-2">
+    <form action={action} className="grid items-end gap-2 sm:flex sm:flex-wrap">
       <label className="space-y-1">
         <span className="block text-xs text-muted">Поточний пароль</span>
-        <input name="current" type="password" autoComplete="current-password" required className="field w-44" />
+        <input name="current" type="password" autoComplete="current-password" required className="field sm:w-44" />
       </label>
       <label className="space-y-1">
         <span className="block text-xs text-muted">Новий пароль</span>
-        <input name="next" type="password" autoComplete="new-password" required minLength={8} className="field w-44" />
+        <input name="next" type="password" autoComplete="new-password" required minLength={8} className="field sm:w-44" />
       </label>
       <button type="submit" disabled={pending} className="btn btn-ghost">
         Змінити

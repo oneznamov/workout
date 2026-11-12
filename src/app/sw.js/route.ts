@@ -90,7 +90,12 @@ self.addEventListener("fetch", (event) => {
   if (request.method !== "GET") return;
   const url = new URL(request.url);
   if (url.origin !== self.location.origin) return;
-  if (url.pathname.startsWith("/_next/static/") || url.pathname.startsWith("/pwa-icon/") || url.pathname === "/apple-icon") {
+  if (
+    url.pathname.startsWith("/_next/static/") ||
+    url.pathname.startsWith("/exercise-media/") ||
+    url.pathname.startsWith("/pwa-icon/") ||
+    url.pathname === "/apple-icon"
+  ) {
     event.respondWith(cacheFirst(request));
     return;
   }

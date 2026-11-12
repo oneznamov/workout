@@ -2,9 +2,10 @@ import { Suspense } from "react";
 import { PageSkeleton } from "@/components/ui";
 import { desc, eq } from "drizzle-orm";
 import { headers } from "next/headers";
+import Link from "next/link";
 import { InstallCard } from "@/components/install";
 import { CopyField, LogoutButton, PasswordForm, TokensManager } from "@/components/settings";
-import { Card, PageHeader } from "@/components/ui";
+import { Card, Disclosure, PageHeader } from "@/components/ui";
 import { db } from "@/db";
 import { apiTokens } from "@/db/schema";
 import { getUser } from "@/lib/auth";
@@ -26,9 +27,19 @@ async function Content() {
     <>
       <PageHeader title="Налаштування" subtitle={`Акаунт: ${user.username}`} actions={<LogoutButton />} />
       <div className="space-y-5">
-        <Card title="Застосунок на телефоні та робота офлайн">
+        {user.isAdmin && (
+          <Link href="/admin" className="card flex items-center justify-between gap-3 p-4 hover:bg-surface-2">
+            <span>
+              <span className="block text-[15px] font-semibold">Користувачі та запрошення</span>
+              <span className="block text-xs text-muted">Запросити когось за посиланням, керувати акаунтами</span>
+            </span>
+            <span className="text-accent">→</span>
+          </Link>
+        )}
+
+        <Disclosure title="Застосунок на телефоні" hint="Встановлення та робота без звʼязку">
           <InstallCard />
-        </Card>
+        </Disclosure>
 
         <Card title="Токени доступу">
           <p className="mb-4 text-sm text-ink-2">
@@ -41,7 +52,7 @@ async function Content() {
           />
         </Card>
 
-        <Card title="Claude: планування та аналіз тренувань">
+        <Disclosure title="Підключити Claude" hint="Планування та аналіз тренувань">
           <ol className="list-decimal space-y-2 pl-5 text-sm text-ink-2">
             <li>Створіть токен вище (наприклад, «Claude»).</li>
             <li>
@@ -56,9 +67,9 @@ async function Content() {
           <div className="mt-3">
             <CopyField value={`${origin}/api/mcp`} label="Адреса MCP-сервера" />
           </div>
-        </Card>
+        </Disclosure>
 
-        <Card title="Apple Watch / Apple Health">
+        <Disclosure title="Підключити Apple Watch" hint="Синхронізація Apple Health">
           <p className="text-sm text-ink-2">
             Сайт не може сам читати Apple Health — дані має надсилати iPhone. Найпростіше через застосунок{" "}
             <span className="text-ink">Health Auto Export</span> (App Store):
@@ -88,11 +99,11 @@ async function Content() {
             вони перетинаються в часі: запустіть «Силове тренування» на годиннику й тренування тут — пульс і калорії
             зʼявляться в записі після синхронізації.
           </p>
-        </Card>
+        </Disclosure>
 
-        <Card title="Пароль">
+        <Disclosure title="Змінити пароль">
           <PasswordForm />
-        </Card>
+        </Disclosure>
       </div>
     </>
   );

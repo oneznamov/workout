@@ -4,6 +4,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ArchiveExerciseButton } from "@/components/archive-exercise";
 import { TrendChart } from "@/components/charts";
+import { ExerciseThumb } from "@/components/workout/parts";
 import { Badge, Card, Empty, PageHeader, Stat } from "@/components/ui";
 import { getExerciseHistory } from "@/lib/analytics";
 import { requireUserId } from "@/lib/auth";
@@ -52,7 +53,8 @@ async function Content({ params }: PageProps<"/exercises/[id]">) {
         }
         actions={ex.userId ? <ArchiveExerciseButton id={ex.id} /> : undefined}
       />
-      <div className="mb-5 flex flex-wrap gap-1.5">
+      <div className="mb-5 flex flex-wrap items-center gap-1.5">
+        <ExerciseThumb name={ex.name} size={56} />
         <Badge tone="accent">{MUSCLE_LABEL[ex.muscle]}</Badge>
         {ex.secondaryMuscles.map((m) => (
           <Badge key={m}>{MUSCLE_LABEL[m]}</Badge>

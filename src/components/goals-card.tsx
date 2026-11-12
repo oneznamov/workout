@@ -32,7 +32,11 @@ export function GoalsCard({ values, goals: saved }: { values: Goals; goals: Goal
     <section className="card p-4">
       <div className="mb-3 flex items-center justify-between gap-2">
         <h2 className="text-[15px] font-semibold">Цілі тижня</h2>
-        {!editing && (
+        {editing ? (
+          <button type="button" onClick={() => setDraft(DEFAULT_GOALS)} className="text-xs text-accent">
+            Скинути до типових
+          </button>
+        ) : (
           <button
             onClick={() => {
               setDraft(goals);
@@ -112,15 +116,12 @@ export function GoalsCard({ values, goals: saved }: { values: Goals; goals: Goal
               Не вдалося зберегти — перевірте звʼязок.
             </p>
           )}
-          <div className="flex flex-wrap gap-2 pt-1">
-            <button type="submit" disabled={pending} className="btn btn-primary">
-              {pending ? "Збереження…" : "Зберегти"}
-            </button>
+          <div className="grid grid-cols-2 gap-2 pt-1">
             <button type="button" onClick={() => setEditing(false)} className="btn btn-ghost">
               Скасувати
             </button>
-            <button type="button" onClick={() => setDraft(DEFAULT_GOALS)} className="btn btn-ghost ml-auto">
-              Типові
+            <button type="submit" disabled={pending} className="btn btn-primary">
+              {pending ? "Збереження…" : "Зберегти"}
             </button>
           </div>
         </form>

@@ -14,7 +14,7 @@ export function WeightForm({ today }: { today: string }) {
   const num = (s: string) => Number(s.replace(",", "."));
   return (
     <form
-      className="flex flex-wrap items-end gap-2"
+      className="grid grid-cols-2 items-end gap-2 sm:flex sm:flex-wrap"
       onSubmit={(e) => {
         e.preventDefault();
         start(async () => {
@@ -28,15 +28,15 @@ export function WeightForm({ today }: { today: string }) {
     >
       <label className="space-y-1">
         <span className="block text-xs text-muted">Дата</span>
-        <input type="date" value={day} max={today} onChange={(e) => setDay(e.target.value)} required className="field w-auto" />
+        <input type="date" value={day} max={today} onChange={(e) => setDay(e.target.value)} required className="field" />
       </label>
       <label className="space-y-1">
         <span className="block text-xs text-muted">Вага, кг</span>
-        <input value={weight} onChange={(e) => setWeight(e.target.value)} inputMode="decimal" placeholder="80.5" className="field w-24" />
+        <input value={weight} onChange={(e) => setWeight(e.target.value)} inputMode="decimal" placeholder="80.5" className="field sm:w-24" />
       </label>
       <label className="space-y-1">
         <span className="block text-xs text-muted">Жир, %</span>
-        <input value={fat} onChange={(e) => setFat(e.target.value)} inputMode="decimal" placeholder="—" className="field w-20" />
+        <input value={fat} onChange={(e) => setFat(e.target.value)} inputMode="decimal" placeholder="—" className="field sm:w-20" />
       </label>
       <button type="submit" disabled={pending || (!weight && !fat)} className="btn btn-primary">
         {pending ? "Збереження…" : "Записати"}

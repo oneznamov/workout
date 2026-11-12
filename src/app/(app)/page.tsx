@@ -62,7 +62,7 @@ async function Content() {
     <div className="space-y-7">
       <header>
         <p className="caps first-letter:uppercase">{fmtDateLong(new Date())}</p>
-        <h1 className="text-[2rem] leading-tight font-bold tracking-tight">Привіт, {user.username}</h1>
+        <h1 className="truncate text-[2rem] leading-tight font-bold tracking-tight">Привіт, {user.username.split("@")[0]}</h1>
       </header>
 
       {active[0] ? (

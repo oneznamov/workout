@@ -4,37 +4,36 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useRef, useState, useTransition } from "react";
 import {
-  ArrowDown,
-  ArrowLeftRight,
-  ArrowUp,
   Check,
   CloudOff,
   Copy,
   Flag,
+  LayoutList,
   Loader2,
+  MoreHorizontal,
   Play,
   Plus,
   RotateCcw,
   Save,
   Smartphone,
-  StickyNote,
-  Timer,
+  Target,
   Trash2,
   Watch,
-  X,
 } from "lucide-react";
-import type { SetType, Tracking, WorkoutStatus } from "@/db/schema";
+import type { WorkoutStatus } from "@/db/schema";
 import { deleteWorkoutAction, linkHealthWorkoutAction } from "@/lib/actions";
 import { cloneWorkout, hardNavigate, pushWorkout, readLocal, removeLocal, writeLocal } from "@/lib/client/offline";
-import { cx, EXERCISES_FORMS, fmtClock, fmtDate, fmtDateLong, fmtDuration, fmtNum, fmtTime, plural } from "@/lib/format";
-import { MUSCLE_LABEL, SET_TYPE_LABEL, SET_TYPE_SHORT, STATUS_LABEL } from "@/lib/labels";
-import { describeSet, type CExercise, type CExerciseInfo, type CLast, type CSet, type CWorkout } from "@/lib/shape";
+import { cx, EXERCISES_FORMS, fmtClock, fmtDate, fmtDuration, fmtNum, fmtTime, plural } from "@/lib/format";
+import { STATUS_LABEL } from "@/lib/labels";
+import type { CExercise, CExerciseInfo, CLast, CSet, CWorkout } from "@/lib/shape";
+import { DEFAULT_REST, ExerciseCard } from "./exercise-card";
 import { ExercisePicker } from "./exercise-picker";
+import { FocusView } from "./focus";
+import { ActionSheet, NotesField, type SheetAction } from "./parts";
 import { WorkoutTimeline } from "./timeline";
 
-const DEFAULT_REST = 90;
-const REST_OPTIONS = [30, 45, 60, 90, 120, 150, 180, 240, 300];
-const SET_TYPE_ORDER: SetType[] = ["normal", "warmup", "drop", "failure"];
+const VIEW_KEY = "wk:view";
+type View = "focus" | "list";
 
 export type HealthCandidate = { id: string; activityType: string; startAt: string; durationSec: number | null; avgHr: number | null };
 type SaveState = "saved" | "dirty" | "saving" | "local" | "error" | "auth";
@@ -61,6 +60,26 @@ export function WorkoutEditor({
   const saveRef = useRef<SaveState>("saved");
   const [picker, setPicker] = useState<Picker>(null);
   const [confirmFinish, setConfirmFinish] = useState(false);
+  const [menuOpen, setMenuOpen] = useState(false);
+  // During a workout: one set at a time ("focus") or the whole list.
+  const [view, setViewState] = useState<View>("focus");
+  useEffect(() => {
+    void Promise.resolve().then(() => {
+      try {
+        if (localStorage.getItem(VIEW_KEY) === "list") setViewState("list");
+      } catch {
+        /* storage blocked — keep the default */
+      }
+    });
+  }, []);
+  const setView = (v: View) => {
+    setViewState(v);
+    try {
+      localStorage.setItem(VIEW_KEY, v);
+    } catch {
+      /* ignore */
+    }
+  };
   const [rest, setRest] = useState<{ endsAt: number; total: number } | null>(null);
   const [busy, startNav] = useTransition();
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -330,6 +349,26 @@ export function WorkoutEditor({
     });
   };
 
+  const removeSet = (weId: string, setId: string) =>
+    persist(mapExercise(weId, (x) => ({ ...x, sets: x.sets.filter((s) => s.id !== setId) })), { sets: [setId] });
+  const adjustRest = (d: number) => setRest((r) => (r ? { endsAt: r.endsAt + d * 1000, total: Math.max(5, r.total + d) } : r));
+  const endRest = (natural: boolean) => {
+    if (natural) beep(audio.current);
+    setRest(null);
+  };
+
+  const menuActions: SheetAction[] = [
+    ...(done
+      ? [
+          { label: "Запланувати копію", icon: <Copy size={19} />, onSelect: () => spawn("planned") },
+          { label: "Продовжити це тренування", icon: <Play size={19} />, onSelect: resume },
+        ]
+      : []),
+    ...(live ? [{ label: "Завершити тренування", icon: <Flag size={19} />, onSelect: () => setConfirmFinish(true) }] : []),
+    ...(w.status !== "template" ? [{ label: "Зберегти як шаблон", icon: <Save size={19} />, onSelect: () => spawn("template") }] : []),
+    { label: "Видалити тренування", icon: <Trash2 size={19} />, onSelect: remove, tone: "danger" as const },
+  ];
+
   const totalSets = w.exercises.reduce((a, e) => a + e.sets.length, 0);
   const doneSets = w.exercises.reduce((a, e) => a + e.sets.filter((s) => s.completed).length, 0);
   const volume = w.exercises.reduce(
@@ -345,8 +384,13 @@ export function WorkoutEditor({
           <Link href={localOnly ? "/train" : "/workouts"} className="text-sm whitespace-nowrap text-accent">
             ← {localOnly ? "Список" : "Тренування"}
           </Link>
-          <StatusChip status={w.status} />
+          <span className="hidden sm:inline-flex">
+            <StatusChip status={w.status} />
+          </span>
           <SaveButton state={save} onSave={() => void saveNow()} />
+          <button onClick={() => setMenuOpen(true)} aria-label="Інші дії з тренуванням" className="icon-btn size-9 bg-surface-2 text-ink">
+            <MoreHorizontal size={19} />
+          </button>
         </div>
         <input
           value={w.name}
@@ -357,24 +401,35 @@ export function WorkoutEditor({
         />
 
         {live && w.startedAt && (
-          <div className="card p-4">
-            <div className="flex items-end justify-between gap-3">
-              <div>
-                <div className="caps">Час тренування</div>
-                <Elapsed since={w.startedAt} />
-                <div className="mt-1 text-xs text-muted">почато о {fmtTime(w.startedAt)}</div>
-              </div>
-              <div className="text-right">
-                <div className="caps">Підходи</div>
-                <div className="num text-3xl font-semibold">
-                  {doneSets}
-                  <span className="text-muted">/{totalSets}</span>
-                </div>
+          <div className="card flex items-center gap-3 px-4 py-3">
+            <div className="min-w-0 flex-1">
+              <Elapsed since={w.startedAt} />
+              <div className="mt-0.5 text-xs text-muted">
+                з {fmtTime(w.startedAt)} · підходів{" "}
+                <span className="num font-semibold text-ink">
+                  {doneSets}/{totalSets}
+                </span>
               </div>
             </div>
-            <button onClick={() => setConfirmFinish(true)} className="btn btn-primary mt-4 w-full">
-              <Flag size={18} /> Завершити тренування
-            </button>
+            <div className="inline-flex shrink-0 rounded-full bg-surface-2 p-1" role="group" aria-label="Вигляд">
+              {(
+                [
+                  ["focus", "По одному підходу", Target],
+                  ["list", "Усі вправи списком", LayoutList],
+                ] as const
+              ).map(([v, label, Icon]) => (
+                <button
+                  key={v}
+                  onClick={() => setView(v)}
+                  aria-pressed={view === v}
+                  aria-label={label}
+                  title={label}
+                  className={cx("grid size-9 place-items-center rounded-full", view === v ? "bg-surface-3 text-ink" : "text-muted")}
+                >
+                  <Icon size={18} />
+                </button>
+              ))}
+            </div>
           </div>
         )}
 
@@ -396,11 +451,8 @@ export function WorkoutEditor({
         )}
 
         {w.status === "planned" && (
-          <label className="card flex items-center justify-between gap-3 px-4 py-3 text-[15px]">
-            <span>
-              Дата
-              {w.scheduledFor && <span className="ml-2 text-sm text-muted">{fmtDateLong(w.scheduledFor)}</span>}
-            </span>
+          <label className="card flex items-center justify-between gap-3 px-4 py-2.5 text-[15px]">
+            <span>Дата</span>
             <input
               type="date"
               value={w.scheduledFor ?? ""}
@@ -410,34 +462,16 @@ export function WorkoutEditor({
           </label>
         )}
 
-        <div className="flex flex-wrap gap-2">
-          {(w.status === "planned" || w.status === "template") && (
-            <button disabled={busy} onClick={start} className="btn btn-primary">
-              <Play size={18} /> Почати тренування
-            </button>
-          )}
-          {done && (
-            <>
-              <button disabled={busy} onClick={() => spawn("in_progress")} className="btn btn-primary">
-                <RotateCcw size={18} /> Повторити зараз
-              </button>
-              <button disabled={busy} onClick={() => spawn("planned")} className="btn btn-ghost">
-                <Copy size={16} /> Запланувати копію
-              </button>
-              <button onClick={resume} className="btn btn-ghost">
-                <Play size={16} /> Продовжити
-              </button>
-            </>
-          )}
-          {w.status !== "template" && (
-            <button disabled={busy} onClick={() => spawn("template")} className="btn btn-ghost">
-              <Save size={16} /> Як шаблон
-            </button>
-          )}
-          <button disabled={busy} onClick={remove} className="btn btn-danger">
-            <Trash2 size={16} /> Видалити
+        {(w.status === "planned" || w.status === "template") && (
+          <button disabled={busy} onClick={start} className="btn btn-primary w-full sm:w-auto">
+            <Play size={18} /> Почати тренування
           </button>
-        </div>
+        )}
+        {done && (
+          <button disabled={busy} onClick={() => spawn("in_progress")} className="btn btn-primary w-full sm:w-auto">
+            <RotateCcw size={18} /> Повторити зараз
+          </button>
+        )}
 
         <NotesField value={w.notes} placeholder="Нотатки до тренування" onSave={(notes) => persist({ ...cur(), notes })} />
       </header>
@@ -470,31 +504,53 @@ export function WorkoutEditor({
       )}
 
       {/* ── Exercises ── */}
-      {w.exercises.map((e, i) => (
-        <ExerciseCard
-          key={e.id}
-          e={e}
-          tracked={tracked}
-          last={last[e.exercise.id]}
-          first={i === 0}
-          lastInList={i === w.exercises.length - 1}
-          onMove={(d) => moveExercise(e.id, d)}
-          onRemove={() => removeExercise(e.id)}
-          onReplace={() => setPicker({ mode: "replace", weId: e.id })}
-          onRest={(restSeconds) => persist(mapExercise(e.id, (x) => ({ ...x, restSeconds })))}
-          onNotes={(notes) => persist(mapExercise(e.id, (x) => ({ ...x, notes })))}
-          onAddSet={() => addSet(e)}
-          onPatchSet={(setId, patch) => patchSet(e.id, setId, patch)}
-          onToggleSet={(s, idx) => toggleSet(e, s, idx)}
-          onRemoveSet={(setId) =>
-            persist(mapExercise(e.id, (x) => ({ ...x, sets: x.sets.filter((s) => s.id !== setId) })), { sets: [setId] })
-          }
+      {live && view === "focus" ? (
+        <FocusView
+          w={w}
+          last={last}
+          rest={rest}
+          onRestAdjust={adjustRest}
+          onRestDone={endRest}
+          onPatchSet={patchSet}
+          onToggleSet={toggleSet}
+          onAddSet={addSet}
+          onRemoveSet={removeSet}
+          onReplace={(weId) => setPicker({ mode: "replace", weId })}
+          onAddExercise={() => setPicker({ mode: "add" })}
+          onFinish={() => setConfirmFinish(true)}
         />
-      ))}
+      ) : (
+        <>
+          {w.exercises.map((e, i) => (
+            <ExerciseCard
+              key={e.id}
+              e={e}
+              tracked={tracked}
+              last={last[e.exercise.id]}
+              first={i === 0}
+              lastInList={i === w.exercises.length - 1}
+              onMove={(d) => moveExercise(e.id, d)}
+              onRemove={() => removeExercise(e.id)}
+              onReplace={() => setPicker({ mode: "replace", weId: e.id })}
+              onRest={(restSeconds) => persist(mapExercise(e.id, (x) => ({ ...x, restSeconds })))}
+              onNotes={(notes) => persist(mapExercise(e.id, (x) => ({ ...x, notes })))}
+              onAddSet={() => addSet(e)}
+              onPatchSet={(setId, patch) => patchSet(e.id, setId, patch)}
+              onToggleSet={(s, idx) => toggleSet(e, s, idx)}
+              onRemoveSet={(setId) => removeSet(e.id, setId)}
+            />
+          ))}
+          <button onClick={() => setPicker({ mode: "add" })} className="btn btn-ghost w-full">
+            <Plus size={18} /> Додати вправу
+          </button>
+        </>
+      )}
 
-      <button onClick={() => setPicker({ mode: "add" })} className="btn btn-ghost w-full">
-        <Plus size={18} /> Додати вправу
-      </button>
+      {live && (
+        <button onClick={() => setConfirmFinish(true)} className="btn btn-ghost w-full">
+          <Flag size={18} /> Завершити тренування
+        </button>
+      )}
 
       {picker && (
         <ExercisePicker
@@ -505,16 +561,9 @@ export function WorkoutEditor({
         />
       )}
 
-      {rest && (
-        <RestBar
-          rest={rest}
-          onAdjust={(d) => setRest((r) => (r ? { endsAt: r.endsAt + d * 1000, total: Math.max(5, r.total + d) } : r))}
-          onDone={(natural) => {
-            if (natural) beep(audio.current);
-            setRest(null);
-          }}
-        />
-      )}
+      {rest && !(live && view === "focus") && <RestBar rest={rest} onAdjust={adjustRest} onDone={endRest} />}
+
+      {menuOpen && <ActionSheet title={w.name || "Тренування"} actions={menuActions} onClose={() => setMenuOpen(false)} />}
 
       {confirmFinish && (
         <div className="fixed inset-0 z-50 grid place-items-center bg-black/70 p-4" onClick={() => setConfirmFinish(false)}>
@@ -581,10 +630,12 @@ function SaveButton({ state, onSave }: { state: SaveState; onSave: () => void })
             ? "Усі зміни на сервері"
             : undefined
       }
-      className={cx("btn btn-sm ml-auto", view.cls)}
+      aria-label={view.label}
+      className={cx("btn btn-sm ml-auto", view.cls, state === "saved" && "px-2.5")}
     >
       {view.icon}
-      {view.label}
+      {/* "Saved" needs no words on a phone; every other state is spelled out. */}
+      <span className={state === "saved" ? "hidden sm:inline" : undefined}>{view.label}</span>
     </button>
   );
 }
@@ -609,317 +660,10 @@ function Elapsed({ since }: { since: string }) {
     return () => clearInterval(iv);
   }, []);
   return (
-    <div className="num text-5xl leading-none font-semibold text-accent" role="timer">
+    // The clock differs between server render and hydration by design.
+    <div className="num text-[2.5rem] leading-none font-semibold text-accent" role="timer" suppressHydrationWarning>
       {fmtClock((now - +new Date(since)) / 1000)}
     </div>
-  );
-}
-
-function NotesField({
-  value,
-  placeholder,
-  onSave,
-}: {
-  value: string | null;
-  placeholder: string;
-  onSave: (v: string | null) => void;
-}) {
-  const [open, setOpen] = useState(Boolean(value));
-  const [text, setText] = useState(value ?? "");
-  const [seen, setSeen] = useState(value);
-  if (seen !== value) {
-    // Changed elsewhere (e.g. Claude added a note) — adopt it.
-    setSeen(value);
-    setText(value ?? "");
-    if (value) setOpen(true);
-  }
-  if (!open) {
-    return (
-      <button onClick={() => setOpen(true)} className="flex items-center gap-1.5 text-sm text-muted hover:text-ink">
-        <StickyNote size={15} /> Додати нотатку
-      </button>
-    );
-  }
-  return (
-    <textarea
-      value={text}
-      onChange={(e) => setText(e.target.value)}
-      onBlur={() => {
-        const v = text.trim() || null;
-        if (v !== value) onSave(v);
-        if (!v) setOpen(false);
-      }}
-      rows={2}
-      placeholder={placeholder}
-      aria-label={placeholder}
-      className="field resize-y text-[15px]"
-    />
-  );
-}
-
-function ExerciseCard({
-  e,
-  tracked,
-  last,
-  first,
-  lastInList,
-  onMove,
-  onRemove,
-  onReplace,
-  onRest,
-  onNotes,
-  onAddSet,
-  onPatchSet,
-  onToggleSet,
-  onRemoveSet,
-}: {
-  e: CExercise;
-  tracked: boolean;
-  last: CLast[string] | undefined;
-  first: boolean;
-  lastInList: boolean;
-  onMove: (d: -1 | 1) => void;
-  onRemove: () => void;
-  onReplace: () => void;
-  onRest: (v: number | null) => void;
-  onNotes: (v: string | null) => void;
-  onAddSet: () => void;
-  onPatchSet: (setId: string, patch: Partial<CSet>) => void;
-  onToggleSet: (s: CSet, index: number) => void;
-  onRemoveSet: (setId: string) => void;
-}) {
-  const t = e.exercise.tracking;
-  const cols = columnsFor(t);
-  let n = 0;
-  return (
-    <section className="card p-3.5 sm:p-4">
-      <div className="flex items-start justify-between gap-1">
-        <div className="min-w-0 pt-1">
-          <Link href={`/exercises/${e.exercise.id}`} className="block truncate text-[17px] font-semibold hover:underline">
-            {e.exercise.name}
-          </Link>
-          <div className="truncate text-xs text-muted">
-            {e.exercise.nameUk ? `${e.exercise.nameUk} · ` : ""}
-            {MUSCLE_LABEL[e.exercise.muscle]}
-          </div>
-        </div>
-        <div className="-mr-1.5 flex shrink-0 items-center">
-          <IconBtn label="Замінити вправу" onClick={onReplace}>
-            <ArrowLeftRight size={17} />
-          </IconBtn>
-          <IconBtn label="Вище" disabled={first} onClick={() => onMove(-1)}>
-            <ArrowUp size={17} />
-          </IconBtn>
-          <IconBtn label="Нижче" disabled={lastInList} onClick={() => onMove(1)}>
-            <ArrowDown size={17} />
-          </IconBtn>
-          <IconBtn label="Прибрати вправу" onClick={onRemove}>
-            <Trash2 size={17} />
-          </IconBtn>
-        </div>
-      </div>
-
-      {last && last.sets.length > 0 && (
-        <p className="mt-1 truncate text-xs text-muted">
-          Минулого разу{last.date ? ` (${fmtDate(last.date)})` : ""}: {last.sets.map((s) => describeSet(t, s)).join(", ")}
-        </p>
-      )}
-
-      <div className="mt-3 space-y-1.5">
-        <div className={cx("caps grid items-center gap-2 px-0.5", gridFor(cols.length, tracked))}>
-          <span className="text-center">#</span>
-          {cols.map((c) => (
-            <span key={c.key} className="text-center">
-              {c.label}
-            </span>
-          ))}
-          {tracked && <span />}
-          <span />
-        </div>
-        {e.sets.map((s, idx) => {
-          const label = s.type === "normal" ? String(++n) : SET_TYPE_SHORT[s.type];
-          const prev = last?.sets[idx];
-          return (
-            <div key={s.id} className={cx("grid items-center gap-2", gridFor(cols.length, tracked))}>
-              <button
-                onClick={() => onPatchSet(s.id, { type: SET_TYPE_ORDER[(SET_TYPE_ORDER.indexOf(s.type) + 1) % SET_TYPE_ORDER.length] })}
-                title={`${SET_TYPE_LABEL[s.type]} — натисніть, щоб змінити тип`}
-                aria-label={`Тип підходу: ${SET_TYPE_LABEL[s.type]}`}
-                className={cx(
-                  "num grid size-9 place-items-center rounded-full text-sm font-semibold",
-                  s.type === "normal" ? "bg-surface-2 text-ink-2" : "bg-warning/20 text-warning",
-                )}
-              >
-                {label}
-              </button>
-              {cols.map((c) => (
-                <NumInput
-                  key={c.key}
-                  label={c.label}
-                  decimal={c.decimal}
-                  done={s.completed}
-                  value={c.get(s)}
-                  placeholder={prev ? fmtPlaceholder(c.get(prev as CSet)) : ""}
-                  onChange={(v) => onPatchSet(s.id, c.set(v))}
-                />
-              ))}
-              {tracked && (
-                <button
-                  onClick={() => onToggleSet(s, idx)}
-                  role="checkbox"
-                  aria-checked={s.completed}
-                  aria-label="Підхід виконано"
-                  className={cx(
-                    "grid size-11 place-items-center rounded-full transition active:scale-90",
-                    s.completed ? "bg-accent text-accent-ink" : "bg-surface-2 text-muted hover:bg-surface-3",
-                  )}
-                >
-                  <Check size={20} strokeWidth={3} />
-                </button>
-              )}
-              <button
-                onClick={() => onRemoveSet(s.id)}
-                aria-label="Видалити підхід"
-                className="grid size-8 place-items-center rounded-full text-muted hover:bg-surface-2 hover:text-ink"
-              >
-                <X size={16} />
-              </button>
-            </div>
-          );
-        })}
-      </div>
-
-      <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
-        <button onClick={onAddSet} className="btn btn-sm btn-ghost">
-          <Plus size={15} /> Підхід
-        </button>
-        <label className="flex items-center gap-1.5 text-xs text-muted">
-          <Timer size={15} /> Відпочинок
-          <select
-            value={e.restSeconds ?? ""}
-            onChange={(ev) => onRest(ev.target.value ? Number(ev.target.value) : null)}
-            className="num rounded-full bg-surface-2 px-2.5 py-1.5 text-[13px] text-ink outline-none"
-          >
-            <option value="">{fmtClock(DEFAULT_REST)}</option>
-            {REST_OPTIONS.map((r) => (
-              <option key={r} value={r}>
-                {fmtClock(r)}
-              </option>
-            ))}
-          </select>
-        </label>
-      </div>
-      <div className="mt-2">
-        <NotesField value={e.notes} placeholder="Нотатка до вправи" onSave={onNotes} />
-      </div>
-    </section>
-  );
-}
-
-type Col = { key: string; label: string; decimal: boolean; get: (s: CSet) => number | null; set: (v: number | null) => Partial<CSet> };
-
-function columnsFor(t: Tracking): Col[] {
-  const weight = (label: string): Col => ({ key: "w", label, decimal: true, get: (s) => s.weight, set: (v) => ({ weight: v }) });
-  const reps: Col = { key: "r", label: "повт", decimal: false, get: (s) => s.reps, set: (v) => ({ reps: v }) };
-  switch (t) {
-    case "weight_reps":
-      return [weight("кг"), reps];
-    case "reps":
-      return [weight("+кг"), reps];
-    case "duration":
-      return [{ key: "d", label: "сек", decimal: false, get: (s) => s.durationSec, set: (v) => ({ durationSec: v }) }];
-    case "distance":
-      return [
-        {
-          key: "km",
-          label: "км",
-          decimal: true,
-          get: (s) => (s.distanceM != null ? Math.round(s.distanceM / 10) / 100 : null),
-          set: (v) => ({ distanceM: v != null ? Math.round(v * 1000) : null }),
-        },
-        {
-          key: "min",
-          label: "хв",
-          decimal: true,
-          get: (s) => (s.durationSec != null ? Math.round(s.durationSec / 6) / 10 : null),
-          set: (v) => ({ durationSec: v != null ? Math.round(v * 60) : null }),
-        },
-      ];
-  }
-}
-
-function gridFor(cols: number, tracked: boolean) {
-  if (cols === 1) return tracked ? "grid-cols-[2.25rem_1fr_2.75rem_2rem]" : "grid-cols-[2.25rem_1fr_2rem]";
-  return tracked ? "grid-cols-[2.25rem_1fr_1fr_2.75rem_2rem]" : "grid-cols-[2.25rem_1fr_1fr_2rem]";
-}
-
-const fmtPlaceholder = (v: number | null) => (v == null ? "" : String(v));
-
-function NumInput({
-  value,
-  onChange,
-  placeholder,
-  label,
-  decimal,
-  done,
-}: {
-  value: number | null;
-  onChange: (v: number | null) => void;
-  placeholder?: string;
-  label: string;
-  decimal: boolean;
-  done: boolean;
-}) {
-  const [text, setText] = useState(value == null ? "" : String(value));
-  const [seen, setSeen] = useState(value);
-  const [focused, setFocused] = useState(false);
-  if (seen !== value) {
-    setSeen(value);
-    if (!focused) setText(value == null ? "" : String(value));
-  }
-  return (
-    <input
-      value={text}
-      inputMode={decimal ? "decimal" : "numeric"}
-      placeholder={placeholder}
-      aria-label={label}
-      onFocus={(e) => {
-        setFocused(true);
-        e.target.select();
-      }}
-      onBlur={() => {
-        setFocused(false);
-        setText(value == null ? "" : String(value));
-      }}
-      onChange={(e) => {
-        const raw = e.target.value.replace(",", ".").replace(decimal ? /[^0-9.]/g : /[^0-9]/g, "");
-        setText(raw);
-        const n = raw === "" ? null : Number(raw);
-        if (n === null || Number.isFinite(n)) onChange(n);
-      }}
-      className={cx(
-        "num h-11 w-full min-w-0 rounded-xl border border-transparent px-2 text-center text-lg font-medium text-ink outline-none placeholder:text-muted/60 focus:border-accent",
-        done ? "bg-accent/15" : "bg-surface-2",
-      )}
-    />
-  );
-}
-
-function IconBtn({
-  children,
-  label,
-  onClick,
-  disabled,
-}: {
-  children: React.ReactNode;
-  label: string;
-  onClick: () => void;
-  disabled?: boolean;
-}) {
-  return (
-    <button onClick={onClick} disabled={disabled} aria-label={label} title={label} className="icon-btn size-9">
-      {children}
-    </button>
   );
 }
 

@@ -6,10 +6,11 @@ import { redirect } from "next/navigation";
 import { z } from "zod";
 import { db } from "@/db";
 import { apiTokens, EQUIPMENT, MUSCLE_GROUPS, TRACKING, users, type WorkoutStatus } from "@/db/schema";
-import { createSession, destroySession, generateApiToken, requireUserId } from "./auth";
+import { createSession, destroySession, generateApiToken, getAdmin, requireUserId } from "./auth";
 import { dayOf } from "./format";
 import { addManualCardio, deleteManualCardio } from "./cardio";
 import { normalizeGoals, type Goals } from "./goals";
+import { acceptInvite, createInvite, deleteUser, revokeInvite } from "./invites";
 import * as health from "./health";
 import * as wk from "./workouts";
 import type { ExerciseInput, SetInput } from "./workouts";
@@ -51,9 +52,20 @@ export async function setupAction(_prev: AuthState, formData: FormData): Promise
   const { username, password } = parsed.data;
   const [user] = await db
     .insert(users)
-    .values({ username, passwordHash: await bcrypt.hash(password, 12) })
+    .values({ username, passwordHash: await bcrypt.hash(password, 12), isAdmin: true })
     .returning({ id: users.id });
   await createSession(user.id);
+  redirect("/");
+}
+
+/** Sign-up through an invitation link: login + password typed twice. */
+export async function acceptInviteAction(token: string, _prev: AuthState, formData: FormData): Promise<AuthState> {
+  const parsed = credentials.safeParse(Object.fromEntries(formData));
+  if (!parsed.success) return { error: parsed.error.issues[0].message };
+  if (formData.get("password") !== formData.get("confirm")) return { error: "Паролі не збігаються" };
+  const result = await acceptInvite(token, parsed.data.username, parsed.data.password);
+  if ("error" in result) return { error: result.error };
+  await createSession(result.userId);
   redirect("/");
 }
 
@@ -265,4 +277,28 @@ export async function saveGoalsAction(input: Goals) {
   const goals = normalizeGoals(input);
   await db.update(users).set({ goals }).where(eq(users.id, userId));
   return goals;
+}
+
+// ───────────────────────── Admin ─────────────────────────
+
+async function requireAdmin() {
+  const admin = await getAdmin();
+  if (!admin) throw new Error("forbidden");
+  return admin;
+}
+
+export async function createInviteAction(note: string) {
+  const admin = await requireAdmin();
+  return createInvite(admin.id, note.slice(0, 120));
+}
+
+export async function revokeInviteAction(id: string) {
+  await requireAdmin();
+  await revokeInvite(id);
+}
+
+export async function deleteUserAction(id: string) {
+  const admin = await requireAdmin();
+  if (id === admin.id) throw new Error("cannot delete yourself");
+  await deleteUser(id);
 }

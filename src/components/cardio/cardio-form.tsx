@@ -22,7 +22,7 @@ export function CardioForm({ today }: { today: string }) {
 
   if (!open) {
     return (
-      <button onClick={() => setOpen(true)} className="btn btn-ghost">
+      <button onClick={() => setOpen(true)} className="btn btn-ghost w-full sm:w-auto">
         <Plus size={17} /> Додати вручну
       </button>
     );
@@ -103,7 +103,7 @@ export function CardioForm({ today }: { today: string }) {
           {error}
         </p>
       )}
-      <div className="flex gap-2">
+      <div className="grid grid-cols-2 gap-2 sm:flex">
         <button type="button" onClick={() => setOpen(false)} className="btn btn-ghost">
           Скасувати
         </button>

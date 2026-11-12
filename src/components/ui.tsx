@@ -140,3 +140,21 @@ export function PageSkeleton() {
     </div>
   );
 }
+
+/** A card that stays folded until tapped — for instructions and rarely needed settings. */
+export function Disclosure({ title, hint, children }: { title: string; hint?: string; children: ReactNode }) {
+  return (
+    <details className="card group">
+      <summary className="flex cursor-pointer list-none items-center justify-between gap-3 p-4 [&::-webkit-details-marker]:hidden">
+        <span className="min-w-0">
+          <span className="block text-[15px] font-semibold">{title}</span>
+          {hint && <span className="block truncate text-xs text-muted">{hint}</span>}
+        </span>
+        <span className="shrink-0 text-muted transition-transform group-open:rotate-90" aria-hidden="true">
+          ›
+        </span>
+      </summary>
+      <div className="px-4 pb-4">{children}</div>
+    </details>
+  );
+}
