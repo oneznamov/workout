@@ -288,7 +288,7 @@ const recognitionCtor = () => {
 };
 
 /** A text field you can also talk into, where the browser can listen (elsewhere the keyboard's own dictation does the same). */
-function SpokenText({ value, onChange, placeholder, rows = 4 }: { value: string; onChange: (v: string) => void; placeholder: string; rows?: number }) {
+export function SpokenText({ value, onChange, placeholder, rows = 4 }: { value: string; onChange: (v: string) => void; placeholder: string; rows?: number }) {
   const [canListen, setCanListen] = useState(false);
   const [listening, setListening] = useState(false);
   const session = useRef<Recognition | null>(null);

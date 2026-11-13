@@ -29,6 +29,7 @@ export function WorkoutTimeline({ workout, onApply }: { workout: CWorkout; onApp
   return (
     <Fold
       id="timeline"
+      startFolded
       title="Таймлайн тренування"
       icon={<Sparkles size={16} className="shrink-0 text-accent" />}
       summary={`робота ${fmtDuration(tl.workSec)} · відпочинок ${fmtDuration(tl.restSec)}`}

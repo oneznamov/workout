@@ -13,6 +13,7 @@ import { Card, Empty, PageSkeleton, SectionTitle, Stat } from "@/components/ui";
 import { WeekStrip, type StripDay } from "@/components/week-strip";
 import { WeightQuick } from "@/components/weight-quick";
 import { GoalBar, SickMode } from "@/components/profile";
+import { ReadinessNote } from "@/components/readiness";
 import { NewWorkoutButtons } from "@/components/workout/new-workout";
 import { WorkoutRow } from "@/components/workout/workout-row";
 import { getAiState, getCoachNote } from "@/lib/ai";
@@ -28,6 +29,8 @@ import { normalizeGoals } from "@/lib/goals";
 import { getMetricSeries } from "@/lib/health";
 import { goalProgress } from "@/lib/goal-progress";
 import { normalizeProfile, personName, photoUrl } from "@/lib/profile";
+import { lightenRequest } from "@/lib/readiness";
+import { getReadiness } from "@/lib/recovery";
 import { BODY_MUSCLES, TARGET_MIN } from "@/lib/muscles";
 import { listWorkouts } from "@/lib/workouts";
 
@@ -41,7 +44,7 @@ async function Content() {
   const on = (id: WidgetId) => widgets.some((w) => w.id === id && w.visible);
   const profile = normalizeProfile(user.profile);
 
-  const [active, planned, recent, week, weights, muscles, cardio, vitals, board, ai, coach, teamInvites, progress, aiState] = await Promise.all([
+  const [active, planned, recent, week, weights, muscles, cardio, vitals, board, ai, coach, teamInvites, progress, aiState, ready] = await Promise.all([
     listWorkouts(user.id, { status: "in_progress", limit: 1 }),
     listWorkouts(user.id, { status: "planned", limit: 50 }),
     listWorkouts(user.id, { status: "completed", limit: 40 }),
@@ -58,6 +61,7 @@ async function Content() {
     listMyTeamInvites(user.id),
     on("mygoals") ? goalProgress(user.id, profile) : ({} as Awaited<ReturnType<typeof goalProgress>>),
     getAiState(user.id),
+    getReadiness(user.id),
   ]);
   const aiConnected = Boolean(aiState);
 
@@ -238,6 +242,19 @@ async function Content() {
       </header>
 
       {profile.sick && <SickMode sick={profile.sick} today={today} />}
+
+      {/* Last night against the usual one — and what it means for today's session. */}
+      {!profile.sick && ready.lastNight != null && (
+        <ReadinessNote
+          level={ready.level}
+          lastNight={ready.lastNight}
+          reasons={ready.reasons}
+          advice={ready.advice}
+          workout={!active[0] && todays ? { id: todays.id, name: todays.name } : null}
+          ai={aiConnected}
+          request={lightenRequest(ready)}
+        />
+      )}
 
       {teamInvites.length > 0 && (
         <Link href="/team" className="flex items-center justify-between gap-3 rounded-[20px] bg-accent/12 p-4 ring-1 ring-accent/40">

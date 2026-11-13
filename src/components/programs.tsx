@@ -45,10 +45,17 @@ function ProgramFields({ value, onChange }: { value: Fields; onChange: (v: Field
  * "New programme": a name, dates and what it is for. Then either an empty one, to be filled with
  * workouts by hand, or — with AI connected — one filled with workouts for the whole period.
  */
-export function NewProgramButton({ ai = false }: { ai?: boolean }) {
+export function NewProgramButton({ ai = false, startOpen = false, onClosed }: { ai?: boolean; /** opened by something else: no button of its own */ startOpen?: boolean; onClosed?: () => void }) {
   const router = useRouter();
-  const [open, setOpen] = useState(false);
-  const [fields, setFields] = useState<Fields>({ name: "", description: "", forecast: "", startsOn: "", endsOn: "" });
+  const [open, setOpen] = useState(startOpen);
+  const [fields, setFields] = useState<Fields>(() => {
+    const today = startOpen ? dayOf() : "";
+    return { name: "", description: "", forecast: "", startsOn: today, endsOn: today ? addDays(today, 27) : "" };
+  });
+  const close = () => {
+    setOpen(false);
+    onClosed?.();
+  };
   const [filling, setFilling] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [pending, start] = useTransition();
@@ -65,19 +72,21 @@ export function NewProgramButton({ ai = false }: { ai?: boolean }) {
   };
   return (
     <>
-      <button
-        onClick={() => {
-          const today = dayOf();
-          setFields({ name: "", description: "", forecast: "", startsOn: today, endsOn: addDays(today, 27) });
-          setError(null);
-          setOpen(true);
-        }}
-        className="flex items-center gap-1.5 text-sm text-accent"
-      >
-        <Plus size={15} /> Нова
-      </button>
+      {!startOpen && (
+        <button
+          onClick={() => {
+            const today = dayOf();
+            setFields({ name: "", description: "", forecast: "", startsOn: today, endsOn: addDays(today, 27) });
+            setError(null);
+            setOpen(true);
+          }}
+          className="flex items-center gap-1.5 text-sm text-accent"
+        >
+          <Plus size={15} /> Нова
+        </button>
+      )}
       {open && (
-        <div className="fixed inset-0 z-50 flex items-end justify-center overflow-y-auto overscroll-contain bg-black/70 md:items-center md:p-6" onClick={() => !pending && setOpen(false)}>
+        <div className="fixed inset-0 z-50 flex items-end justify-center overflow-y-auto overscroll-contain bg-black/70 md:items-center md:p-6" onClick={() => !pending && close()}>
           <form
             role="dialog"
             aria-modal="true"
@@ -91,7 +100,7 @@ export function NewProgramButton({ ai = false }: { ai?: boolean }) {
           >
             <div className="flex items-center justify-between gap-2">
               <h2 className="text-xl font-bold">Нова програма</h2>
-              <button type="button" onClick={() => setOpen(false)} disabled={pending} aria-label="Закрити" className="icon-btn bg-surface-2">
+              <button type="button" onClick={close} disabled={pending} aria-label="Закрити" className="icon-btn bg-surface-2">
                 <X size={20} />
               </button>
             </div>

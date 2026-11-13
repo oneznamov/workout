@@ -29,7 +29,7 @@ import {
   X,
 } from "lucide-react";
 import type { WorkoutStatus } from "@/db/schema";
-import { AiPromptDialog, AiWorkoutNote } from "@/components/ai";
+import { AiWorkoutNote } from "@/components/ai";
 import { deleteWorkoutAction, linkHealthWorkoutAction } from "@/lib/actions";
 import { reviseWorkoutAction, supplementWorkoutAction } from "@/lib/ai-actions";
 import type { AiNote } from "@/lib/ai-providers";
@@ -39,6 +39,7 @@ import { cloneWorkout, hardNavigate, pushWorkout, readLocal, removeLocal, writeL
 import { addDays, cx, dayOf, EXERCISES_FORMS, fmtClock, fmtDate, fmtDateLong, fmtDuration, fmtNum, fmtTime, plural } from "@/lib/format";
 import { STATUS_LABEL } from "@/lib/labels";
 import { activeSeconds, type CExercise, type CExerciseInfo, type CLast, type CSet, type CWorkout } from "@/lib/shape";
+import { ChangeWorkout } from "./change";
 import { EffortCard, EffortScale, ExpectedEffort } from "./effort";
 import { Fold } from "../fold";
 import { DEFAULT_REST, ExerciseCard, ExerciseSummary } from "./exercise-card";
@@ -64,7 +65,10 @@ export function WorkoutEditor({
   ai,
   records = [],
   program,
+  readiness,
 }: {
+  /** Today's readiness, passed when this workout is planned for today and the night calls for a lighter one. */
+  readiness?: { label: string; request: string };
   /** The programme this workout belongs to, if any. */
   program?: { id: string; name: string };
   /** Personal records beaten in this (finished) workout. */
@@ -464,16 +468,35 @@ export function WorkoutEditor({
     setAiMsg({ text: r.added ? `Додано вправ: ${r.added}. ${r.why}` : `ШІ вважає, що тренування вже повне. ${r.why}` });
   };
 
-  // "Update with AI": the athlete says what changed, the plan is rebuilt on the server.
-  const [reviseOpen, setReviseOpen] = useState(false);
+  // "Change with AI": the athlete says what is different, the plan is rebuilt on the server.
+  // The plan as it was is kept until the page is left, so the change can be taken back.
+  const [undoPlan, setUndoPlan] = useState<CWorkout | null>(null);
   const revise = async (text: string) => {
     const pushed = await saveNow();
     if (pushed.status !== "ok" && pushed.status !== "clean") return "Спершу потрібен звʼязок із сервером — зміни ще не збережено.";
+    const before = cur();
     const r = await reviseWorkoutAction(id, text);
     if (!r.ok) return r.error;
     await refetch();
+    setUndoPlan(before);
     setAiMsg({ text: `Тренування оновлено. ${r.why}` });
     return null;
+  };
+  const undoRevise = () => {
+    if (!undoPlan) return;
+    const now = cur();
+    const keptExercises = new Set(undoPlan.exercises.map((e) => e.id));
+    const keptSets = new Set(undoPlan.exercises.flatMap((e) => e.sets.map((s) => s.id)));
+    persist(
+      { ...undoPlan, updatedAt: now.updatedAt },
+      {
+        exercises: now.exercises.filter((e) => !keptExercises.has(e.id)).map((e) => e.id),
+        sets: now.exercises.flatMap((e) => e.sets).filter((s) => !keptSets.has(s.id)).map((s) => s.id),
+      },
+    );
+    void saveNow();
+    setUndoPlan(null);
+    setAiMsg({ text: "Повернуто тренування, яким воно було до змін ШІ." });
   };
 
   const menuActions: SheetAction[] = [
@@ -553,9 +576,13 @@ export function WorkoutEditor({
             <StatusChip status={w.status} />
           </span>
           {readOnly ? (
-            <button onClick={() => setLocked(false)} className="btn btn-sm btn-ghost ml-auto">
-              <Pencil size={15} /> Редагувати
-            </button>
+            done ? (
+              <button onClick={() => setLocked(false)} className="btn btn-sm btn-ghost ml-auto">
+                <Pencil size={15} /> Редагувати
+              </button>
+            ) : (
+              <span className="ml-auto" />
+            )
           ) : (
             <>
               <SaveButton state={save} onSave={() => void saveNow()} />
@@ -587,15 +614,11 @@ export function WorkoutEditor({
           />
         )}
 
-        {/* Planned by the AI: how hard it expects the session to be — and a way to have it rebuilt. */}
-        {(w.status === "planned" || w.status === "template") && ((ai && !localOnly) || w.expectedEffort != null) && (
-          <div className="flex flex-wrap items-center gap-2">
+        {/* A planned workout at a glance: when, and how hard its planner expects it to be. */}
+        {(w.status === "planned" || w.status === "template") && readOnly && (
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
+            {w.status === "planned" && <span className="text-[15px] text-ink-2 first-letter:uppercase">{w.scheduledFor ? fmtDateLong(w.scheduledFor) : "Без дати"}</span>}
             {w.expectedEffort != null && <ExpectedEffort value={w.expectedEffort} />}
-            {ai && !localOnly && (
-              <button onClick={() => setReviseOpen(true)} className="btn btn-ghost btn-sm">
-                <Sparkles size={15} className="text-body" /> Оновити з ШІ
-              </button>
-            )}
           </div>
         )}
 
@@ -683,11 +706,14 @@ export function WorkoutEditor({
             </span>
           </div>
         )}
-        {w.status === "planned" && readOnly && (
-          <div className="card flex items-center justify-between gap-3 px-4 py-3 text-[15px]">
-            <span className="text-muted">Дата</span>
-            <span className="font-medium first-letter:uppercase">{w.scheduledFor ? fmtDateLong(w.scheduledFor) : "Без дати"}</span>
-          </div>
+        {/* One place to change the plan: by hand or by telling the AI what is different. */}
+        {(w.status === "planned" || w.status === "template") && readOnly && !localOnly && (
+          <ChangeWorkout ai={Boolean(ai)} suggestion={readiness} onManual={() => setLocked(false)} onAi={revise} />
+        )}
+        {(w.status === "planned" || w.status === "template") && readOnly && localOnly && (
+          <button onClick={() => setLocked(false)} className="btn btn-ghost w-full">
+            <Pencil size={16} /> Змінити
+          </button>
         )}
         {w.status === "planned" && !readOnly && (
           <label className="card flex items-center justify-between gap-3 px-4 py-2.5 text-[15px]">
@@ -710,7 +736,14 @@ export function WorkoutEditor({
         {aiMsg && (
           <p role="status" className="flex items-start gap-2 rounded-2xl bg-body/15 px-3.5 py-2.5 text-sm text-ink-2">
             {aiMsg.busy ? <Loader2 size={16} className="mt-0.5 shrink-0 animate-spin text-body" /> : <Sparkles size={16} className="mt-0.5 shrink-0 text-body" />}
-            <span className="min-w-0 flex-1">{aiMsg.text}</span>
+            <span className="min-w-0 flex-1">
+              {aiMsg.text}
+              {undoPlan && !aiMsg.busy && (
+                <button onClick={undoRevise} className="ml-2 font-semibold text-accent">
+                  Повернути як було
+                </button>
+              )}
+            </span>
             {!aiMsg.busy && (
               <button onClick={() => setAiMsg(null)} aria-label="Сховати повідомлення" className="shrink-0 text-muted hover:text-ink">
                 <X size={16} />
@@ -891,17 +924,6 @@ export function WorkoutEditor({
 
       {rest && !(live && view === "focus") && <RestBar rest={rest} onAdjust={adjustRest} onDone={endRest} />}
 
-      {reviseOpen && (
-        <AiPromptDialog
-          title="Оновити з ШІ"
-          hint="Напишіть, що змінилось, — ШІ перезбере це тренування з урахуванням ваших цілей, показників і останніх навантажень. Якщо нічого не писати, він просто перевірить і покращить план."
-          placeholder="Напр.: завтра йду на йогу й болдеринг — розвантаж руки й плечі; або: є лише 30 хвилин"
-          submitLabel="Перезібрати тренування"
-          busyLabel="Перезбираю…"
-          onSubmit={revise}
-          onClose={() => setReviseOpen(false)}
-        />
-      )}
 
       {menuOpen && <ActionSheet title={w.name || "Тренування"} actions={menuActions} onClose={() => setMenuOpen(false)} />}
 
@@ -1091,9 +1113,11 @@ function WatchCard({
 }) {
   const [pick, setPick] = useState("");
   if (workout.health.length === 0) {
+    // No watch data and nothing to link by hand: an empty card would only be noise.
+    if (candidates.length === 0) return null;
     return (
-      <Fold id="watch-empty" title="Apple Watch" icon={<Watch size={17} className="shrink-0 text-heart" />} summary="даних ще немає">
-        <p className="text-sm text-muted">Даних з годинника ще немає — підтягнуться після синхронізації Apple Health, якщо час збігається.</p>
+      <Fold id="watch-empty" title="Apple Watch" icon={<Watch size={17} className="shrink-0 text-heart" />} summary="можна привʼязати запис">
+        <p className="text-sm text-muted">Запис із годинника не привʼязався сам — виберіть його:</p>
         {candidates.length > 0 && (
           <div className="mt-3 flex flex-wrap gap-2">
             <select value={pick} onChange={(e) => setPick(e.target.value)} className="field w-auto flex-1 text-sm" aria-label="Тренування з годинника">

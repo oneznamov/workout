@@ -9,6 +9,7 @@ import { normalizeGoals } from "./goals";
 import { getMetricSeries, listHealthWorkouts } from "./health";
 import { MEASURES } from "./measurements";
 import { ageOn, normalizeProfile, personName } from "./profile";
+import { readiness } from "./readiness";
 import { programsForContext } from "./programs";
 import { setText } from "./set-text";
 import { notableVitals } from "./vitals";
@@ -55,6 +56,7 @@ export async function getAthleteContext(userId: string, opts: { history?: number
   const profile = normalizeProfile(u?.profile);
   const targets = normalizeGoals(u?.goals);
   const progress = await goalProgress(userId, profile);
+  const ready = readiness(vitals, today);
   const lastWeight = weight.at(-1);
 
   type Full = (typeof recent)[number];
@@ -131,6 +133,15 @@ export async function getAthleteContext(userId: string, opts: { history?: number
       ),
     },
     recovery: {
+      // Today's readiness — read this first when planning or adjusting today's or tomorrow's session.
+      today: {
+        level: ready.level,
+        last_night_sleep_hours: ready.lastNight != null ? round1(ready.lastNight) : null,
+        usual_sleep_hours: ready.usual != null ? round1(ready.usual) : null,
+        last_three_nights_avg_hours: ready.lastThree != null ? round1(ready.lastThree) : null,
+        signs: ready.reasons,
+      },
+      sleep_by_night_hours: Object.fromEntries(vitals.filter((v) => v.metric === "sleep_analysis").slice(-10).map((v) => [v.day, round1(v.value)])),
       apple_health_last_4_weeks: Object.fromEntries(
         VITALS.flatMap(([metric, unit]) => {
           const rows = vitals.filter((v) => v.metric === metric);

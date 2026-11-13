@@ -80,23 +80,23 @@ async function Content({ searchParams }: PageProps<"/workouts">) {
             ))}
           </Section>
         )}
+        {/* Nothing ahead yet: one line instead of empty boxes. */}
+        {active.length + planned.length + currentPrograms.length === 0 && (
+          <p className="text-sm text-muted">Заплановані тренування й програми зʼявляться тут — додайте їх кнопками «Запланувати» або «Створити».</p>
+        )}
         {/* Programmes: stages the planned workouts belong to. */}
+        {currentPrograms.length + pastPrograms.length > 0 && (
         <section>
           <SectionTitle action={<NewProgramButton ai={Boolean(ai)} />}>
             <span className="flex items-center gap-2">
               <Route size={20} className="text-accent" /> Програми
             </span>
           </SectionTitle>
-          {currentPrograms.length ? (
+          {currentPrograms.length > 0 && (
             <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
               {currentPrograms.map((p) => (
                 <ProgramCard key={p.id} p={p} today={today} />
               ))}
-            </div>
-          ) : (
-            <div className="rounded-[20px] border border-dashed border-line p-5 text-center text-sm text-muted">
-              Програма — це етап із метою й очікуваним результатом: наприклад, вступний місяць, а далі складніший.
-              {ai ? " Попросіть у «Скласти з ШІ» програму на кілька тижнів або створіть свою." : " Створіть свою або попросіть Claude."}
             </div>
           )}
           {pastPrograms.length > 0 && (
@@ -111,26 +111,23 @@ async function Content({ searchParams }: PageProps<"/workouts">) {
             </div>
           )}
         </section>
+        )}
 
         {/* Ahead: outlined date cards. Behind: a filled table (cards on the phone). The two never look alike. */}
+        {planned.length > 0 && (
         <section>
           <SectionTitle>
             <span className="flex items-center gap-2">
               <CalendarDays size={20} className="text-accent" /> Заплановані
             </span>
           </SectionTitle>
-          {planned.length ? (
-            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
-              {planned.map((w) => (
-                <PlannedCard key={w.id} w={w} sick={sick} />
-              ))}
-            </div>
-          ) : (
-            <div className="rounded-[20px] border border-dashed border-line p-6 text-center text-sm text-muted">
-              Запланованих тренувань немає. Створіть самі{ai ? ", натисніть «Скласти з ШІ»" : ""} або попросіть Claude скласти план.
-            </div>
-          )}
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
+            {planned.map((w) => (
+              <PlannedCard key={w.id} w={w} sick={sick} />
+            ))}
+          </div>
         </section>
+        )}
         {templates.length > 0 && (
           <section>
             <SectionTitle>

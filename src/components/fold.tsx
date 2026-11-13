@@ -5,14 +5,15 @@ import { ChevronDown } from "lucide-react";
 import { cx } from "@/lib/format";
 
 /** Whether a card is folded; remembered on this device under `key`, for every place the card appears. */
-export function useFold(key: string) {
-  const [folded, setFolded] = useState(false);
+export function useFold(key: string, startFolded = false) {
+  const [folded, setFolded] = useState(startFolded);
   useEffect(() => {
     void Promise.resolve().then(() => {
       try {
-        setFolded(localStorage.getItem(key) === "1");
+        const saved = localStorage.getItem(key);
+        if (saved != null) setFolded(saved === "1");
       } catch {
-        /* storage blocked — stay open */
+        /* storage blocked — keep the default */
       }
     });
   }, [key]);
@@ -40,8 +41,11 @@ export function Fold({
   summary,
   aside,
   className,
+  startFolded,
   children,
 }: {
+  /** folded until the athlete opens it for the first time */
+  startFolded?: boolean;
   /** storage key suffix: one fold state per kind of card */
   id: string;
   title: ReactNode;
@@ -55,7 +59,7 @@ export function Fold({
   className?: string;
   children: ReactNode;
 }) {
-  const [folded, toggle] = useFold(`wk:fold:${id}`);
+  const [folded, toggle] = useFold(`wk:fold:${id}`, startFolded);
   return (
     <section className={cx(className ?? "card", "p-4")}>
       <button onClick={toggle} aria-expanded={!folded} className={cx("flex w-full items-center gap-2 text-left text-[15px] font-semibold", tone)}>

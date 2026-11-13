@@ -483,3 +483,41 @@ describe("expected effort and names", () => {
     expect(photoUrl("u1", normalizeProfile({}))).toBeNull();
   });
 });
+
+describe("readiness from sleep", () => {
+  const night = (day: string, value: number) => ({ metric: "sleep_analysis", day, value });
+  const usual = ["2026-11-06", "2026-11-07", "2026-11-08", "2026-11-09", "2026-11-10", "2026-11-11"].map((d) => night(d, 7.5));
+
+  it("calls a night two hours under the usual a poor one and asks for a lighter day", async () => {
+    const { readiness, needsLighter, lightenRequest, fmtHours } = await import("@/lib/readiness");
+    const r = readiness([...usual, night("2026-11-12", 5.2)], "2026-11-12");
+    expect(r.level).toBe("poor");
+    expect(needsLighter(r)).toBe(true);
+    expect(r.reasons[0]).toContain("спали 5 год 12 хв");
+    expect(r.reasons[0]).toContain("менше звичного");
+    expect(lightenRequest(r)).toContain("спали 5 год 12 хв");
+    expect(fmtHours(7)).toBe("7 год");
+  });
+
+  it("tells short from normal from rested, and stays silent without last night's data", async () => {
+    const { readiness } = await import("@/lib/readiness");
+    expect(readiness([...usual, night("2026-11-12", 6.3)], "2026-11-12").level).toBe("short");
+    expect(readiness([...usual, night("2026-11-12", 7.1)], "2026-11-12").level).toBe("normal");
+    expect(readiness([...usual, night("2026-11-12", 8)], "2026-11-12").level).toBe("rested");
+    expect(readiness(usual, "2026-11-12").level).toBe("unknown");
+  });
+
+  it("lets a raised resting pulse turn a normal night into a day to go easier", async () => {
+    const { readiness } = await import("@/lib/readiness");
+    const pulse = ["2026-11-08", "2026-11-09", "2026-11-10", "2026-11-11"].map((day) => ({ metric: "resting_heart_rate", day, value: 58 }));
+    const r = readiness([...usual, night("2026-11-12", 7.1), ...pulse, { metric: "resting_heart_rate", day: "2026-11-12", value: 67 }], "2026-11-12");
+    expect(r.level).toBe("short");
+    expect(r.reasons.join(" ")).toContain("пульс спокою 67");
+  });
+
+  it("counts several short nights in a row even when the last one was passable", async () => {
+    const { readiness } = await import("@/lib/readiness");
+    const rows = [night("2026-11-07", 7.4), night("2026-11-08", 7.6), night("2026-11-09", 7.5), night("2026-11-10", 5.4), night("2026-11-11", 5.5), night("2026-11-12", 6.4)];
+    expect(readiness(rows, "2026-11-12").level).toBe("short");
+  });
+});

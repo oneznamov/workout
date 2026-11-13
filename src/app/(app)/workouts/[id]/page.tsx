@@ -5,6 +5,8 @@ import { WorkoutEditor } from "@/components/workout/editor";
 import { getAiState, getWorkoutNote } from "@/lib/ai";
 import { getWorkoutRecords } from "@/lib/analytics";
 import { getProgram } from "@/lib/programs";
+import { lightenRequest, needsLighter } from "@/lib/readiness";
+import { getReadiness } from "@/lib/recovery";
 import { requireUserId } from "@/lib/auth";
 import { addDays, dayOf } from "@/lib/format";
 import { listHealthWorkouts } from "@/lib/health";
@@ -33,12 +35,15 @@ async function Content({ params }: PageProps<"/workouts/[id]">) {
     workout.status === "completed" ? getWorkoutRecords(userId, workout.id) : [],
     workout.programId ? getProgram(userId, workout.programId).catch(() => null) : null,
   ]);
+  // A workout planned for today after a short night: offer to make it lighter.
+  const ready = workout.status === "planned" && workout.scheduledFor === dayOf() ? await getReadiness(userId) : null;
 
   return (
     <WorkoutEditor
       key={workout.id}
       ai={ai ? { auto: ai.auto, note } : undefined}
       program={program ? { id: program.id, name: program.name } : undefined}
+      readiness={ready && needsLighter(ready) ? { label: `Сьогодні ${ready.reasons.join("; ")}. ${ready.advice}`, request: lightenRequest(ready) } : undefined}
       records={records.map((r) => ({ name: r.name, now: `${r.weight} кг × ${r.reps}`, before: `${r.before.weight} кг × ${r.before.reps}` }))}
       initial={toClientWorkout(workout)}
       last={toClientLast(last)}

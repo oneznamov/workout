@@ -2,9 +2,10 @@
 
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
-import { CalendarPlus, LayoutTemplate, Pencil, Play, Plus, Sparkles } from "lucide-react";
+import { CalendarPlus, LayoutTemplate, Pencil, Play, Plus, Route, Sparkles } from "lucide-react";
 import type { WorkoutStatus } from "@/db/schema";
 import { PlanWithAi } from "@/components/ai";
+import { NewProgramButton } from "@/components/programs";
 import { hardNavigate, newWorkout, pushWorkout, writeLocal } from "@/lib/client/offline";
 import { ActionSheet } from "./parts";
 import { PlanSheet } from "./plan-sheet";
@@ -17,7 +18,7 @@ import { PlanSheet } from "./plan-sheet";
 export function NewWorkoutButtons({ compact, localOnly, ai }: { compact?: boolean; localOnly?: boolean; ai?: boolean }) {
   const router = useRouter();
   const [pending, start] = useTransition();
-  const [sheet, setSheet] = useState<"plan" | "create" | "ai" | null>(null);
+  const [sheet, setSheet] = useState<"plan" | "create" | "ai" | "program" | null>(null);
   const create = (status: WorkoutStatus) =>
     start(async () => {
       const w = newWorkout(status);
@@ -54,10 +55,12 @@ export function NewWorkoutButtons({ compact, localOnly, ai }: { compact?: boolea
             { label: "Тренування — скласти самому", icon: <Pencil size={19} />, onSelect: () => create("planned") },
             ...(ai ? [{ label: "Тренування або програму — з ШІ", icon: <Sparkles size={19} className="text-body" />, onSelect: () => setSheet("ai") }] : []),
             { label: "Шаблон для повторення", icon: <LayoutTemplate size={19} />, onSelect: () => create("template") },
+            { label: "Програму на кілька тижнів", icon: <Route size={19} />, onSelect: () => setSheet("program") },
           ]}
         />
       )}
       {sheet === "ai" && <PlanWithAi startOpen onClosed={() => setSheet(null)} />}
+      {sheet === "program" && <NewProgramButton startOpen ai={ai} onClosed={() => setSheet(null)} />}
     </div>
   );
 }
