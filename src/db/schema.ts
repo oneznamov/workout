@@ -243,6 +243,8 @@ export const programs = pgTable(
     description: text("description").notNull().default(""),
     /** What the athlete should reach by the end — lets progress be compared with the plan. */
     forecast: text("forecast").notNull().default(""),
+    /** Ids of the athlete's goals (profile.goals) this programme works toward. */
+    goalIds: jsonb("goal_ids").$type<string[]>().notNull().default([]),
     startsOn: date("starts_on").notNull(),
     endsOn: date("ends_on").notNull(),
     createdAt: createdAt(),

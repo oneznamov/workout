@@ -10,6 +10,7 @@ import { getAthleteContext, setText } from "./athlete-context";
 import { getTrainingAnalytics } from "./analytics";
 import { featureOn } from "./config";
 import { seal, unseal } from "./crypto";
+import { goalLine, linkedGoals, normalizeProfile } from "./profile";
 import { logError } from "./errors";
 import { addDays, dayOf } from "./format";
 import { normalizeGoals } from "./goals";
@@ -408,7 +409,7 @@ ${PLAN_SHAPE.slice(PLAN_SHAPE.indexOf('"exercises": [{') + '"exercises": ['.leng
  * ("three this week", "tomorrow legs", "Mon, Wed, Fri") how many and when — and plans a
  * single workout for today when the request says nothing about days.
  */
-export type ProgramFrame = { name: string; description: string; forecast: string; startsOn: string; endsOn: string };
+export type ProgramFrame = { name: string; description: string; forecast: string; /** the goals the athlete tied the programme to */ goalIds?: string[]; startsOn: string; endsOn: string };
 
 export async function planProgram(userId: string, input: { wish?: string; days?: string[]; program?: ProgramFrame }) {
   const cfg = await getAiConfig(userId);
@@ -420,13 +421,18 @@ export async function planProgram(userId: string, input: { wish?: string; days?:
   const horizon = Array.from({ length: 49 }, (_, i) => addDays(today, i)).filter((d) => !frame || (d >= frame.startsOn && d <= frame.endsOn));
   if (frame && horizon.length === 0) throw new AiError("Програма має починатися не пізніше ніж за сім тижнів і закінчуватися не раніше ніж сьогодні.");
   const allowed = picked.length ? picked : horizon;
-  const [context, lib] = await Promise.all([athleteContext(userId), libraryText(userId)]);
+  const [context, lib, [me]] = await Promise.all([athleteContext(userId), libraryText(userId), db.select({ profile: users.profile }).from(users).where(eq(users.id, userId))]);
   const wish = input.wish?.trim().slice(0, 800);
+  // What the programme is for: the goals the athlete ticked in its form — or, when the AI is asked
+  // for a plan in free words, every goal that is still open.
+  const allGoals = normalizeProfile(me?.profile).goals;
+  const goals = frame?.goalIds?.length ? linkedGoals(allGoals, frame.goalIds) : allGoals.filter((g) => !g.done);
   const task = frame
     ? `The athlete is setting up a training programme and asks you to fill it with workouts.
 Name: "${frame.name}". It runs from ${frame.startsOn} to ${frame.endsOn}; plan workouts on dates from ${horizon[0]} to ${horizon.at(-1)} (at most ${PROGRAM_MAX_WORKOUTS}).
-Purpose, in their words: ${frame.description.trim() || "not written down — work it out from their goals"}.
-Expected result, in their words: ${frame.forecast.trim() || "not written down — state a realistic one in \"forecast\""}.
+Goals the athlete tied this programme to: ${goals.map(goalLine).join("; ") || "none chosen — work from what you know about them"}. Build every week toward these goals first; anything else is secondary.
+Notes from the athlete: ${frame.description.trim() || "none"}.
+${frame.forecast.trim() ? `Expected result, in their words: ${frame.forecast.trim()}.` : `In "forecast" say, goal by goal, where the athlete can realistically stand when the programme ends — with numbers — and be honest when a goal needs longer than this programme.`}
 Decide how many sessions a week fit their experience, goals and schedule (usually two to four), keep the same weekdays from week to week, and build progression across the weeks. Keep the programme's name as given.`
     : picked.length
     ? `Plan one workout for each of these days: ${picked.join(", ")}.`
@@ -444,13 +450,13 @@ ${wish ? `The athlete's request, in their own words: ${wish}` : "The athlete gav
   const programme = frame
     ? await createProgram(
         userId,
-        { name: frame.name.trim() || program.name || "Програма", description: frame.description.trim() || program.notes, forecast: frame.forecast.trim() || program.forecast, startsOn: frame.startsOn, endsOn: frame.endsOn },
+        { name: frame.name.trim() || program.name || "Програма", description: frame.description.trim() || program.notes, forecast: frame.forecast.trim() || program.forecast, goalIds: goals.map((g) => g.id), startsOn: frame.startsOn, endsOn: frame.endsOn },
         "ai",
       )
     : program.workouts.length > 1
       ? await createProgram(
           userId,
-          { name: program.name || "Програма", description: program.notes, forecast: program.forecast, startsOn: program.workouts[0].date, endsOn: program.workouts.at(-1)!.date },
+          { name: program.name || "Програма", description: program.notes, forecast: program.forecast, goalIds: goals.map((g) => g.id), startsOn: program.workouts[0].date, endsOn: program.workouts.at(-1)!.date },
           "ai",
         )
       : null;

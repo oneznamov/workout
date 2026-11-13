@@ -1,0 +1,1 @@
+ALTER TABLE "programs" ADD COLUMN "goal_ids" jsonb DEFAULT '[]'::jsonb NOT NULL;

@@ -2,7 +2,8 @@
 
 import { useRouter } from "next/navigation";
 import { useEffect, useState, useTransition } from "react";
-import { Camera, Check, CirclePause, Plus, Trash2 } from "lucide-react";
+import Link from "next/link";
+import { Camera, Check, CirclePause, Plus, Route, Trash2 } from "lucide-react";
 import { saveAvatarAction, saveProfileAction, setSickAction } from "@/lib/ai-actions";
 import { Avatar } from "./avatar";
 import { cx } from "@/lib/format";
@@ -45,7 +46,18 @@ export function GoalBar({ goal, progress }: { goal: Goal; progress?: GoalProgres
   );
 }
 
-export function GoalsEditor({ initial, progress = {}, exercises = [] }: { initial: Profile; progress?: GoalProgressView; exercises?: { id: string; name: string }[] }) {
+export function GoalsEditor({
+  initial,
+  progress = {},
+  exercises = [],
+  programs = [],
+}: {
+  initial: Profile;
+  progress?: GoalProgressView;
+  exercises?: { id: string; name: string }[];
+  /** current and coming programmes — to say which of them a goal belongs to */
+  programs?: { id: string; name: string; goalIds: string[] }[];
+}) {
   const router = useRouter();
   const [profile, setProfile] = useState(initial);
   const [saved, setSaved] = useState(true);
@@ -66,6 +78,18 @@ export function GoalsEditor({ initial, progress = {}, exercises = [] }: { initia
       <ul className="space-y-3">
         {profile.goals.map((g) => (
           <li key={g.id} className={cx("space-y-2 rounded-2xl bg-surface-2 p-3", g.done && "opacity-60")}>
+            {programs.some((p) => p.goalIds.includes(g.id)) && (
+              <p className="flex flex-wrap items-center gap-x-1.5 text-xs text-muted">
+                <Route size={12} className="text-accent" /> У програмі:
+                {programs
+                  .filter((p) => p.goalIds.includes(g.id))
+                  .map((p) => (
+                    <Link key={p.id} href={`/programs/${p.id}`} className="font-semibold text-accent">
+                      {p.name}
+                    </Link>
+                  ))}
+              </p>
+            )}
             <div className="flex items-center gap-2">
               <button
                 type="button"

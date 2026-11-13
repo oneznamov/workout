@@ -63,6 +63,7 @@ const program = z.object({
   name: z.string().trim().min(1).max(80),
   description: z.string().max(2000).catch(""),
   forecast: z.string().max(2000).catch(""),
+  goalIds: z.array(z.string().max(64)).max(12).catch([]),
   startsOn: day,
   endsOn: day,
   createdAt: stamp,

@@ -171,6 +171,18 @@ export function sickWeeks(profile: Pick<Profile, "sick" | "sickHistory">, today:
   return weeks;
 }
 
+/** The goals with these ids, in the profile's own order; ids of goals deleted since are ignored. */
+export function linkedGoals(goals: Goal[], ids: string[]): Goal[] {
+  const wanted = new Set(ids);
+  return goals.filter((g) => wanted.has(g.id));
+}
+
+/** A goal in one line for a prompt: what, the number to reach, by when. */
+export function goalLine(g: Goal): string {
+  const unit = g.metric?.kind === "measure" ? "cm" : "kg";
+  return `${g.title}${g.metric && g.target != null ? ` (target ${g.target} ${unit}${g.start != null ? `, started at ${g.start}` : ""})` : ""}${g.targetDate ? ` by ${g.targetDate}` : ""}${g.done ? " — already achieved" : ""}`;
+}
+
 /** The profile as plain text for a prompt. */
 export function profileText(p: Profile): string {
   const lines: string[] = [];

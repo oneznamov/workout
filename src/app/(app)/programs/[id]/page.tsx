@@ -2,13 +2,15 @@ import { Suspense } from "react";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { RevisionList } from "@/components/program-card";
+import { GoalBar } from "@/components/profile";
 import { ProgramActions } from "@/components/programs";
 import { Card, PageSkeleton } from "@/components/ui";
 import { WorkoutRow } from "@/components/workout/workout-row";
 import { getAiState } from "@/lib/ai";
 import { getUser } from "@/lib/auth";
-import { dayOf, fmtDate, plural } from "@/lib/format";
-import { normalizeProfile } from "@/lib/profile";
+import { cx, dayOf, fmtDate, plural } from "@/lib/format";
+import { goalProgress } from "@/lib/goal-progress";
+import { linkedGoals, normalizeProfile } from "@/lib/profile";
 import { PROGRAM_STATUS_LABEL, programStatus, programWeek, programWeeks } from "@/lib/program-logic";
 import { getProgram } from "@/lib/programs";
 import { listWorkouts, NotFoundError } from "@/lib/workouts";
@@ -25,7 +27,11 @@ async function Content({ params }: PageProps<"/programs/[id]">) {
   });
   const [items, ai] = await Promise.all([listWorkouts(user.id, { programId: id, limit: 200 }), getAiState(user.id)]);
   const today = dayOf();
-  const sick = Boolean(normalizeProfile(user.profile).sick);
+  const profile = normalizeProfile(user.profile);
+  const sick = Boolean(profile.sick);
+  // What the programme is for: the athlete's goals it is tied to, each with its progress so far.
+  const goals = linkedGoals(profile.goals, program.goalIds);
+  const progress = goals.some((g) => g.metric) ? await goalProgress(user.id, { ...profile, goals }) : {};
   const status = programStatus(program, today);
   const dayOfWorkout = (w: (typeof items)[number]) => (w.startedAt ? dayOf(w.startedAt) : (w.scheduledFor ?? program.endsOn));
   const list = items.filter((w) => w.status !== "template").sort((a, b) => dayOfWorkout(a).localeCompare(dayOfWorkout(b)));
@@ -66,13 +72,39 @@ async function Content({ params }: PageProps<"/programs/[id]">) {
               <div className="h-full rounded-full bg-accent" style={{ width: `${pct}%` }} />
             </div>
           </Card>
+          <Card
+            title="Цілі програми"
+            action={
+              <Link href="/profile" className="text-xs text-accent">
+                Усі цілі →
+              </Link>
+            }
+          >
+            {goals.length > 0 ? (
+              <ul className="space-y-3.5">
+                {goals.map((g) => (
+                  <li key={g.id} className="space-y-1.5">
+                    <div className="flex items-baseline justify-between gap-3">
+                      <span className={cx("min-w-0 text-[15px] font-semibold", g.done && "text-muted line-through")}>{g.title}</span>
+                      {g.done ? <span className="shrink-0 text-xs font-semibold text-good">досягнуто</span> : g.targetDate && <span className="shrink-0 text-xs text-muted">до {fmtDate(g.targetDate)}</span>}
+                    </div>
+                    {g.details && <p className="text-sm text-ink-2">{g.details}</p>}
+                    <GoalBar goal={g} progress={progress[g.id]} />
+                    {(!g.metric || g.target == null) && !g.done && <p className="text-xs text-muted">Без числа прогрес не рахується — додайте його в Профілі.</p>}
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <p className="text-sm text-muted">Програма ще не привʼязана до цілей. Позначте їх у «Змінити програму» → редагування.</p>
+            )}
+          </Card>
           {program.description && (
-            <Card title="Для чого ця програма">
+            <Card title="Примітки">
               <p className="text-[15px] leading-relaxed whitespace-pre-line text-ink-2">{program.description}</p>
             </Card>
           )}
           {program.forecast && (
-            <Card title="Очікуваний результат" tone="text-activity">
+            <Card title="Прогноз на кінець програми" tone="text-activity">
               <p className="text-[15px] leading-relaxed whitespace-pre-line text-ink-2">{program.forecast}</p>
             </Card>
           )}
@@ -80,7 +112,7 @@ async function Content({ params }: PageProps<"/programs/[id]">) {
             <ProgramActions
               id={program.id}
               ai={Boolean(ai)}
-              initial={{ name: program.name, description: program.description, forecast: program.forecast, startsOn: program.startsOn, endsOn: program.endsOn }}
+              initial={{ name: program.name, description: program.description, forecast: program.forecast, goalIds: program.goalIds, startsOn: program.startsOn, endsOn: program.endsOn }}
             />
           </Card>
           <Card title="Історія змін">

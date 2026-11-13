@@ -19,6 +19,7 @@ import { completePasswordReset, createPasswordReset } from "./resets";
 import * as health from "./health";
 import * as programs from "./programs";
 import { isMeasure } from "./measurements";
+import { normalizeProfile, PROFILE_LIMITS } from "./profile";
 import * as team from "./team";
 import * as wk from "./workouts";
 import type { ExerciseInput, SetInput } from "./workouts";
@@ -302,9 +303,31 @@ const programFields = z.object({
   name: z.string().trim().min(1).max(80),
   description: z.string().max(2000).default(""),
   forecast: z.string().max(2000).default(""),
+  goalIds: z.array(z.string().max(64)).max(PROFILE_LIMITS.goals).default([]),
   startsOn: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
   endsOn: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
 });
+
+/** The athlete's goals, for choosing which of them a programme works toward. */
+export async function programGoalsAction() {
+  const userId = await requireUserId();
+  const [u] = await db.select({ profile: users.profile }).from(users).where(eq(users.id, userId));
+  return normalizeProfile(u?.profile).goals.filter((g) => g.title.trim()).map((g) => ({ id: g.id, title: g.title, targetDate: g.targetDate, done: g.done }));
+}
+export type ProgramGoal = Awaited<ReturnType<typeof programGoalsAction>>[number];
+
+/** Writes down a new goal by its title alone, straight from the programme form; the details are added in the profile. */
+export async function addGoalAction(title: string): Promise<ProgramGoal | null> {
+  const userId = await requireUserId();
+  const name = title.trim().slice(0, PROFILE_LIMITS.title);
+  if (!name) return null;
+  const [u] = await db.select({ profile: users.profile }).from(users).where(eq(users.id, userId));
+  const profile = normalizeProfile(u?.profile);
+  if (profile.goals.length >= PROFILE_LIMITS.goals) return null;
+  const goal = { id: crypto.randomUUID(), title: name, details: "", targetDate: null, done: false, metric: null, target: null, start: null };
+  await db.update(users).set({ profile: { ...profile, goals: [...profile.goals, goal] } }).where(eq(users.id, userId));
+  return { id: goal.id, title: goal.title, targetDate: null, done: false };
+}
 
 export async function createProgramAction(input: z.input<typeof programFields>) {
   const userId = await requireUserId();

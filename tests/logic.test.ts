@@ -602,3 +602,21 @@ describe("mood and note of a workout", () => {
     expect(normalizeComment("а".repeat(500))).toHaveLength(COMMENT_MAX);
   });
 });
+
+describe("goals a programme works toward", () => {
+  const goal = (id: string, title: string, extra: object = {}) => ({ id, title, details: "", targetDate: null, done: false, metric: null, target: null, start: null, ...extra });
+
+  it("finds the linked goals in the profile's order and ignores ones deleted since", async () => {
+    const { linkedGoals } = await import("@/lib/profile");
+    const goals = [goal("a", "Присід 100 кг"), goal("b", "Схуднути"), goal("c", "Підтягування")];
+    expect(linkedGoals(goals, ["c", "a", "gone"]).map((g) => g.id)).toEqual(["a", "c"]);
+    expect(linkedGoals(goals, [])).toEqual([]);
+  });
+
+  it("puts a goal into one line for the planner: what, how much, by when", async () => {
+    const { goalLine } = await import("@/lib/profile");
+    expect(goalLine(goal("a", "Присід", { metric: { kind: "exercise", exerciseId: "x", name: "Squat" }, target: 100, start: 80, targetDate: "2027-03-01" }))).toBe("Присід (target 100 kg, started at 80) by 2027-03-01");
+    expect(goalLine(goal("b", "Талія", { metric: { kind: "measure", key: "m_waist" }, target: 80 }))).toBe("Талія (target 80 cm)");
+    expect(goalLine(goal("c", "Більше енергії"))).toBe("Більше енергії");
+  });
+});

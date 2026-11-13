@@ -1,13 +1,16 @@
 import "server-only";
 import { and, asc, desc, eq, gte, inArray, sql } from "drizzle-orm";
 import { db } from "@/db";
-import { programRevisions, programs, workouts, type ProgramSnapshot } from "@/db/schema";
+import { programRevisions, programs, users, workouts, type ProgramSnapshot } from "@/db/schema";
 import { setText } from "./set-text";
 import { addDays, dayOf } from "./format";
+import { goalLine, linkedGoals, normalizeProfile, PROFILE_LIMITS, type Goal } from "./profile";
 import { NotFoundError } from "./workouts";
 
 export type RevisionSource = "manual" | "ai" | "claude";
-export type ProgramInput = { name: string; description?: string; forecast?: string; startsOn: string; endsOn: string };
+export type ProgramInput = { name: string; description?: string; forecast?: string; /** ids of the goals it serves */ goalIds?: string[]; startsOn: string; endsOn: string };
+
+const cleanGoalIds = (ids: unknown): string[] => [...new Set(Array.isArray(ids) ? ids.filter((x): x is string => typeof x === "string" && x.length > 0 && x.length <= 64) : [])].slice(0, PROFILE_LIMITS.goals);
 
 const isDay = (d: unknown): d is string => typeof d === "string" && /^\d{4}-\d{2}-\d{2}$/.test(d);
 
@@ -18,6 +21,7 @@ function clean(input: ProgramInput) {
     name: input.name.trim().slice(0, 80) || "Програма",
     description: (input.description ?? "").trim().slice(0, 2000),
     forecast: (input.forecast ?? "").trim().slice(0, 2000),
+    goalIds: cleanGoalIds(input.goalIds),
     startsOn,
     endsOn,
   };
@@ -71,7 +75,7 @@ export async function createProgram(userId: string, input: ProgramInput, source:
 
 export async function updateProgram(userId: string, id: string, patch: Partial<ProgramInput>, source: RevisionSource, summary: string) {
   const p = await own(userId, id);
-  const next = clean({ name: patch.name ?? p.name, description: patch.description ?? p.description, forecast: patch.forecast ?? p.forecast, startsOn: patch.startsOn ?? p.startsOn, endsOn: patch.endsOn ?? p.endsOn });
+  const next = clean({ name: patch.name ?? p.name, description: patch.description ?? p.description, forecast: patch.forecast ?? p.forecast, goalIds: patch.goalIds ?? p.goalIds, startsOn: patch.startsOn ?? p.startsOn, endsOn: patch.endsOn ?? p.endsOn });
   await db.update(programs).set({ ...next, updatedAt: new Date() }).where(eq(programs.id, id));
   await addRevision(userId, id, source, summary);
 }
@@ -127,13 +131,22 @@ export async function getProgram(userId: string, id: string) {
   return { ...p, revisions };
 }
 
+/** The athlete's goals a programme is tied to, in the order they are written in the profile. Goals deleted since are skipped. */
+export async function programGoals(userId: string, goalIds: string[]): Promise<Goal[]> {
+  if (goalIds.length === 0) return [];
+  const [u] = await db.select({ profile: users.profile }).from(users).where(eq(users.id, userId));
+  return linkedGoals(normalizeProfile(u?.profile).goals, goalIds);
+}
+
 /** The programme as text for a prompt: what it is for, what has been done in it, what is still planned. */
 export async function programText(userId: string, id: string) {
   const s = await snapshot(userId, id);
+  const goals = await programGoals(userId, (await own(userId, id)).goalIds);
   const line = (w: ProgramSnapshot["workouts"][number]) => `  ${w.date ?? "no date"} · ${w.name}\n${w.exercises.map((e) => `    ${e}`).join("\n")}`;
   const done = s.workouts.filter((w) => w.status === "completed");
   const ahead = s.workouts.filter((w) => w.status === "planned");
   return `Programme "${s.name}" (${s.startsOn} … ${s.endsOn})
+Goals it serves: ${goals.map(goalLine).join("; ") || "none chosen"}
 Purpose: ${s.description || "not written down"}
 Expected result: ${s.forecast || "not written down"}
 Done so far (${done.length}):
@@ -152,6 +165,7 @@ export async function programsForContext(userId: string) {
       from: p.startsOn,
       to: p.endsOn,
       state: today < p.startsOn ? "upcoming" : today > p.endsOn ? "finished" : "current",
+      goalIds: p.goalIds,
       purpose: p.description || undefined,
       expected_result: p.forecast || undefined,
       workouts_done: p.done,

@@ -78,7 +78,7 @@ export async function importData(userId: string, data: ImportData): Promise<Impo
     }
     const newId = p.id && !taken ? p.id : randomUUID();
     if (p.id) programMap.set(p.id, newId);
-    await db.insert(programs).values({ id: newId, userId, name: p.name, description: p.description, forecast: p.forecast, startsOn: p.startsOn, endsOn: p.endsOn < p.startsOn ? p.startsOn : p.endsOn, ...(date(p.createdAt) ? { createdAt: date(p.createdAt)! } : {}) });
+    await db.insert(programs).values({ id: newId, userId, name: p.name, description: p.description, forecast: p.forecast, goalIds: p.goalIds ?? [], startsOn: p.startsOn, endsOn: p.endsOn < p.startsOn ? p.startsOn : p.endsOn, ...(date(p.createdAt) ? { createdAt: date(p.createdAt)! } : {}) });
     const revisions = p.revisions.filter((r) => r.snapshot && typeof r.snapshot === "object" && Array.isArray((r.snapshot as { workouts?: unknown }).workouts));
     for (const part of chunks(revisions, 100)) {
       await db.insert(programRevisions).values(part.map((r) => ({ programId: newId, source: r.source, summary: r.summary, snapshot: r.snapshot as ProgramSnapshot, ...(date(r.createdAt) ? { createdAt: date(r.createdAt)! } : {}) })));

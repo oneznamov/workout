@@ -1,19 +1,112 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useState, useTransition } from "react";
-import { History, Pencil, Plus, Route, Sparkles, Trash2, X } from "lucide-react";
-import { addProgramWorkoutAction, createProgramAction, deleteProgramAction, saveProgramVersionAction, updateProgramAction } from "@/lib/actions";
+import { useEffect, useRef, useState, useTransition } from "react";
+import { Check, History, Pencil, Plus, Route, Sparkles, Trash2, X } from "lucide-react";
+import { addGoalAction, addProgramWorkoutAction, createProgramAction, deleteProgramAction, programGoalsAction, saveProgramVersionAction, updateProgramAction, type ProgramGoal } from "@/lib/actions";
 import { planProgramAction, reviseProgramAction } from "@/lib/ai-actions";
 import { useLockScroll } from "@/lib/client/lock-scroll";
-import { addDays, cx, dayOf } from "@/lib/format";
+import { addDays, cx, dayOf, fmtDate } from "@/lib/format";
 import { AiPromptDialog } from "./ai";
 import { AI_STEPS, AiWorking } from "./ai-working";
 
-type Fields = { name: string; description: string; forecast: string; startsOn: string; endsOn: string };
+type Fields = { name: string; description: string; forecast: string; goalIds: string[]; startsOn: string; endsOn: string };
 const SHEET = "w-full max-w-md space-y-4 rounded-t-[28px] bg-surface p-5 pb-[calc(1.25rem+env(safe-area-inset-bottom))] md:rounded-[28px] md:pb-5";
 
-function ProgramFields({ value, onChange }: { value: Fields; onChange: (v: Fields) => void }) {
+/**
+ * Which of the athlete's goals the programme works toward. The goals themselves live in the
+ * profile; here they are only ticked — or a new one is written down by its title on the spot.
+ */
+function GoalPicker({ value, onChange, preselect }: { value: string[]; onChange: (ids: string[]) => void; /** a new programme starts with every open goal ticked */ preselect?: boolean }) {
+  const [goals, setGoals] = useState<ProgramGoal[] | null>(null);
+  const [title, setTitle] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [refused, setRefused] = useState(false);
+  const change = useRef(onChange);
+  useEffect(() => {
+    change.current = onChange;
+  });
+  useEffect(() => {
+    let alive = true;
+    programGoalsAction().then(
+      (list) => {
+        if (!alive) return;
+        setGoals(list);
+        if (preselect) change.current(list.filter((g) => !g.done).map((g) => g.id));
+      },
+      () => alive && setGoals([]),
+    );
+    return () => {
+      alive = false;
+    };
+  }, [preselect]);
+  const add = async () => {
+    if (busy || !title.trim()) return;
+    setBusy(true);
+    setRefused(false);
+    const goal = await addGoalAction(title).catch(() => null);
+    setBusy(false);
+    if (!goal) return setRefused(true);
+    setGoals((list) => [...(list ?? []), goal]);
+    onChange([...value, goal.id]);
+    setTitle("");
+  };
+  // Achieved goals are offered only while they are still ticked.
+  const shown = (goals ?? []).filter((g) => !g.done || value.includes(g.id));
+  return (
+    <div className="space-y-2">
+      <div className="text-sm text-ink-2">На які цілі працює програма</div>
+      {goals === null ? (
+        <div className="h-11 animate-pulse rounded-xl bg-surface-2" />
+      ) : (
+        <ul className="space-y-1.5">
+          {shown.map((g) => {
+            const on = value.includes(g.id);
+            return (
+              <li key={g.id}>
+                <button
+                  type="button"
+                  role="checkbox"
+                  aria-checked={on}
+                  onClick={() => onChange(on ? value.filter((id) => id !== g.id) : [...value, g.id])}
+                  className="flex w-full items-center gap-2.5 rounded-xl bg-surface-2 px-3 py-2.5 text-left"
+                >
+                  <span className={cx("grid size-5 shrink-0 place-items-center rounded-md", on ? "bg-accent text-accent-ink" : "bg-surface-3")}>{on && <Check size={13} strokeWidth={3.5} />}</span>
+                  <span className={cx("min-w-0 flex-1 truncate text-[15px]", !on && "text-ink-2")}>{g.title}</span>
+                  {g.targetDate && <span className="shrink-0 text-xs text-muted">до {fmtDate(g.targetDate)}</span>}
+                </button>
+              </li>
+            );
+          })}
+        </ul>
+      )}
+      <div className="flex gap-2">
+        <input
+          value={title}
+          onChange={(e) => setTitle(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key !== "Enter") return;
+            // Enter adds the goal; it must not send the whole programme form.
+            e.preventDefault();
+            void add();
+          }}
+          maxLength={140}
+          placeholder={shown.length ? "Ще одна ціль" : "Ціль: напр. присід 100 кг"}
+          aria-label="Нова ціль"
+          className="field min-w-0 flex-1"
+        />
+        <button type="button" onClick={() => void add()} disabled={busy || !title.trim()} className="btn btn-ghost shrink-0 px-3.5">
+          <Plus size={17} /> Додати
+        </button>
+      </div>
+      <p className="text-xs text-muted">
+        {refused ? "Не вдалося додати: цілей уже забагато або немає звʼязку." : "Число й дату цілі вкажіть у Профілі — тоді на сторінці програми буде видно прогрес."}
+      </p>
+    </div>
+  );
+}
+
+function ProgramFields({ value, onChange, preselect }: { value: Fields; onChange: (v: Fields) => void; preselect?: boolean }) {
   return (
     <>
       <label className="block space-y-1.5">
@@ -30,13 +123,11 @@ function ProgramFields({ value, onChange }: { value: Fields; onChange: (v: Field
           <input type="date" value={value.endsOn} onChange={(e) => onChange({ ...value, endsOn: e.target.value })} required className="field" />
         </label>
       </div>
+      {/* What it is for is not typed a second time: the programme points at the goals. */}
+      <GoalPicker value={value.goalIds} onChange={(goalIds) => onChange({ ...value, goalIds })} preselect={preselect} />
       <label className="block space-y-1.5">
-        <span className="text-sm text-ink-2">Для чого ця програма</span>
-        <textarea value={value.description} onChange={(e) => onChange({ ...value, description: e.target.value })} rows={3} maxLength={2000} placeholder="Мета етапу і як він побудований" className="field resize-none text-[15px]" />
-      </label>
-      <label className="block space-y-1.5">
-        <span className="text-sm text-ink-2">Очікуваний результат</span>
-        <textarea value={value.forecast} onChange={(e) => onChange({ ...value, forecast: e.target.value })} rows={3} maxLength={2000} placeholder="Чого маєте досягти наприкінці: ваги, обʼєми, самопочуття" className="field resize-none text-[15px]" />
+        <span className="text-sm text-ink-2">Примітки (необовʼязково)</span>
+        <textarea value={value.description} onChange={(e) => onChange({ ...value, description: e.target.value })} rows={2} maxLength={2000} placeholder="Як побудувати, що врахувати: дні, обладнання, обмеження" className="field resize-none text-[15px]" />
       </label>
     </>
   );
@@ -51,7 +142,7 @@ export function NewProgramButton({ ai = false, startOpen = false, onClosed }: { 
   const [open, setOpen] = useState(startOpen);
   const [fields, setFields] = useState<Fields>(() => {
     const today = startOpen ? dayOf() : "";
-    return { name: "", description: "", forecast: "", startsOn: today, endsOn: today ? addDays(today, 27) : "" };
+    return { name: "", description: "", forecast: "", goalIds: [], startsOn: today, endsOn: today ? addDays(today, 27) : "" };
   });
   const close = () => {
     setOpen(false);
@@ -77,7 +168,7 @@ export function NewProgramButton({ ai = false, startOpen = false, onClosed }: { 
         <button
           onClick={() => {
             const today = dayOf();
-            setFields({ name: "", description: "", forecast: "", startsOn: today, endsOn: addDays(today, 27) });
+            setFields({ name: "", description: "", forecast: "", goalIds: [], startsOn: today, endsOn: addDays(today, 27) });
             setError(null);
             setOpen(true);
           }}
@@ -107,7 +198,7 @@ export function NewProgramButton({ ai = false, startOpen = false, onClosed }: { 
                 <X size={20} />
               </button>
             </div>
-            <ProgramFields value={fields} onChange={setFields} />
+            <ProgramFields value={fields} onChange={setFields} preselect />
             {error && (
               <p role="alert" className="text-sm text-critical">
                 {error}
@@ -121,7 +212,7 @@ export function NewProgramButton({ ai = false, startOpen = false, onClosed }: { 
             <button type="submit" disabled={pending} className={ai ? "btn btn-ghost w-full" : "btn btn-primary w-full"}>
               <Route size={17} /> {pending && !filling ? "Створюю…" : ai ? "Створити порожню" : "Створити програму"}
             </button>
-            {ai && <p className="text-xs text-muted">ШІ розкладе тренування на весь період з огляду на ваші цілі, показники й минулі тренування. Порожню програму наповнюєте самі.</p>}
+            {ai && <p className="text-xs text-muted">ШІ розкладе тренування на весь період під вибрані цілі, з огляду на ваші показники й минулі тренування. Порожню програму наповнюєте самі.</p>}
             </div>
           </form>
         </div>

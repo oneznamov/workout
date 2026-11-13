@@ -120,6 +120,13 @@
       "when": 1794572847788,
       "tag": "0016_soft_susan_delgado",
       "breakpoints": true
+    },
+    {
+      "idx": 17,
+      "version": "7",
+      "when": 1794576706468,
+      "tag": "0017_narrow_hedge_knight",
+      "breakpoints": true
     }
   ]
 }

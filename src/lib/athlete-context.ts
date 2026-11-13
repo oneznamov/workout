@@ -8,7 +8,7 @@ import { goalProgress } from "./goal-progress";
 import { normalizeGoals } from "./goals";
 import { getMetricSeries, listHealthWorkouts } from "./health";
 import { MEASURES } from "./measurements";
-import { ageOn, normalizeProfile, personName } from "./profile";
+import { ageOn, linkedGoals, normalizeProfile, personName } from "./profile";
 import { readiness } from "./readiness";
 import { programsForContext } from "./programs";
 import { setText } from "./set-text";
@@ -121,7 +121,8 @@ export async function getAthleteContext(userId: string, opts: { history?: number
           }
         : {}),
     })),
-    training_programmes: programmes,
+    // Each programme names the athlete's goals it was set up to reach.
+    training_programmes: programmes.map(({ goalIds, ...p }) => ({ ...p, goals: linkedGoals(profile.goals, goalIds).map((g) => g.title) })),
     weekly_targets: { strength_workouts: targets.workouts, cardio_minutes: targets.cardioMin, muscle_groups_trained_enough: targets.muscles },
     body: {
       weight_kg: lastWeight
