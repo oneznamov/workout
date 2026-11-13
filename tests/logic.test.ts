@@ -567,3 +567,24 @@ describe("readiness from sleep", () => {
     expect(readiness(rows, "2026-11-12").level).toBe("short");
   });
 });
+
+describe("training journal", () => {
+  it("groups sessions by week and day, newest first, in the order they happened within a day", async () => {
+    const { journalWeeks } = await import("@/lib/journal");
+    const e = (id: string, day: string, at: number) => ({ id, day, at });
+    const weeks = journalWeeks([e("a", "2026-11-03", 1), e("b", "2026-11-12", 5), e("c", "2026-11-08", 3), e("d", "2026-11-08", 2), e("e", "2026-11-10", 4)]);
+    expect(weeks.map((w) => w.monday)).toEqual(["2026-11-09", "2026-11-02"]);
+    expect(weeks[0].days.map((d) => d.day)).toEqual(["2026-11-12", "2026-11-10"]);
+    expect(weeks[1].days.map((d) => d.day)).toEqual(["2026-11-08", "2026-11-03"]);
+    expect(weeks[1].days[0].entries.map((x) => x.id)).toEqual(["d", "c"]);
+    expect(journalWeeks([])).toEqual([]);
+  });
+
+  it("names this week and the last one, and dates the earlier ones", async () => {
+    const { weekTitle } = await import("@/lib/journal");
+    expect(weekTitle("2026-11-09", "2026-11-13")).toBe("Цей тиждень");
+    expect(weekTitle("2026-11-02", "2026-11-13")).toBe("Минулий тиждень");
+    expect(weekTitle("2026-10-19", "2026-11-13")).toBe("19–25 жовтня");
+    expect(weekTitle("2026-09-28", "2026-11-13")).toBe("28 вересня – 4 жовтня");
+  });
+});

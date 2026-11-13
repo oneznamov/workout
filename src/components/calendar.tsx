@@ -7,10 +7,10 @@ import { calendarMonthAction } from "@/lib/actions";
 import type { DayItems } from "@/lib/calendar";
 import { dayState, mark, monthTitle, monthWeeks, NO_MARK, shiftMonth, type DayMark } from "@/lib/calendar-logic";
 import { addDays, cx, fmtDate, fmtNum, weekStart } from "@/lib/format";
-import { CardioRow } from "./cardio/cardio-row";
 import { DayDisc } from "./day-marks";
+import { JournalCardio, JournalDay, JournalWorkout } from "./journal";
 import { PlanSheet } from "./workout/plan-sheet";
-import { WorkoutRow } from "./workout/workout-row";
+import { PlannedCard } from "./workout/workout-row";
 
 const WEEKDAYS = ["Пн", "Вт", "Ср", "Чт", "Пт", "Сб", "Нд"];
 
@@ -75,11 +75,9 @@ export function MonthGrid({
 function DayEntries({ items }: { items: DayItems }) {
   return (
     <div className="grid gap-3">
-      {items.workouts.map((w) => (
-        <WorkoutRow key={w.id} w={w} />
-      ))}
+      {items.workouts.map((w) => (w.status === "planned" ? <PlannedCard key={w.id} w={w} /> : <JournalWorkout key={w.id} w={w} />))}
       {items.cardio.map((c) => (
-        <CardioRow key={c.id} s={c} />
+        <JournalCardio key={c.id} s={c} />
       ))}
     </div>
   );
@@ -263,14 +261,18 @@ export function CalendarView({ month: firstMonth, today, initialDay, days }: { m
             </div>
             <ol className="relative ml-2 space-y-4 border-l border-line pl-5">
               {rest.map((d) => (
-                <li key={d} className="relative">
-                  <span className={cx("absolute top-1.5 -left-[25px] size-2.5 rounded-full ring-4 ring-plane", d === today ? "bg-accent" : d < today ? "bg-surface-3" : "border border-accent/80 bg-plane")} aria-hidden="true" />
-                  <button onClick={() => open(d)} className="mb-2 flex items-baseline gap-2 text-sm font-semibold first-letter:uppercase">
-                    <span className="first-letter:uppercase">{fmtDate(d, { weekday: "long", day: "numeric", month: "long" })}</span>
-                    {d === today && <span className="font-normal text-accent">сьогодні</span>}
-                  </button>
+                <JournalDay
+                  key={d}
+                  day={d}
+                  today={today}
+                  label={
+                    <button onClick={() => open(d)} className="first-letter:uppercase">
+                      {fmtDate(d, { weekday: "long", day: "numeric", month: "long" })}
+                    </button>
+                  }
+                >
                   <DayEntries items={data[d]} />
-                </li>
+                </JournalDay>
               ))}
             </ol>
           </section>
