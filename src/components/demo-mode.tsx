@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect } from "react";
-import { BASE_PATH, REPO_URL } from "@/lib/demo";
+import { BASE_PATH, DEMO, REPO_URL } from "@/lib/demo";
 
 /**
  * Only in the static demo. There is no server there, so everything that would talk to one is
@@ -133,7 +133,9 @@ function install() {
   });
 }
 
-if (typeof window !== "undefined") install();
+// Only in the demo build. This file is also imported by the normal app (the error screen uses
+// isDemoError), where patching fetch would stop every save and every server action.
+if (DEMO && typeof window !== "undefined") install();
 
 export function DemoMode() {
   useEffect(() => {
