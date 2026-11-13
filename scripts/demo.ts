@@ -14,6 +14,7 @@ import { spawn, type ChildProcess } from "node:child_process";
 import { randomBytes } from "node:crypto";
 import { execFileSync } from "node:child_process";
 import { existsSync, readFileSync, rmSync } from "node:fs";
+import { resolve } from "node:path";
 import { buildDemo, OUT, previewDemo } from "./demo-build";
 
 function demoDatabaseUrl() {
@@ -40,10 +41,11 @@ const url = ["preview", "publish"].includes(process.argv[2]) ? "" : demoDatabase
  */
 function publish() {
   if (!existsSync(`${OUT}/index.html`)) throw new Error(`./${OUT} is empty — run \`pnpm demo:build\` first.`);
-  const index = ".git/demo-index";
+  const gitDir = execFileSync("git", ["rev-parse", "--absolute-git-dir"], { encoding: "utf8" }).trim();
+  const index = `${gitDir}/demo-index`;
   const git = (args: string[], env: Record<string, string> = {}) => execFileSync("git", args, { env: { ...process.env, ...env }, encoding: "utf8", maxBuffer: 1 << 28 }).trim();
   rmSync(index, { force: true });
-  git(["--work-tree", OUT, "add", "-A", "--force", "."], { GIT_INDEX_FILE: index });
+  execFileSync("git", ["add", "-A", "--force", "."], { cwd: OUT, env: { ...process.env, GIT_DIR: gitDir, GIT_WORK_TREE: resolve(OUT), GIT_INDEX_FILE: index } });
   const tree = git(["write-tree"], { GIT_INDEX_FILE: index });
   rmSync(index, { force: true });
   const commit = git(["commit-tree", tree, "-m", `Demo built from ${git(["rev-parse", "--short", "HEAD"])}`]);
