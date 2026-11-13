@@ -17,7 +17,8 @@ const QUICK: { label: string; request: string }[] = [
 /**
  * The one place a planned workout is changed from: by hand, or by telling the AI what is
  * different today — tap a ready-made wish, say it, or type it. `suggestion` is a wish the app
- * itself proposes (a short night, for instance).
+ * itself proposes: update the workout for today's state after last night (what exactly to
+ * change is left to the AI).
  */
 export function ChangeWorkout({
   ai,
@@ -27,7 +28,7 @@ export function ChangeWorkout({
 }: {
   /** whether an AI is connected */
   ai: boolean;
-  suggestion?: { label: string; request: string } | null;
+  suggestion?: { label: string; request: string; tone: "warning" | "good" } | null;
   onManual: () => void;
   /** resolves to an error text, or null when the workout was rebuilt */
   onAi: (request: string) => Promise<string | null>;
@@ -50,15 +51,15 @@ export function ChangeWorkout({
   };
   return (
     <section className="card space-y-3 p-3.5" aria-label="Змінити тренування">
-      {/* The app's own proposal (a short night): explained in a line, applied in one tap. */}
+      {/* The app's own proposal after last night: explained in a line, applied in one tap. */}
       {suggestion && (
-        <div className="space-y-2 rounded-2xl bg-warning/10 p-3 ring-1 ring-warning/30">
+        <div className={cx("space-y-2 rounded-2xl p-3 ring-1", suggestion.tone === "good" ? "bg-good/10 ring-good/30" : "bg-warning/10 ring-warning/30")}>
           <p className="flex items-start gap-2 text-sm text-ink-2">
-            <Moon size={16} className="mt-0.5 shrink-0 text-warning" /> <span>{suggestion.label}</span>
+            <Moon size={16} className={cx("mt-0.5 shrink-0", suggestion.tone === "good" ? "text-good" : "text-warning")} /> <span>{suggestion.label}</span>
           </p>
           {ai && (
             <button disabled={busy} onClick={() => void submit(suggestion.request)} className="btn btn-primary btn-sm">
-              {busy && !open ? <Loader2 size={15} className="animate-spin" /> : <Sparkles size={15} />} {busy && !open ? "ШІ полегшує…" : "Полегшити через сон"}
+              {busy && !open ? <Loader2 size={15} className="animate-spin" /> : <Sparkles size={15} />} {busy && !open ? "ШІ оновлює…" : "Оновити під сьогоднішній стан"}
             </button>
           )}
           {error && !open && (

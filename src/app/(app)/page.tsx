@@ -29,7 +29,7 @@ import { normalizeGoals } from "@/lib/goals";
 import { getMetricSeries } from "@/lib/health";
 import { goalProgress } from "@/lib/goal-progress";
 import { normalizeProfile, personName, photoUrl } from "@/lib/profile";
-import { lightenRequest } from "@/lib/readiness";
+import { updateRequest } from "@/lib/readiness";
 import { getReadiness } from "@/lib/recovery";
 import { BODY_MUSCLES, TARGET_MIN } from "@/lib/muscles";
 import { listWorkouts } from "@/lib/workouts";
@@ -252,7 +252,7 @@ async function Content() {
           advice={ready.advice}
           workout={!active[0] && todays ? { id: todays.id, name: todays.name } : null}
           ai={aiConnected}
-          request={lightenRequest(ready)}
+          request={updateRequest(ready)}
         />
       )}
 

@@ -10,7 +10,7 @@ import { fmtHours, type ReadinessLevel } from "@/lib/readiness";
 /**
  * What last night means for today, said once on the home screen. A good night is one quiet
  * line; a short or bad one explains itself and — when a workout is planned for today — offers
- * to have the AI make it lighter in one tap.
+ * to have the AI update it for that state in one tap (what to change is the AI's call).
  */
 export function ReadinessNote({
   level,
@@ -55,7 +55,7 @@ export function ReadinessNote({
       </div>
       {done ? (
         <p role="status" className="text-sm text-ink-2">
-          <span className="font-semibold text-good">Тренування полегшено.</span> {done}{" "}
+          <span className="font-semibold text-good">Тренування оновлено.</span> {done}{" "}
           <Link href={`/workouts/${workout!.id}`} className="font-semibold text-accent">
             Відкрити →
           </Link>
@@ -75,7 +75,7 @@ export function ReadinessNote({
             }
             className="btn btn-primary btn-sm"
           >
-            {pending ? <Loader2 size={15} className="animate-spin" /> : <Sparkles size={15} />} {pending ? "ШІ полегшує…" : `Полегшити «${workout.name}»`}
+            {pending ? <Loader2 size={15} className="animate-spin" /> : <Sparkles size={15} />} {pending ? "ШІ оновлює…" : `Оновити «${workout.name}»`}
           </button>
         ) : (
           <Link href={`/workouts/${workout.id}`} className="btn btn-ghost btn-sm">

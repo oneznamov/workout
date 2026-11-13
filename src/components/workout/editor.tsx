@@ -67,8 +67,8 @@ export function WorkoutEditor({
   program,
   readiness,
 }: {
-  /** Today's readiness, passed when this workout is planned for today and the night calls for a lighter one. */
-  readiness?: { label: string; request: string };
+  /** Today's readiness, passed when this workout is planned for today and last night is a reason to update it. */
+  readiness?: { label: string; request: string; tone: "warning" | "good" };
   /** The programme this workout belongs to, if any. */
   program?: { id: string; name: string };
   /** Personal records beaten in this (finished) workout. */

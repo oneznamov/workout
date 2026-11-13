@@ -1,7 +1,8 @@
 /**
  * How ready the athlete is today, read from last night's sleep against their own usual
  * night — with resting pulse and heart-rate variability as a second opinion. Pure.
- * A short night makes today's session lighter; a bad one argues for rest.
+ * The night does not dictate "lighter": it is a reason to update today's session to fit the
+ * state — the AI decides whether that means less, different, the same or more.
  */
 export type ReadinessLevel = "rested" | "normal" | "short" | "poor" | "unknown";
 export type Readiness = {
@@ -26,19 +27,20 @@ const shift = (day: string, n: number) => {
   return d.toISOString().slice(0, 10);
 };
 
-/** "5 год 20 хв" */
+/** "5 год 20 хв", "7 год", "30 хв" */
 export function fmtHours(hours: number): string {
   const min = Math.round(hours * 60);
   const h = Math.floor(min / 60);
   const m = min % 60;
+  if (h === 0) return `${m} хв`;
   return m ? `${h} год ${m} хв` : `${h} год`;
 }
 
 const ADVICE: Record<ReadinessLevel, string> = {
   rested: "Добре виспались — можна працювати на повну.",
   normal: "",
-  short: "Варто полегшити тренування: менше підходів, трохи менша вага, без підходів до відмови.",
-  poor: "Сьогодні краще легке тренування або відпочинок.",
+  short: "Відновлення неповне — сьогоднішнє тренування варто оновити під такий стан.",
+  poor: "Відновлення слабке — тренування варто оновити під такий стан або перенести.",
   unknown: "",
 };
 
@@ -88,14 +90,15 @@ export function readiness(rows: Row[], today: string): Readiness {
   return { level, lastNight: tonight, usual, lastThree, reasons, advice: ADVICE[level] };
 }
 
-/** Whether today's session should be made lighter. */
-export const needsLighter = (r: Readiness) => r.level === "short" || r.level === "poor";
+/** Whether last night is a reason to look at today's session again — in either direction. */
+export const worthUpdating = (r: Readiness) => r.level === "short" || r.level === "poor" || r.level === "rested";
 
-/** What to tell the AI when the athlete asks to lighten a workout because of the night. */
-export function lightenRequest(r: Readiness): string {
-  return `Відновлення сьогодні гірше: ${r.reasons.join("; ")}. Полегши це тренування під такий стан: ${
-    r.level === "poor"
-      ? "зроби його коротким і легким — менше вправ і підходів, вага на 15–25% менша, без підходів до відмови; якщо доречніше — заміни на відновлювальне"
-      : "прибери один-два найважчі підходи, зменш вагу на 5–15%, без підходів до відмови, структуру збережи"
-  }. У примітці коротко поясни, що змінилось через сон.`;
+const STATE: Record<ReadinessLevel, string> = { rested: "добре", normal: "звичайне", short: "неповне", poor: "слабке", unknown: "невідоме" };
+
+/**
+ * What to tell the AI when the athlete asks to update a workout for today's state. It names the
+ * facts and leaves the judgement to the AI: lighter, shorter, different, untouched or heavier.
+ */
+export function updateRequest(r: Readiness): string {
+  return `Онови це тренування під мій сьогоднішній стан. Відновлення ${STATE[r.level]}: ${r.reasons.join("; ")}. Сам виріши, що буде правильно з огляду на сон, останні тренування та їхню важкість: залишити як є, зменшити чи додати вагу й підходи, скоротити, замінити вправи або зробити відновлювальне. Міняй лише те, що справді потрібно, мету тренування збережи. У примітці коротко поясни, що змінилось і чому — або чому все залишилось як було.`;
 }

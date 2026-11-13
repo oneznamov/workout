@@ -488,15 +488,21 @@ describe("readiness from sleep", () => {
   const night = (day: string, value: number) => ({ metric: "sleep_analysis", day, value });
   const usual = ["2026-11-06", "2026-11-07", "2026-11-08", "2026-11-09", "2026-11-10", "2026-11-11"].map((d) => night(d, 7.5));
 
-  it("calls a night two hours under the usual a poor one and asks for a lighter day", async () => {
-    const { readiness, needsLighter, lightenRequest, fmtHours } = await import("@/lib/readiness");
+  it("calls a night two hours under the usual a poor one and asks for an update, not for a cut", async () => {
+    const { readiness, worthUpdating, updateRequest, fmtHours } = await import("@/lib/readiness");
     const r = readiness([...usual, night("2026-11-12", 5.2)], "2026-11-12");
     expect(r.level).toBe("poor");
-    expect(needsLighter(r)).toBe(true);
+    expect(worthUpdating(r)).toBe(true);
     expect(r.reasons[0]).toContain("спали 5 год 12 хв");
     expect(r.reasons[0]).toContain("менше звичного");
-    expect(lightenRequest(r)).toContain("спали 5 год 12 хв");
+    expect(updateRequest(r)).toContain("спали 5 год 12 хв");
+    expect(updateRequest(r)).toContain("Сам виріши");
+    expect(updateRequest(r).length).toBeLessThan(800);
+    // A good night is a reason to look again too; an ordinary one is not.
+    expect(worthUpdating(readiness([...usual, night("2026-11-12", 8)], "2026-11-12"))).toBe(true);
+    expect(worthUpdating(readiness([...usual, night("2026-11-12", 7.1)], "2026-11-12"))).toBe(false);
     expect(fmtHours(7)).toBe("7 год");
+    expect(fmtHours(0.5)).toBe("30 хв");
   });
 
   it("tells short from normal from rested, and stays silent without last night's data", async () => {
