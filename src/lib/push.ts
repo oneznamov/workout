@@ -1,5 +1,5 @@
 import "server-only";
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { generateVAPIDKeys, sendNotification } from "web-push";
 import { db } from "@/db";
 import { appConfig, pushSubscriptions, users } from "@/db/schema";
@@ -46,11 +46,29 @@ const contact = (origin: string) => `https://${process.env.VERCEL_PROJECT_PRODUC
 
 export async function savePushSubscription(userId: string, sub: { endpoint: string; keys: { p256dh: string; auth: string } }) {
   const values = { userId, endpoint: sub.endpoint, p256dh: sub.keys.p256dh, auth: sub.keys.auth };
-  await db.insert(pushSubscriptions).values(values).onConflictDoUpdate({ target: pushSubscriptions.endpoint, set: values });
+  // A device already registered by another account stays theirs.
+  await db
+    .insert(pushSubscriptions)
+    .values(values)
+    .onConflictDoUpdate({ target: pushSubscriptions.endpoint, set: values, setWhere: eq(pushSubscriptions.userId, userId) });
 }
 
-export async function removePushSubscription(endpoint: string) {
-  await db.delete(pushSubscriptions).where(eq(pushSubscriptions.endpoint, endpoint));
+export async function removePushSubscription(userId: string, endpoint: string) {
+  await db.delete(pushSubscriptions).where(and(eq(pushSubscriptions.endpoint, endpoint), eq(pushSubscriptions.userId, userId)));
+}
+
+/**
+ * Browsers only ever hand out addresses of their vendor's push service. Anything else is refused,
+ * so the server cannot be pointed at an arbitrary (e.g. internal) host.
+ */
+const PUSH_HOSTS = /(^|\.)(fcm\.googleapis\.com|push\.apple\.com|push\.services\.mozilla\.com|notify\.windows\.com)$/;
+export function isPushEndpoint(endpoint: string) {
+  try {
+    const u = new URL(endpoint);
+    return u.protocol === "https:" && PUSH_HOSTS.test(u.hostname);
+  } catch {
+    return false;
+  }
 }
 
 export type PushMessage = { title: string; body: string; tag: string; url: string };
@@ -77,7 +95,7 @@ export async function sendPush(userId: string, message: PushMessage, origin: str
       } catch (e) {
         const status = (e as { statusCode?: number }).statusCode;
         failed.push(status ?? "network");
-        if (status === 404 || status === 410) await removePushSubscription(s.endpoint);
+        if (status === 404 || status === 410) await removePushSubscription(userId, s.endpoint);
       }
     }),
   );

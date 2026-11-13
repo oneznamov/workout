@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { ChevronLeft, ChevronRight, HeartPulse } from "lucide-react";
 import type { MuscleGroup } from "@/db/schema";
+import { sectionOn } from "@/lib/config";
 import { addDays, cx, fmtDate, fmtNum } from "@/lib/format";
 import { MUSCLE_LABEL } from "@/lib/labels";
 import {
@@ -130,9 +131,11 @@ export function MuscleWeekCard({ data, sex = null }: { data: MuscleBalance; sex?
         </div>
         <CardioTile minutes={cardioMinutes} load={cardioLoad} perWeek={false} />
         <Legend />
-        <Link href="/analytics" className="inline-block text-xs text-accent">
-          Аналітика по мʼязах →
-        </Link>
+        {sectionOn("analytics") && (
+          <Link href="/analytics" className="inline-block text-xs text-accent">
+            Аналітика по мʼязах →
+          </Link>
+        )}
       </div>
     </div>
   );

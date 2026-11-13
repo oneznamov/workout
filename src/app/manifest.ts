@@ -1,10 +1,11 @@
 import type { MetadataRoute } from "next";
+import { appConfig } from "@/lib/config";
 
 export default function manifest(): MetadataRoute.Manifest {
   return {
     id: "/",
-    name: "Workout",
-    short_name: "Workout",
+    name: appConfig.name,
+    short_name: appConfig.name,
     description: "Щоденник тренувань з аналітикою та даними Apple Watch",
     lang: "uk",
     start_url: "/",

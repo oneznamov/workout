@@ -8,6 +8,7 @@ import { extractJson, PLAN_SHAPE, planSchema, PROGRAM_MAX_WORKOUTS, PROGRAM_SHAP
 import { AI_PROVIDERS, type AiNote, type AiProvider, type AiState } from "./ai-providers";
 import { getAthleteContext, setText } from "./athlete-context";
 import { getTrainingAnalytics } from "./analytics";
+import { featureOn } from "./config";
 import { seal, unseal } from "./crypto";
 import { logError } from "./errors";
 import { addDays, dayOf } from "./format";
@@ -36,11 +37,13 @@ type AiConfig = { provider: AiProvider; model: string; apiKey: string; auto: boo
 // ───────────────────────── Connection ─────────────────────────
 
 export async function getAiState(userId: string): Promise<AiState> {
+  if (!featureOn("ai")) return null;
   const [u] = await db.select({ ai: users.ai }).from(users).where(eq(users.id, userId));
   return u?.ai ? { provider: u.ai.provider, model: u.ai.model, hint: u.ai.hint, auto: u.ai.auto } : null;
 }
 
 async function getAiConfig(userId: string): Promise<AiConfig> {
+  if (!featureOn("ai")) throw new AiError("ШІ вимкнено в налаштуваннях застосунку.");
   const [u] = await db.select({ ai: users.ai }).from(users).where(eq(users.id, userId));
   if (!u?.ai) throw new AiError("ШІ не підключено: додайте API-ключ у Налаштуваннях.");
   const apiKey = unseal(u.ai.key);

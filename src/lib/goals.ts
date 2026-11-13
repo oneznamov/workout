@@ -1,3 +1,5 @@
+import { appConfig } from "./config";
+
 /** Weekly targets shown as rings on the dashboard. */
 export type Goals = {
   /** strength workouts per week */
@@ -8,7 +10,7 @@ export type Goals = {
   muscles: number;
 };
 
-export const DEFAULT_GOALS: Goals = { workouts: 3, cardioMin: 150, muscles: 11 };
+export const DEFAULT_GOALS: Goals = { ...appConfig.weeklyGoals };
 
 export const GOAL_LIMITS = {
   workouts: { min: 1, max: 14, step: 1 },

@@ -3,13 +3,14 @@
 import { useEffect } from "react";
 import { Check, CloudOff, Loader2, UploadCloud } from "lucide-react";
 import { startOffline, syncAll, useConnection } from "@/lib/client/offline";
+import { DEMO } from "@/lib/demo";
 import { cx } from "@/lib/format";
 
 /** Starts connectivity tracking, background sync and the "pre-save" download. Renders nothing. */
 export function OfflineBoot() {
   useEffect(() => {
     startOffline();
-    if (process.env.NODE_ENV === "production" && "serviceWorker" in navigator) {
+    if (process.env.NODE_ENV === "production" && !DEMO && "serviceWorker" in navigator) {
       navigator.serviceWorker.register("/sw.js").catch(() => undefined);
     }
     // Tell the server about crashes in the browser so they show up in the admin's error list.
@@ -39,7 +40,9 @@ export function OfflineBoot() {
 /** Always-visible link status: online / syncing / changes waiting / offline. */
 export function ConnectionBadge({ compact }: { compact?: boolean }) {
   const { online, syncing, pending } = useConnection();
-  const view = !online
+  const view = DEMO
+    ? { icon: <Check size={14} strokeWidth={3} />, label: "Демо", cls: "bg-surface-2 text-ink-2", hint: "Демо без сервера: дані вигадані, а ваші зміни зберігаються лише в цьому браузері" }
+    : !online
     ? {
         icon: <CloudOff size={14} />,
         label: pending ? `Офлайн · ${pending} на пристрої` : "Офлайн",
@@ -65,8 +68,8 @@ export function ConnectionBadge({ compact }: { compact?: boolean }) {
       className={cx("inline-flex h-7 items-center gap-1.5 rounded-full px-2.5 text-xs font-semibold", view.cls)}
     >
       {view.icon}
-      {(!compact || !online || pending > 0) && <span>{view.label}</span>}
-      {compact && online && !pending && <span>Онлайн</span>}
+      {(!compact || DEMO || !online || pending > 0) && <span>{view.label}</span>}
+      {compact && !DEMO && online && !pending && <span>Онлайн</span>}
     </button>
   );
 }

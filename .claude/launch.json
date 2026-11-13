@@ -1,7 +1,44 @@
 {
   "version": "0.0.1",
   "configurations": [
-    { "name": "workout-dev", "runtimeExecutable": "pnpm", "runtimeArgs": ["dev", "--port", "3210"], "port": 3210 },
-    { "name": "workout-prod", "runtimeExecutable": "pnpm", "runtimeArgs": ["start", "--port", "3211"], "port": 3211 }
+    {
+      "name": "workout-dev",
+      "runtimeExecutable": "pnpm",
+      "runtimeArgs": [
+        "dev",
+        "--port",
+        "3210"
+      ],
+      "port": 3210
+    },
+    {
+      "name": "workout-prod",
+      "runtimeExecutable": "pnpm",
+      "runtimeArgs": [
+        "start",
+        "--port",
+        "3211"
+      ],
+      "port": 3211
+    },
+    {
+      "name": "workout-demo",
+      "runtimeExecutable": "pnpm",
+      "runtimeArgs": [
+        "demo:dev",
+        "--port",
+        "3212"
+      ],
+      "port": 3212
+    },
+    {
+      "name": "workout-demo-static",
+      "runtimeExecutable": "sh",
+      "runtimeArgs": [
+        "-c",
+        "DEMO_BASE_PATH=/workout DEMO_PORT=3978 pnpm demo:preview"
+      ],
+      "port": 3978
+    }
   ]
 }

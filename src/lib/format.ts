@@ -1,4 +1,6 @@
-export const TZ = process.env.NEXT_PUBLIC_APP_TZ ?? "Europe/Kyiv";
+import { appConfig } from "./config";
+
+export const TZ = process.env.NEXT_PUBLIC_APP_TZ ?? appConfig.timeZone;
 
 const dayFmt = new Intl.DateTimeFormat("en-CA", { timeZone: TZ, year: "numeric", month: "2-digit", day: "2-digit" });
 

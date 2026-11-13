@@ -1,4 +1,5 @@
 import { tokenFromRequest, verifyApiToken } from "@/lib/auth";
+import { disabled, featureOn } from "@/lib/config";
 import { ingestHealth } from "@/lib/health";
 
 export const maxDuration = 60;
@@ -12,6 +13,7 @@ export const maxDuration = 60;
  * or a flat { metrics: [{ name, date, qty, units }], workouts: [{ name, start, end, … }] }.
  */
 export async function POST(req: Request) {
+  if (!featureOn("appleHealth")) return disabled();
   const userId = await verifyApiToken(tokenFromRequest(req));
   if (!userId) return Response.json({ error: "unauthorized" }, { status: 401 });
 

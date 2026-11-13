@@ -1,3 +1,5 @@
+import { featureOn, sectionOn } from "./config";
+
 /**
  * Home-screen widgets: what exists, the default order and which are shown by default.
  * The default set is short on purpose — the rest is one tap away in "Налаштувати головну".
@@ -18,6 +20,13 @@ export const WIDGETS = [
   { id: "vitals", label: "Пульс спокою, HRV, сон, кроки", shown: false, wide: true },
 ] as const;
 
+/** Widgets that belong to a section or feature which can be switched off in app.config.ts. */
+const NEEDS: Partial<Record<string, () => boolean>> = {
+  friends: () => sectionOn("team"),
+  cardio: () => sectionOn("cardio"),
+  coach: () => featureOn("ai"),
+};
+
 export type WidgetId = (typeof WIDGETS)[number]["id"];
 /** `v` — which generation of the layout was saved; older ones get one-off adjustments. */
 export type DashboardConfig = { order: string[]; hidden: string[]; v?: number };
@@ -32,7 +41,7 @@ export function resolveDashboard(config: Partial<DashboardConfig> | null | undef
   // A layout saved before the week card learned to show the month: "minutes by day" steps
   // aside (it is off by default now) until the athlete saves the layout again.
   if (order.length > 0 && (config?.v ?? 1) < DASHBOARD_VERSION) hidden.add("minutes");
-  const ids = [...new Set([...order, ...WIDGETS.map((w) => w.id)])];
+  const ids = [...new Set([...order, ...WIDGETS.map((w) => w.id)])].filter((id) => NEEDS[id]?.() ?? true);
   const seen = new Set(order);
   return ids.map((id) => {
     const w = known.get(id)!;

@@ -4,10 +4,11 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useState, type ReactNode } from "react";
 import { Activity, BarChart3, CalendarDays, CircleUser, Dumbbell, Home, Settings, Users } from "lucide-react";
+import { appConfig, sectionOf, sectionOn } from "@/lib/config";
 import { cx } from "@/lib/format";
 import { ConnectionBadge } from "./connection";
 
-const items = [
+const ALL_ITEMS = [
   { href: "/", label: "Головна", icon: Home },
   { href: "/workouts", label: "Тренування", icon: Activity, also: ["/train", "/exercises", "/cardio", "/programs", "/calendar"], mobileAlso: true },
   { href: "/calendar", label: "Календар", icon: CalendarDays, desktopOnly: true },
@@ -17,6 +18,11 @@ const items = [
   { href: "/profile", label: "Профіль", icon: CircleUser },
   { href: "/settings", label: "Налаштування", icon: Settings, desktopOnly: true },
 ];
+/** Sections switched off in app.config.ts are simply not in the navigation. */
+const items = ALL_ITEMS.filter((i) => {
+  const section = sectionOf(i.href);
+  return !section || sectionOn(section);
+});
 
 /**
  * Each section has its colour, and the top of the screen glows with it and fades into black —
@@ -42,7 +48,7 @@ function Brand() {
       <span className="grid size-7 place-items-center rounded-full bg-accent text-accent-ink">
         <Dumbbell size={15} strokeWidth={2.5} />
       </span>
-      Workout
+      {appConfig.name}
     </Link>
   );
 }
@@ -117,10 +123,12 @@ export function Nav({ teamBadge }: { teamBadge?: ReactNode }) {
           <Brand />
           <div className="flex items-center gap-1">
             <ConnectionBadge compact />
-            <Link href="/team" aria-label="Команда" className={cx("icon-btn relative size-9", pathname.startsWith("/team") && "text-accent")}>
-              <Users size={19} />
-              <span className="absolute top-1 right-1">{teamBadge}</span>
-            </Link>
+            {sectionOn("team") && (
+              <Link href="/team" aria-label="Команда" className={cx("icon-btn relative size-9", pathname.startsWith("/team") && "text-accent")}>
+                <Users size={19} />
+                <span className="absolute top-1 right-1">{teamBadge}</span>
+              </Link>
+            )}
             <Link href="/settings" aria-label="Налаштування" className="icon-btn size-9">
               <Settings size={19} />
             </Link>

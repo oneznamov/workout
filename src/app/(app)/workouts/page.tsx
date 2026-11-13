@@ -17,6 +17,7 @@ import { journalWeeks, weekTitle, type JournalWeek as Week } from "@/lib/journal
 import { normalizeProfile } from "@/lib/profile";
 import { addDays, dayOf, fmtDuration, fmtNum, plural, weekStart } from "@/lib/format";
 import { getAiState } from "@/lib/ai";
+import { sectionOn } from "@/lib/config";
 import { getUser } from "@/lib/auth";
 import { listWorkouts, type WorkoutListItem } from "@/lib/workouts";
 
@@ -24,12 +25,16 @@ export const metadata = { title: "Тренування" };
 
 const HEADER_LINKS = (
   <span className="flex gap-4">
-    <Link href="/calendar" className="text-accent">
-      Календар →
-    </Link>
-    <Link href="/exercises" className="text-accent">
-      Бібліотека вправ →
-    </Link>
+    {sectionOn("calendar") && (
+      <Link href="/calendar" className="text-accent">
+        Календар →
+      </Link>
+    )}
+    {sectionOn("exercises") && (
+      <Link href="/exercises" className="text-accent">
+        Бібліотека вправ →
+      </Link>
+    )}
   </span>
 );
 
@@ -48,8 +53,8 @@ async function Content({ searchParams }: PageProps<"/workouts">) {
   const [all, ai, cardioAll, programs] = await Promise.all([
     listWorkouts(userId, { limit: 300 }),
     getAiState(userId),
-    listCardio(userId, { limit: 200 }),
-    listPrograms(userId),
+    sectionOn("cardio") ? listCardio(userId, { limit: 200 }) : [],
+    sectionOn("programs") ? listPrograms(userId) : [],
   ]);
   const today = dayOf();
   const currentPrograms = programs.filter((p) => p.endsOn >= today);

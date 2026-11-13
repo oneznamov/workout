@@ -13,7 +13,11 @@
     "db:setup": "drizzle-kit migrate && tsx scripts/seed.ts",
     "user:create": "tsx scripts/create-user.ts",
     "typecheck": "tsc --noEmit",
-    "test": "vitest run"
+    "test": "vitest run",
+    "demo:setup": "tsx scripts/demo.ts setup",
+    "demo:dev": "tsx scripts/demo.ts dev",
+    "demo:build": "tsx scripts/demo.ts build",
+    "demo:preview": "tsx scripts/demo.ts preview"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^1.8.0",

@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
+import { sectionOf, sectionOn } from "@/lib/config";
 
 /** Optimistic check only — every page/action re-verifies the session server-side. */
 export function proxy(request: NextRequest) {
@@ -10,6 +11,9 @@ export function proxy(request: NextRequest) {
     if (pathname !== "/") login.searchParams.set("next", pathname);
     return NextResponse.redirect(login);
   }
+  // A section switched off in app.config.ts has no pages.
+  const section = sectionOf(pathname);
+  if (section && !sectionOn(section)) return NextResponse.redirect(new URL("/", request.url));
   return NextResponse.next();
 }
 

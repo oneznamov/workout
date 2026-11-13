@@ -87,7 +87,9 @@ export async function exportAccount(userId: string, insight: AiNote | null = nul
 }
 
 const csvCell = (v: unknown) => {
-  const s = v == null ? "" : v instanceof Date ? v.toISOString() : String(v);
+  let s = v == null ? "" : v instanceof Date ? v.toISOString() : String(v);
+  // Text that a spreadsheet would run as a formula is opened as plain text instead.
+  if (typeof v === "string" && /^[=+\-@\t\r]/.test(s)) s = `'${s}`;
   return /[",\n;]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
 };
 

@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import { dayState, monthTitle, NO_MARK, type DayMark } from "@/lib/calendar-logic";
+import { sectionOn } from "@/lib/config";
 import { cx, fmtDate } from "@/lib/format";
 import { MonthGrid } from "./calendar";
 import { DayDisc } from "./day-marks";
@@ -79,9 +80,11 @@ export function WeekStrip({ weeks, today, current, marks }: { /** days of each w
         {toggle}
         <div className={cx(title, "text-accent")}>{monthTitle(m)}</div>
         <MonthGrid month={m} today={today} marks={marks} linkBase="/calendar" />
-        <Link href="/calendar" className="mt-2 block text-center text-xs text-accent">
-          Увесь календар →
-        </Link>
+        {sectionOn("calendar") && (
+          <Link href="/calendar" className="mt-2 block text-center text-xs text-accent">
+            Увесь календар →
+          </Link>
+        )}
       </div>
     );
   }

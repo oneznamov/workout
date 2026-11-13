@@ -1,0 +1,59 @@
+name: Demo (GitHub Pages)
+
+# Builds the static demo — the real app on a throwaway database with made-up data — and puts it
+# on GitHub Pages. Runs every night as well, because the demo data is generated relative to "today".
+# One-time setup: repository Settings → Pages → Source: GitHub Actions.
+on:
+  push:
+    branches: [main]
+  schedule:
+    - cron: "15 1 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: workout_demo
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U postgres" --health-interval 5s --health-timeout 5s --health-retries 10
+    env:
+      DEMO_DATABASE_URL: postgres://postgres:postgres@localhost:5432/workout_demo
+      DEMO_BASE_PATH: /${{ github.event.repository.name }}
+      DEMO_REPO_URL: https://github.com/${{ github.repository }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm demo:build
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: demo-out
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4

@@ -11,6 +11,7 @@ import { Card, Disclosure, PageHeader } from "@/components/ui";
 import { db } from "@/db";
 import { apiTokens } from "@/db/schema";
 import { getAiState } from "@/lib/ai";
+import { featureOn } from "@/lib/config";
 import { getUser } from "@/lib/auth";
 
 export const metadata = { title: "Налаштування" };
@@ -51,9 +52,11 @@ async function Content() {
             <span className="text-accent">→</span>
           </Link>
 
-          <Card title="Сповіщення">
-            <PushToggle />
-          </Card>
+          {featureOn("push") && (
+            <Card title="Сповіщення">
+              <PushToggle />
+            </Card>
+          )}
 
           <Card title="Токени доступу">
             <p className="mb-4 text-sm text-ink-2">
@@ -75,10 +78,13 @@ async function Content() {
           </Disclosure>
         </div>
         <div className="space-y-5">
-          <Card title="ШІ-помічник" action={ai ? <span className="rounded-full bg-good/20 px-2.5 py-0.5 text-xs font-medium text-good">Підключено</span> : undefined}>
-            <AiSettings state={ai} />
-          </Card>
+          {featureOn("ai") && (
+            <Card title="ШІ-помічник" action={ai ? <span className="rounded-full bg-good/20 px-2.5 py-0.5 text-xs font-medium text-good">Підключено</span> : undefined}>
+              <AiSettings state={ai} />
+            </Card>
+          )}
 
+          {featureOn("mcp") && (
           <Disclosure title="Підключити Claude" hint="Планування та аналіз тренувань">
             <ol className="list-decimal space-y-2 pl-5 text-sm text-ink-2">
               <li>Створіть токен у розділі «Токени доступу» (наприклад, «Claude»).</li>
@@ -101,7 +107,9 @@ async function Content() {
               <code className="font-mono text-ink">get_athlete_context</code>.
             </p>
           </Disclosure>
+          )}
 
+          {featureOn("appleHealth") && (
           <Disclosure title="Підключити Apple Watch" hint="Синхронізація Apple Health">
             <p className="text-sm text-ink-2">
               Сайт не може сам читати Apple Health — дані має надсилати iPhone. Найпростіше через застосунок{" "}
@@ -133,6 +141,7 @@ async function Content() {
               зʼявляться в записі після синхронізації.
             </p>
           </Disclosure>
+          )}
 
           <Disclosure title="Застосунок на телефоні" hint="Встановлення та робота без звʼязку">
             <InstallCard />

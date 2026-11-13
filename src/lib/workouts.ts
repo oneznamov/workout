@@ -4,6 +4,7 @@ import { db } from "@/db";
 import {
   exercises,
   healthWorkouts,
+  SET_TYPES,
   sets,
   workoutExercises,
   workouts,
@@ -288,6 +289,8 @@ async function ownSet(userId: string, setId: string) {
 const touch = (workoutId: string) =>
   db.update(workouts).set({ updatedAt: new Date() }).where(eq(workouts.id, workoutId));
 
+const clampInt = (v: unknown, lo: number, hi: number) => Math.min(hi, Math.max(lo, Math.round(Number(v)) || 0));
+
 function setValues(weId: string, position: number, s: SetInput) {
   const completed = s.completed ?? false;
   return {
@@ -463,7 +466,13 @@ export async function updateWorkoutExercise(
 ) {
   const we = await ownWorkoutExercise(userId, weId);
   if (patch.exerciseId) await assertExercisesVisible(userId, [patch.exerciseId]);
-  await db.update(workoutExercises).set(patch).where(eq(workoutExercises.id, weId));
+  // Only these fields may change: whatever else the caller sent (e.g. another workout's id) is ignored.
+  const set: { restSeconds?: number | null; notes?: string | null; exerciseId?: string } = {};
+  if (patch.restSeconds !== undefined) set.restSeconds = patch.restSeconds == null ? null : clampInt(patch.restSeconds, 0, 3600);
+  if (patch.notes !== undefined) set.notes = patch.notes == null ? null : String(patch.notes).slice(0, 2000);
+  if (patch.exerciseId) set.exerciseId = String(patch.exerciseId);
+  if (Object.keys(set).length === 0) return;
+  await db.update(workoutExercises).set(set).where(eq(workoutExercises.id, weId));
   await touch(we.workoutId);
 }
 
@@ -497,14 +506,23 @@ export async function addSet(userId: string, weId: string, input: SetInput) {
 
 export async function updateSet(userId: string, setId: string, patch: SetInput) {
   const s = await ownSet(userId, setId);
-  const { id: _id, completed, ...rest } = patch;
-  void _id;
+  // Field by field, never the caller's object as it came: a set must not be movable into someone else's workout.
+  const num = (v: unknown) => (v == null ? null : Number.isFinite(Number(v)) ? Number(v) : null);
+  const set: Partial<typeof sets.$inferInsert> = {};
+  if (patch.type !== undefined && (SET_TYPES as readonly string[]).includes(patch.type)) set.type = patch.type;
+  if (patch.weight !== undefined) set.weight = num(patch.weight);
+  if (patch.reps !== undefined) set.reps = patch.reps == null ? null : clampInt(patch.reps, 0, 10000);
+  if (patch.durationSec !== undefined) set.durationSec = patch.durationSec == null ? null : clampInt(patch.durationSec, 0, 86400);
+  if (patch.distanceM !== undefined) set.distanceM = num(patch.distanceM);
+  if (patch.rpe !== undefined) set.rpe = num(patch.rpe);
+  if (typeof patch.completed === "boolean") {
+    set.completed = patch.completed;
+    set.completedAt = patch.completed ? new Date() : null;
+  }
+  if (Object.keys(set).length === 0) return;
   await db
     .update(sets)
-    .set({
-      ...rest,
-      ...(completed != null ? { completed, completedAt: completed ? new Date() : null } : {}),
-    })
+    .set(set)
     .where(eq(sets.id, setId));
   await touch(s.workoutId);
 }

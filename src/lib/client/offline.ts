@@ -1,5 +1,6 @@
 "use client";
 
+import { BASE_PATH } from "@/lib/demo";
 import { useSyncExternalStore } from "react";
 import { dayOf } from "@/lib/format";
 import { noteServerBuild } from "./update";
@@ -300,7 +301,8 @@ export async function refreshBundle() {
  * so the service worker can answer it from the device when there is no connection.
  */
 export function hardNavigate(url: string) {
-  window.location.href = url;
+  // eslint-disable-next-line @next/next/no-location-assign-relative-destination -- a full page load is the point here
+  window.location.href = `${BASE_PATH}${url}`;
 }
 
 let started = false;

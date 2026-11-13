@@ -1,14 +1,17 @@
 import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
+import { DemoMode } from "@/components/demo-mode";
+import { appConfig } from "@/lib/config";
+import { DEMO } from "@/lib/demo";
 import "./globals.css";
 
 const geistSans = Geist({ variable: "--font-geist-sans", subsets: ["latin", "cyrillic"] });
 const geistMono = Geist_Mono({ variable: "--font-geist-mono", subsets: ["latin"] });
 
 export const metadata: Metadata = {
-  title: { default: "Workout", template: "%s · Workout" },
+  title: { default: appConfig.name, template: `%s · ${appConfig.name}` },
   description: "Щоденник тренувань з аналітикою та даними Apple Watch",
-  appleWebApp: { capable: true, title: "Workout", statusBarStyle: "black-translucent" },
+  appleWebApp: { capable: true, title: appConfig.name, statusBarStyle: "black-translucent" },
   robots: { index: false, follow: false },
 };
 
@@ -22,7 +25,10 @@ export const viewport: Viewport = {
 export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
     <html lang="uk" className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}>
-      <body className="min-h-full">{children}</body>
+      <body className="min-h-full">
+        {DEMO && <DemoMode />}
+        {children}
+      </body>
     </html>
   );
 }

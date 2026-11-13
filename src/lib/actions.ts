@@ -32,6 +32,9 @@ const credentials = z.object({
   password: z.string().min(8, "Пароль має містити щонайменше 8 символів").max(200),
 });
 
+/** A hash of a throwaway random string: nothing matches it. */
+const DUMMY_HASH = "$2b$12$ZqDGsGqXgobvrv4dlVQvlebVDHXsgLA1qzNXcPQEJP6/TW/yAJOJq";
+
 export async function hasAnyUser() {
   const [{ n }] = await db.select({ n: sql<number>`count(*)::int` }).from(users);
   return n > 0;
@@ -48,7 +51,8 @@ export async function loginAction(_prev: AuthState, formData: FormData): Promise
   if (wait > 0) return { error: `Забагато невдалих спроб. Спробуйте ще раз через ${Math.ceil(wait / 60)} хв.` };
 
   const [user] = await db.select().from(users).where(eq(users.username, username));
-  const ok = user ? await bcrypt.compare(password, user.passwordHash) : false;
+  // An unknown login takes as long as a wrong password, so timing does not reveal which logins exist.
+  const ok = await bcrypt.compare(password, user?.passwordHash ?? DUMMY_HASH);
   if (!user || !ok) {
     await recordFailedLogin(username, ip);
     await new Promise((r) => setTimeout(r, 600));

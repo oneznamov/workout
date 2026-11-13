@@ -1,6 +1,7 @@
 import { after } from "next/server";
 import { z } from "zod";
 import { getUserId } from "@/lib/auth";
+import { disabled, featureOn } from "@/lib/config";
 import { armRestPush, disarmRestPush, fireRestPush } from "@/lib/push";
 
 /** The request stays alive in the background until the rest ends, then sends the push. */
@@ -17,6 +18,7 @@ const body = z.union([
  * moved on, or the app was on screen when the rest ended and has already made its sound).
  */
 export async function POST(req: Request) {
+  if (!featureOn("push")) return disabled();
   const userId = await getUserId();
   if (!userId) return Response.json({ error: "unauthorized" }, { status: 401 });
   const parsed = body.safeParse(await req.json().catch(() => null));
@@ -29,7 +31,7 @@ export async function POST(req: Request) {
   const id = await armRestPush(userId, endsAt);
   if (id) {
     const origin = new URL(req.url).origin;
-    const url = /^\/[\w\-./]*$/.test(path) ? path : "/";
+    const url = /^\/(?!\/)[\w\-./]*$/.test(path) ? path : "/";
     after(() => fireRestPush(userId, id, endsAt, next, url, origin));
   }
   return Response.json({ ok: true, armed: Boolean(id) });

@@ -1,3 +1,5 @@
+import { BASE_PATH } from "./demo";
+
 /**
  * Two photo frames (start and end position) per exercise, from the public-domain
  * Free Exercise DB (https://github.com/yuhonas/free-exercise-db, Unlicense).
@@ -137,5 +139,5 @@ const MEDIA: Record<string, string> = {
 
 export function exerciseFrames(name: string): [string, string] | null {
   const id = MEDIA[name];
-  return id ? [`/exercise-media/${id}/0.jpg`, `/exercise-media/${id}/1.jpg`] : null;
+  return id ? [`${BASE_PATH}/exercise-media/${id}/0.jpg`, `${BASE_PATH}/exercise-media/${id}/1.jpg`] : null;
 }
