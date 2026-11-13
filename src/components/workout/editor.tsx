@@ -38,10 +38,12 @@ import { useWakeLock } from "@/lib/client/wake-lock";
 import { armRestPush, cancelRestPush } from "@/lib/client/push";
 import { cloneWorkout, hardNavigate, pushWorkout, readLocal, removeLocal, writeLocal } from "@/lib/client/offline";
 import { addDays, cx, dayOf, EXERCISES_FORMS, fmtClock, fmtDate, fmtDateLong, fmtDuration, fmtNum, fmtTime, plural } from "@/lib/format";
+import { COMMENT_MAX, normalizeComment } from "@/lib/mood";
 import { STATUS_LABEL } from "@/lib/labels";
 import { activeSeconds, type CExercise, type CExerciseInfo, type CLast, type CSet, type CWorkout } from "@/lib/shape";
 import { ChangeWorkout } from "./change";
 import { EffortCard, EffortScale, ExpectedEffort } from "./effort";
+import { FeelCard, MoodPicker } from "./mood";
 import { Fold } from "../fold";
 import { DEFAULT_REST, ExerciseCard, ExerciseSummary } from "./exercise-card";
 import { ExercisePicker } from "./exercise-picker";
@@ -92,6 +94,8 @@ export function WorkoutEditor({
   const [confirmFinish, setConfirmFinish] = useState(false);
   /** The rating picked in the "finish" dialog, before the workout is closed. */
   const [finishEffort, setFinishEffort] = useState<number | null>(null);
+  const [finishMood, setFinishMood] = useState<string | null>(null);
+  const [finishComment, setFinishComment] = useState("");
   useLockScroll(confirmFinish);
   const [menuOpen, setMenuOpen] = useState(false);
   // During a workout: one set at a time ("focus") or the whole list.
@@ -362,6 +366,8 @@ export function WorkoutEditor({
         pausedSec: (cur().pausedSec ?? 0) + open,
         pausedAt: null,
         effort: finishEffort ?? cur().effort ?? null,
+        mood: finishMood ?? cur().mood ?? null,
+        comment: normalizeComment(finishComment) ?? cur().comment ?? null,
         exercises: kept,
       },
       { sets: removedSets, exercises: removedExercises },
@@ -379,6 +385,11 @@ export function WorkoutEditor({
 
   const rate = (effort: number | null) => {
     persist({ ...cur(), effort });
+    void saveNow();
+  };
+  /** Mood or note of a finished workout, changed afterwards. */
+  const feel = (patch: { mood?: string | null; comment?: string | null }) => {
+    persist({ ...cur(), ...patch });
     void saveNow();
   };
 
@@ -740,6 +751,7 @@ export function WorkoutEditor({
       </header>
 
       {done && <EffortCard value={w.effort ?? null} expected={w.expectedEffort} onChange={rate} />}
+      {done && <FeelCard mood={w.mood ?? null} comment={w.comment ?? null} onMood={(mood) => feel({ mood })} onComment={(comment) => feel({ comment })} />}
 
       {done && records.length > 0 && (
         <Fold
@@ -909,7 +921,7 @@ export function WorkoutEditor({
 
       {confirmFinish && (
         <div className="fixed inset-0 z-50 grid place-items-center bg-black/70 p-4" onClick={() => setConfirmFinish(false)}>
-          <div role="alertdialog" aria-modal="true" className="card w-full max-w-sm space-y-4 p-5" onClick={(ev) => ev.stopPropagation()}>
+          <div role="alertdialog" aria-modal="true" className="card max-h-[92dvh] w-full max-w-sm space-y-4 overflow-y-auto p-5" onClick={(ev) => ev.stopPropagation()}>
             <h2 className="text-xl font-bold">Завершити тренування?</h2>
             <p className="text-[15px] text-ink-2">
               Виконано {doneSets} з {totalSets} підходів.
@@ -919,6 +931,18 @@ export function WorkoutEditor({
               <div className="mb-2 text-[15px] font-semibold">Наскільки важко було?</div>
               <EffortScale value={finishEffort} onChange={setFinishEffort} />
             </div>
+            <div>
+              <div className="mb-2 text-[15px] font-semibold">Як настрій?</div>
+              <MoodPicker value={finishMood} onChange={setFinishMood} />
+            </div>
+            <input
+              value={finishComment}
+              onChange={(ev) => setFinishComment(ev.target.value)}
+              maxLength={COMMENT_MAX}
+              placeholder="Нотатка (необовʼязково)"
+              aria-label="Нотатка до тренування"
+              className="field"
+            />
             <div className="flex gap-2">
               <button onClick={() => setConfirmFinish(false)} className="btn btn-ghost flex-1">
                 Ще ні

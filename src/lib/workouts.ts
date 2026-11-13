@@ -16,6 +16,7 @@ import {
 } from "@/db/schema";
 import { dayOf } from "./format";
 import { linkHealthWorkouts } from "./health";
+import { normalizeComment, normalizeMood } from "./mood";
 
 export class NotFoundError extends Error {
   constructor(what = "Не знайдено") {
@@ -177,6 +178,8 @@ export async function listWorkouts(
       pausedSec: workouts.pausedSec,
       notes: workouts.notes,
       effort: workouts.effort,
+      mood: workouts.mood,
+      comment: workouts.comment,
       expectedEffort: workouts.expectedEffort,
       exerciseCount: sql<number>`(select count(*)::int from workout_exercises we where we.workout_id = "workouts"."id")`,
       setCount: sql<number>`(select count(*)::int from sets s join workout_exercises we on we.id = s.workout_exercise_id
@@ -554,6 +557,9 @@ export type SnapshotInput = {
   notes: string | null;
   /** undefined = the device does not know about the rating; leave what is stored */
   effort?: number | null;
+  /** the same for the mood and the athlete's note */
+  mood?: string | null;
+  comment?: string | null;
   exercises: {
     id: string;
     exerciseId: string;
@@ -596,6 +602,8 @@ export async function saveSnapshot(userId: string, id: string, snap: SnapshotInp
     pausedAt: snap.status === "in_progress" ? snap.pausedAt : null,
     notes: snap.notes,
     ...(snap.effort !== undefined ? { effort: snap.effort } : {}),
+    ...(snap.mood !== undefined ? { mood: normalizeMood(snap.mood) } : {}),
+    ...(snap.comment !== undefined ? { comment: normalizeComment(snap.comment) } : {}),
     updatedAt: new Date(),
   };
   if (existing) await db.update(workouts).set(meta).where(eq(workouts.id, id));

@@ -4,6 +4,7 @@ import { eq, inArray, isNull, or } from "drizzle-orm";
 import { db } from "@/db";
 import { aiNotes, exercises, healthMetrics, programRevisions, programs, sets, users, workoutExercises, workouts, type ProgramSnapshot } from "@/db/schema";
 import type { ImportData, ImportResult } from "./import-schema";
+import { normalizeComment, normalizeMood } from "./mood";
 import { normalizeProfile, type Profile } from "./profile";
 
 const chunks = <T>(rows: T[], size: number) => Array.from({ length: Math.ceil(rows.length / size) }, (_, i) => rows.slice(i * size, (i + 1) * size));
@@ -115,6 +116,8 @@ export async function importData(userId: string, data: ImportData): Promise<Impo
       pausedSec: w.pausedSec,
       notes: w.notes ?? null,
       effort: w.effort ?? null,
+      mood: normalizeMood(w.mood),
+      comment: normalizeComment(w.comment),
       ...(date(w.createdAt) ? { createdAt: date(w.createdAt)! } : {}),
     });
     w.exercises.forEach((e, position) => {

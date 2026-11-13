@@ -61,6 +61,9 @@ export type CWorkout = {
   notes: string | null;
   /** the athlete's own rating of a finished workout, 1–10 */
   effort: number | null;
+  /** how it felt, as an emoji, and the athlete's own note; absent in copies saved by an older version */
+  mood?: string | null;
+  comment?: string | null;
   /** how hard the planner (AI, Claude) expected it to feel, 1–10; read-only on the device */
   expectedEffort?: number | null;
   updatedAt: string;
@@ -87,6 +90,8 @@ type ServerWorkout = {
   pausedAt: Date | null;
   notes: string | null;
   effort: number | null;
+  mood: string | null;
+  comment: string | null;
   expectedEffort: number | null;
   updatedAt: Date;
   exercises: {
@@ -123,6 +128,8 @@ export function toClientWorkout(w: ServerWorkout): CWorkout {
     pausedAt: w.pausedAt?.toISOString() ?? null,
     notes: w.notes,
     effort: w.effort,
+    mood: w.mood,
+    comment: w.comment,
     expectedEffort: w.expectedEffort,
     updatedAt: w.updatedAt.toISOString(),
     exercises: w.exercises.map((we) => ({

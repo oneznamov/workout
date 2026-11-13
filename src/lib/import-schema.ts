@@ -49,6 +49,8 @@ const workout = z.object({
   pausedSec: z.number().int().min(0).max(86400).catch(0),
   notes: text(5000),
   effort: z.number().int().min(1).max(10).nullish().catch(null),
+  mood: z.string().max(16).nullish().catch(null),
+  comment: text(1000),
   createdAt: stamp,
   exercises: z
     .array(exercise.extend({ restSeconds: z.number().int().min(0).max(3600).nullish().catch(null), notes: text(2000), sets: z.array(set).max(100).catch([]) }))

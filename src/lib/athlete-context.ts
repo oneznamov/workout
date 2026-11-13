@@ -13,6 +13,7 @@ import { readiness } from "./readiness";
 import { programsForContext } from "./programs";
 import { setText } from "./set-text";
 import { notableVitals } from "./vitals";
+import { moodLabel } from "./mood";
 import { workoutKind } from "./workout-kind";
 import { listWorkoutsFull } from "./workouts";
 
@@ -70,6 +71,8 @@ export async function getAthleteContext(userId: string, opts: { history?: number
       minutes: w.startedAt && w.endedAt ? Math.round(Math.max(0, (w.endedAt.getTime() - w.startedAt.getTime()) / 1000 - w.pausedSec) / 60) : null,
       note: w.notes || undefined,
       effort_1_to_10: w.effort ?? undefined,
+      mood: moodLabel(w.mood) ?? undefined,
+      athlete_note: w.comment ?? undefined,
       expected_effort_1_to_10: w.expectedEffort ?? undefined,
       exercises: w.exercises.map((e) => ({
         name: e.exercise.name,

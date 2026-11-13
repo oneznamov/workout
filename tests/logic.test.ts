@@ -588,3 +588,17 @@ describe("training journal", () => {
     expect(weekTitle("2026-09-28", "2026-11-13")).toBe("28 вересня – 4 жовтня");
   });
 });
+
+describe("mood and note of a workout", () => {
+  it("keeps only the moods on the list and a short, tidy note", async () => {
+    const { normalizeMood, normalizeComment, moodLabel, COMMENT_MAX } = await import("@/lib/mood");
+    expect(normalizeMood("🔥")).toBe("🔥");
+    expect(normalizeMood("💩")).toBeNull();
+    expect(normalizeMood(7)).toBeNull();
+    expect(moodLabel("😎")).toBe("Чудово");
+    expect(moodLabel(null)).toBeNull();
+    expect(normalizeComment("  Гарне   тренування!\n ")).toBe("Гарне тренування!");
+    expect(normalizeComment("   ")).toBeNull();
+    expect(normalizeComment("а".repeat(500))).toHaveLength(COMMENT_MAX);
+  });
+});

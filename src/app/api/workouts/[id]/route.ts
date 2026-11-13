@@ -20,6 +20,8 @@ const snapshotSchema = z.object({
     notes: z.string().max(5000).nullable(),
     // Absent in copies saved by an older version of the app — then the stored rating stays.
     effort: z.number().int().min(1).max(10).nullable().optional(),
+    mood: z.string().max(16).nullable().optional(),
+    comment: z.string().max(1000).nullable().optional(),
     exercises: z
       .array(
         z.object({
@@ -91,6 +93,8 @@ export async function PUT(req: Request, ctx: RouteContext<"/api/workouts/[id]">)
       pausedAt: date(w.pausedAt),
       notes: w.notes,
       effort: w.effort,
+      mood: w.mood,
+      comment: w.comment,
       exercises: w.exercises.map((e) => ({
         id: e.id,
         exerciseId: e.exercise.id,

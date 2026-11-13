@@ -295,6 +295,10 @@ export const workouts = pgTable(
     effort: integer("effort"),
     /** How hard whoever planned it (the AI, Claude) expected it to feel, on the same scale. */
     expectedEffort: integer("expected_effort"),
+    /** How the finished workout felt, as one emoji from the list in lib/mood. */
+    mood: text("mood"),
+    /** The athlete's own short note about the finished workout — shown in the journal. */
+    comment: text("comment"),
     createdAt: createdAt(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   },

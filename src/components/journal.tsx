@@ -4,6 +4,7 @@ import { ChevronRight, Flame, Heart } from "lucide-react";
 import type { CardioSession } from "@/lib/cardio";
 import { CARDIO_LABEL, CARDIO_TONE, paceLabel, type CardioKind } from "@/lib/cardio-kinds";
 import { cx, fmtDate, fmtDuration, fmtNum, fmtTime } from "@/lib/format";
+import { moodLabel } from "@/lib/mood";
 import { workoutKind } from "@/lib/workout-kind";
 import type { WorkoutListItem } from "@/lib/workouts";
 import { CARDIO_ICON } from "./cardio/cardio-row";
@@ -44,7 +45,8 @@ export function JournalDay({ day, today, label, children }: { day: string; today
         {label ?? <span className="first-letter:uppercase">{fmtDate(day, { weekday: "long", day: "numeric", month: "long" })}</span>}
         {day === today && <span className="font-normal text-accent">сьогодні</span>}
       </div>
-      <div className="grid gap-2">{children}</div>
+      {/* One column that may shrink: a long note is cut with an ellipsis instead of widening the page. */}
+      <div className="grid grid-cols-1 gap-2">{children}</div>
     </li>
   );
 }
@@ -66,6 +68,11 @@ export function JournalWorkout({ w }: { w: WorkoutListItem }) {
           {w.startedAt && <span className="num ml-auto shrink-0 text-xs text-muted">{fmtTime(w.startedAt)}</span>}
         </div>
         <div className="tabular mt-0.5 flex flex-wrap items-center gap-x-3 gap-y-0.5 text-[13px] text-ink-2">
+          {w.mood && (
+            <span className="grid size-6 place-items-center rounded-full bg-surface-2 text-sm leading-none" role="img" aria-label={`Настрій: ${moodLabel(w.mood) ?? w.mood}`} title={moodLabel(w.mood) ?? undefined}>
+              {w.mood}
+            </span>
+          )}
           <span className="font-semibold text-strength">{w.status === "in_progress" ? "Триває" : fmtDuration(duration)}</span>
           {w.volume > 0 && <span>{fmtNum(w.volume)} кг</span>}
           {w.avgHr != null && (
@@ -80,6 +87,8 @@ export function JournalWorkout({ w }: { w: WorkoutListItem }) {
           )}
           {w.effort != null && <EffortTag value={w.effort} />}
         </div>
+        {/* The athlete's own line about the session. */}
+        {w.comment && <p className="mt-1.5 w-fit max-w-full truncate rounded-full bg-surface-2 px-2.5 py-1 text-xs text-ink-2">{w.comment}</p>}
       </div>
       <ChevronRight size={18} className="shrink-0 text-muted" />
     </Link>

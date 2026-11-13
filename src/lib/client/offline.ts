@@ -142,6 +142,8 @@ export function newWorkout(status: WorkoutStatus, name?: string): CWorkout {
     pausedAt: null,
     notes: null,
     effort: null,
+    mood: null,
+    comment: null,
     updatedAt: now,
     exercises: [],
     health: [],

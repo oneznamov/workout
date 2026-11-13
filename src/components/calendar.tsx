@@ -74,7 +74,7 @@ export function MonthGrid({
 /** Everything on one day: diary workouts, then cardio. */
 function DayEntries({ items }: { items: DayItems }) {
   return (
-    <div className="grid gap-3">
+    <div className="grid grid-cols-1 gap-3">
       {items.workouts.map((w) => (w.status === "planned" ? <PlannedCard key={w.id} w={w} /> : <JournalWorkout key={w.id} w={w} />))}
       {items.cardio.map((c) => (
         <JournalCardio key={c.id} s={c} />
