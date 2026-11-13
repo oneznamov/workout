@@ -148,22 +148,29 @@ export const appConfig = {
 
 Демо — це справжній застосунок, запущений на окремій порожній базі з вигаданим атлетом (`scripts/demo-seed.ts`), усі екрани якого збережено як статичні файли. Саме тому воно живе на GitHub Pages без сервера й бази.
 
-- **Автоматично:** workflow [demo.yml](.github/workflows/demo.yml) збирає демо на кожен пуш у `main` і щоночі (дані генеруються відносно «сьогодні»). Один раз увімкніть: Settings → Pages → Source: **GitHub Actions**.
-- **Локально** (потрібна порожня тимчасова база — **не робоча**; скрипти беруть її лише з `DEMO_DATABASE_URL` і відмовляються працювати з базою, де вже є користувачі):
+Для показу демо база не потрібна: готові файли лежать в окремій гілці `gh-pages`, і GitHub Pages віддає їх як є (Settings → Pages → Deploy from a branch → `gh-pages`). Усе, що відвідувач робить у демо, зберігається в `localStorage` його браузера.
 
-  ```bash
-  echo "DEMO_DATABASE_URL=postgres://postgres:postgres@localhost:5432/workout_demo" > .env.demo
-  ```
+База потрібна лише тому, хто хоче **перезібрати** демо після змін у застосунку — порожня тимчасова, **не робоча** (скрипти беруть її тільки з `DEMO_DATABASE_URL` і відмовляються працювати з базою, де вже є користувачі):
 
-  ```bash
-  pnpm demo:setup
-  ```
+```bash
+echo "DEMO_DATABASE_URL=postgres://postgres:postgres@localhost:5432/workout_demo" > .env.demo
+```
 
-  ```bash
-  pnpm demo:dev
-  ```
+```bash
+DEMO_BASE_PATH=/workout pnpm demo:build
+```
 
-  Вхід: `demo` / `demo-demo`. Статична версія: `pnpm demo:build`, потім `pnpm demo:preview`.
+```bash
+pnpm demo:publish
+```
+
+```bash
+git push --force origin gh-pages
+```
+
+`DEMO_BASE_PATH` — назва репозиторію (сайт живе на `https://<user>.github.io/<repo>/`). Подивитися результат до публікації: `pnpm demo:preview`. Запустити застосунок на демо-даних із сервером: `pnpm demo:setup`, потім `pnpm demo:dev`.
+
+Вхід у `demo:dev`: `demo` / `demo-demo`.
 
 ## Безпека
 

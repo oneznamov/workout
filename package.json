@@ -17,7 +17,8 @@
     "demo:setup": "tsx scripts/demo.ts setup",
     "demo:dev": "tsx scripts/demo.ts dev",
     "demo:build": "tsx scripts/demo.ts build",
-    "demo:preview": "tsx scripts/demo.ts preview"
+    "demo:preview": "tsx scripts/demo.ts preview",
+    "demo:publish": "tsx scripts/demo.ts publish"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^1.8.0",
