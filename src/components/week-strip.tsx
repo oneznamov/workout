@@ -2,14 +2,10 @@
 
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
-import { CalendarDays, Check, Rows3 } from "lucide-react";
-import { monthTitle, type DayMark } from "@/lib/calendar-logic";
+import { dayState, monthTitle, NO_MARK, type DayMark } from "@/lib/calendar-logic";
 import { cx, fmtDate } from "@/lib/format";
 import { MonthGrid } from "./calendar";
-import { SessionDots } from "./session-dots";
-
-/** `sessions` — everything done that day, strength and cardio together. */
-export type StripDay = { day: string; done: boolean; planned: boolean; sessions: number };
+import { DayDisc } from "./day-marks";
 
 const WEEKDAYS = ["Пн", "Вт", "Ср", "Чт", "Пт", "Сб", "Нд"];
 const VIEW_KEY = "wk:weekview";
@@ -17,9 +13,10 @@ const VIEW_KEY = "wk:weekview";
 /**
  * The week at a glance — and the weeks around it: swipe (or scroll) sideways to look back at
  * what was done and ahead at what is planned. Opens on the current week; a wide screen shows
- * the weeks before and after it as well. Weekends are tinted.
+ * the weeks before and after it as well. The same card can show the whole month instead.
+ * Today is the tinted tile; weekends sit on a slightly lighter column.
  */
-export function WeekStrip({ weeks, today, current, marks }: { weeks: StripDay[][]; today: string; current: number; /** with these the card can also show the month */ marks?: Record<string, DayMark> }) {
+export function WeekStrip({ weeks, today, current, marks }: { /** days of each week, Monday first */ weeks: string[][]; today: string; current: number; marks: Record<string, DayMark> }) {
   const strip = useRef<HTMLDivElement>(null);
   // Week or month: the athlete's choice, remembered on this device.
   const [month, setMonth] = useState(false);
@@ -59,22 +56,28 @@ export function WeekStrip({ weeks, today, current, marks }: { weeks: StripDay[][
     place();
     return () => observer.disconnect();
   }, [current, month]);
-  const toggle = marks && (
-    <button
-      onClick={() => show(!month)}
-      aria-label={month ? "Показати тиждень" : "Показати місяць"}
-      title={month ? "Показати тиждень" : "Показати місяць"}
-      className="absolute top-2 right-2 z-10 grid size-8 place-items-center rounded-full bg-surface-2 text-ink-2 hover:text-ink"
-    >
-      {month ? <Rows3 size={16} /> : <CalendarDays size={16} />}
-    </button>
+  // The switch lives in the title row, which every view keeps free on the right — it never covers a day.
+  const toggle = (
+    <div role="group" aria-label="Що показувати" className="absolute top-2.5 right-2.5 z-10 flex rounded-full bg-surface-2 p-0.5 text-[11px] font-semibold">
+      {(
+        [
+          [false, "Тиждень"],
+          [true, "Місяць"],
+        ] as const
+      ).map(([value, label]) => (
+        <button key={label} onClick={() => show(value)} aria-pressed={month === value} className={cx("rounded-full px-2.5 py-1", month === value ? "bg-surface-3 text-ink" : "text-muted")}>
+          {label}
+        </button>
+      ))}
+    </div>
   );
-  if (month && marks) {
+  const title = "caps mb-2 flex h-7 items-center pr-36 pl-1";
+  if (month) {
     const m = today.slice(0, 7);
     return (
       <div className="card relative p-3">
         {toggle}
-        <div className="caps mb-2 text-center text-accent first-letter:uppercase">{monthTitle(m)}</div>
+        <div className={cx(title, "text-accent")}>{monthTitle(m)}</div>
         <MonthGrid month={m} today={today} marks={marks} linkBase="/calendar" />
         <Link href="/calendar" className="mt-2 block text-center text-xs text-accent">
           Увесь календар →
@@ -84,57 +87,38 @@ export function WeekStrip({ weeks, today, current, marks }: { weeks: StripDay[][
   }
   return (
     <div className="relative">
-    {toggle}
-    <div
-      ref={strip}
-      className="card flex snap-x snap-mandatory overflow-x-auto overscroll-x-contain [scrollbar-width:none]"
-      role="group"
-      aria-label="Тижні: гортайте вбік"
-    >
-      {weeks.map((week, i) => (
-        <div key={week[0].day} className="w-full shrink-0 snap-center p-3 lg:w-1/3">
-          <div className={cx("caps mb-2 text-center", i === current && "text-accent")}>
-            {i === current ? "Цей тиждень" : i === current - 1 ? "Минулий тиждень" : i === current + 1 ? "Наступний тиждень" : `${fmtDate(week[0].day)} – ${fmtDate(week[6].day)}`}
+      {toggle}
+      <div ref={strip} className="card flex snap-x snap-mandatory overflow-x-auto overscroll-x-contain [scrollbar-width:none]" role="group" aria-label="Тижні: гортайте вбік">
+        {weeks.map((week, i) => (
+          <div key={week[0]} className="w-full shrink-0 snap-center p-3 lg:w-1/3">
+            <div className={cx(title, "lg:pr-0", i === current && "text-accent")}>
+              {i === current ? "Цей тиждень" : i === current - 1 ? "Минулий тиждень" : i === current + 1 ? "Наступний тиждень" : `${fmtDate(week[0])} – ${fmtDate(week[6])}`}
+            </div>
+            <div className="grid grid-cols-7 gap-1">
+              {week.map((day, j) => {
+                const m = marks[day] ?? NO_MARK;
+                const past = day < today;
+                const isToday = day === today;
+                const state = dayState(m, day, today);
+                return (
+                  <Link
+                    key={day}
+                    href={`/calendar?d=${day}`}
+                    className={cx("flex flex-col items-center gap-1.5 rounded-xl py-2", isToday ? "bg-accent/15 ring-1 ring-accent/40 ring-inset" : j >= 5 && "bg-white/[0.045]")}
+                    aria-current={isToday ? "date" : undefined}
+                    aria-label={`${fmtDate(day)}${isToday ? ", сьогодні" : ""}: ${
+                      state === "done" ? "силове виконано" : state === "planned" ? "заплановано" : state === "missed" ? "заплановане пропущено" : "без силового"
+                    }${m.kinds.length ? `, сесій за день: ${m.kinds.length}` : ""}. Відкрити в календарі`}
+                  >
+                    <span className={cx("text-[11px] font-semibold", isToday ? "text-accent" : past ? "text-muted/60" : "text-muted")}>{WEEKDAYS[j]}</span>
+                    <DayDisc day={day} state={state} kinds={m.kinds} today={isToday} past={past} check outline />
+                  </Link>
+                );
+              })}
+            </div>
           </div>
-          <div className="grid grid-cols-7 gap-1">
-            {week.map((d, j) => {
-              // One rule for every week: the past is quiet, today is ringed, the future is plain.
-              const past = d.day < today;
-              const isToday = d.day === today;
-              return (
-              <Link
-                key={d.day}
-                href={`/calendar?d=${d.day}`}
-                // Saturday and Sunday sit on a slightly lighter column, so the week reads at a glance.
-                className={cx("flex flex-col items-center gap-1.5 rounded-xl py-1.5", j >= 5 && "bg-white/[0.045]")}
-                aria-label={`${fmtDate(d.day)}: ${d.done ? "силове виконано" : d.planned ? "заплановано" : "без силового"}${d.sessions ? `, сесій за день: ${d.sessions}` : ""}. Відкрити в календарі`}
-              >
-                <span className={cx("text-[11px] font-semibold", isToday ? "text-accent" : past ? "text-muted/60" : "text-muted")}>{WEEKDAYS[j]}</span>
-                <span
-                  className={cx(
-                    "num grid size-9 place-items-center rounded-full text-sm font-semibold",
-                    d.done
-                      ? cx("bg-accent text-accent-ink", past && "opacity-70")
-                      : isToday
-                        ? "bg-surface-3 text-ink"
-                        : past
-                          ? cx("text-muted/50", d.planned && "ring-1 ring-warning/50")
-                          : d.planned
-                            ? "bg-surface-2 text-ink ring-2 ring-accent/50"
-                            : "bg-surface-2 text-ink-2",
-                    isToday && "ring-2 ring-accent ring-offset-2 ring-offset-surface",
-                  )}
-                >
-                  {d.done ? <Check size={17} strokeWidth={3} /> : Number(d.day.slice(8))}
-                </span>
-                <SessionDots count={d.sessions} dim={past} />
-              </Link>
-              );
-            })}
-          </div>
-        </div>
-      ))}
-    </div>
+        ))}
+      </div>
     </div>
   );
 }

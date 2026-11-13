@@ -15,6 +15,8 @@ export const planSchema = z.object({
           weight: z.number().nullable(),
           reps: z.number().nullable(),
           duration_sec: z.number().nullable(),
+          // How many identical sets in a row — keeps a long programme short enough to fit one answer.
+          count: z.number().nullable(),
         }),
       ),
     }),
@@ -30,7 +32,9 @@ export const PLAN_SHAPE = `{
     "exercise": string,           // exact "name" of an exercise from the library below
     "rest_seconds": number|null,  // rest between sets
     "notes": string|null,         // optional cue for the athlete, in Ukrainian
-    "sets": [{ "weight": number|null, "reps": number|null, "duration_sec": number|null }]
+    "sets": [{ "weight": number|null, "reps": number|null, "duration_sec": number|null, "count": number|null }]
+                                  // "count": how many identical sets in a row (null = one). Always write equal
+                                  // sets as ONE entry with a count — 4 × 8 at 60 kg is {"weight": 60, "reps": 8, "duration_sec": null, "count": 4}
   }]
 }`;
 
@@ -76,12 +80,24 @@ export function extractJson(text: string): unknown {
 }
 
 /**
+ * Providers without a strict output format may leave the effort or a set's count out — fill
+ * them in before the draft is checked against the schema.
+ */
+function lenient(raw: unknown): Record<string, unknown> {
+  const given = raw && typeof raw === "object" ? (raw as Record<string, unknown>) : {};
+  const sets = (e: unknown) => {
+    const list = e && typeof e === "object" ? (e as { sets?: unknown }).sets : null;
+    return Array.isArray(list) ? { ...(e as object), sets: list.map((x) => ({ count: null, ...(x && typeof x === "object" ? x : {}) })) } : e;
+  };
+  return { effort: null, ...given, exercises: Array.isArray(given.exercises) ? given.exercises.map(sets) : given.exercises };
+}
+
+/**
  * Turns a model's draft into something safe to store: exercises are matched to the library by
  * name (unknown ones are dropped), numbers are clamped to sane ranges, empty exercises removed.
  */
 export function resolvePlan(raw: unknown, library: LibraryItem[], skipIds: string[] = []) {
-  // Providers without a strict output format may leave the effort out.
-  const draft = planSchema.parse({ effort: null, ...(raw && typeof raw === "object" ? raw : {}) });
+  const draft = planSchema.parse(lenient(raw));
   const byName = new Map<string, LibraryItem>();
   for (const e of library) {
     byName.set(norm(e.name), e);
@@ -98,14 +114,18 @@ export function resolvePlan(raw: unknown, library: LibraryItem[], skipIds: strin
     }
     if (used.has(found.id)) continue;
     const timed = found.tracking === "duration" || found.tracking === "distance";
-    const sets = item.sets.slice(0, 8).map((s) => {
+    // "count" repeats a set; an exercise never gets more than eight.
+    const sets = item.sets
+      .flatMap((s) => Array.from({ length: clampInt(s.count, 1, 8) ?? 1 }, () => s))
+      .slice(0, 8)
+      .map((s) => {
       const w = typeof s.weight === "number" && Number.isFinite(s.weight) && s.weight > 0 ? Math.min(500, Math.round(s.weight * 4) / 4) : null;
       return {
         weight: timed ? null : w,
         reps: timed ? null : clampInt(s.reps, 1, 100),
         durationSec: timed ? (clampInt(s.duration_sec, 5, 3600) ?? 30) : null,
       };
-    });
+      });
     if (sets.length === 0) continue;
     used.add(found.id);
     exercises.push({
@@ -128,7 +148,7 @@ export function resolveProgram(raw: unknown, library: LibraryItem[], allowedDays
     notes: "",
     forecast: "",
     ...given,
-    workouts: Array.isArray(given.workouts) ? given.workouts.map((w) => ({ effort: null, ...(w && typeof w === "object" ? w : {}) })) : given.workouts,
+    workouts: Array.isArray(given.workouts) ? given.workouts.map(lenient) : given.workouts,
   });
   const allowed = new Set(allowedDays);
   const taken = new Set<string>();

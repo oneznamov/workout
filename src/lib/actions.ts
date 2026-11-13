@@ -8,6 +8,8 @@ import { db } from "@/db";
 import { apiTokens, EQUIPMENT, errorLog, MUSCLE_GROUPS, TRACKING, users, type WorkoutStatus } from "@/db/schema";
 import { bumpSessionVersion, createSession, destroySession, generateApiToken, getAdmin, requireUserId } from "./auth";
 import { addDays, dayOf } from "./format";
+import { getCalendarDays } from "./calendar";
+import { isMonth } from "./calendar-logic";
 import { addManualCardio, deleteManualCardio } from "./cardio";
 import { DASHBOARD_VERSION, WIDGETS } from "./dashboard";
 import { normalizeGoals, type Goals } from "./goals";
@@ -281,6 +283,13 @@ export async function planFromAction(sourceId: string, day: string) {
   // A workout copied from a programme stays in that programme.
   if (src.programId) await wk.setWorkoutProgram(userId, id, src.programId);
   return { id };
+}
+
+/** A month for the calendar, loaded as the athlete pages through it. */
+export async function calendarMonthAction(month: string) {
+  const userId = await requireUserId();
+  if (!isMonth(month)) throw new Error("bad month");
+  return getCalendarDays(userId, month);
 }
 
 // ───────────────────────── Programmes ─────────────────────────

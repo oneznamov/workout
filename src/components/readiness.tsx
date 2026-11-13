@@ -3,7 +3,8 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
-import { Loader2, Moon, Sparkles } from "lucide-react";
+import { Moon, Sparkles } from "lucide-react";
+import { AI_STEPS, AiWorking } from "@/components/ai-working";
 import { reviseWorkoutAction } from "@/lib/ai-actions";
 import { fmtHours, type ReadinessLevel } from "@/lib/readiness";
 
@@ -60,6 +61,8 @@ export function ReadinessNote({
             Відкрити →
           </Link>
         </p>
+      ) : pending ? (
+        <AiWorking compact title="ШІ оновлює тренування" steps={AI_STEPS.revise} expect={45} />
       ) : workout ? (
         ai ? (
           <button
@@ -75,7 +78,7 @@ export function ReadinessNote({
             }
             className="btn btn-primary btn-sm"
           >
-            {pending ? <Loader2 size={15} className="animate-spin" /> : <Sparkles size={15} />} {pending ? "ШІ оновлює…" : `Оновити «${workout.name}»`}
+            <Sparkles size={15} /> {`Оновити «${workout.name}»`}
           </button>
         ) : (
           <Link href={`/workouts/${workout.id}`} className="btn btn-ghost btn-sm">

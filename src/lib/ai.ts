@@ -9,6 +9,7 @@ import { AI_PROVIDERS, type AiNote, type AiProvider, type AiState } from "./ai-p
 import { getAthleteContext, setText } from "./athlete-context";
 import { getTrainingAnalytics } from "./analytics";
 import { seal, unseal } from "./crypto";
+import { logError } from "./errors";
 import { addDays, dayOf } from "./format";
 import { normalizeGoals } from "./goals";
 import { linkHealthWorkouts } from "./health";
@@ -74,7 +75,13 @@ export async function removeAiSettings(userId: string) {
 
 // ───────────────────────── Talking to a model ─────────────────────────
 
-type Ask = { system: string; prompt: string };
+/** `maxTokens` — room for the answer; a programme of many workouts needs more than a single one. */
+type Ask = { system: string; prompt: string; maxTokens?: number };
+/** A whole programme: up to twenty workouts in one answer. */
+const PROGRAM_TOKENS = 32000;
+/** Stop a little before the platform would cut the request off, so the athlete gets a plain message instead. */
+const AI_TIME_LIMIT_MS = 280_000;
+const TOO_LONG = "План вийшов завеликим і не вмістився в одну відповідь. Попросіть менше за раз — наприклад, два тижні замість чотирьох.";
 
 /** Models that accept the server-side refusal fallback. */
 const WITH_FALLBACK = new Set(["claude-opus-5-5", "claude-opus-5", "claude-sonnet-5-5", "claude-fable-5-2", "claude-fable-5-1"]);
@@ -82,14 +89,16 @@ const WITH_FALLBACK = new Set(["claude-opus-5-5", "claude-opus-5", "claude-sonne
 const NO_EFFORT = /claude-(3|haiku-4|sonnet-4-[0-5]|opus-4-[0-1])/;
 
 async function askClaude(cfg: AiConfig, ask: Ask, schema?: z.ZodType): Promise<string> {
-  const client = new Anthropic({ apiKey: cfg.apiKey, maxRetries: 1, timeout: 180_000 });
+  const client = new Anthropic({ apiKey: cfg.apiKey, maxRetries: 1, timeout: AI_TIME_LIMIT_MS });
+  // Streamed, so a long answer is not dropped as an idle connection; one deadline for the whole exchange.
+  const options = { signal: AbortSignal.timeout(AI_TIME_LIMIT_MS) };
   const output_config = {
     ...(NO_EFFORT.test(cfg.model) ? {} : { effort: "medium" as const }),
     ...(schema ? { format: zodOutputFormat(schema) } : {}),
   };
   const params = {
     model: cfg.model,
-    max_tokens: 16000,
+    max_tokens: ask.maxTokens ?? 16000,
     system: ask.system,
     messages: [{ role: "user" as const, content: ask.prompt }],
     ...(Object.keys(output_config).length ? { output_config } : {}),
@@ -99,20 +108,24 @@ async function askClaude(cfg: AiConfig, ask: Ask, schema?: z.ZodType): Promise<s
     if (WITH_FALLBACK.has(cfg.model)) {
       try {
         // If the model declines a request, the API re-runs it on a fallback model inside the same call.
-        message = await client.beta.messages.create({ ...params, betas: ["server-side-fallback-2026-07-01"], fallbacks: "default" });
+        message = await client.beta.messages.stream({ ...params, betas: ["server-side-fallback-2026-07-01"], fallbacks: "default" }, options).finalMessage();
       } catch (e) {
         if (!(e instanceof Anthropic.BadRequestError)) throw e;
-        message = await client.messages.create(params);
+        message = await client.messages.stream(params, options).finalMessage();
       }
     } else {
-      message = await client.messages.create(params);
+      message = await client.messages.stream(params, options).finalMessage();
     }
     if (message.stop_reason === "refusal") throw new AiError("Модель відмовилась відповідати на цей запит.");
     const text = message.content.flatMap((b) => (b.type === "text" ? [b.text] : [])).join("").trim();
-    if (!text) throw new AiError(message.stop_reason === "max_tokens" ? "Відповідь моделі обірвалася. Спробуйте ще раз." : "Модель повернула порожню відповідь.");
+    // A structured answer cut off half-way cannot be read at all — say what happened instead of "wrong format".
+    if (message.stop_reason === "max_tokens" && (schema || !text)) throw new AiError(schema ? TOO_LONG : "Відповідь моделі обірвалася. Спробуйте ще раз.");
+    if (!text) throw new AiError("Модель повернула порожню відповідь.");
     return text;
   } catch (e) {
     if (e instanceof AiError) throw e;
+    if (e instanceof Anthropic.APIUserAbortError || e instanceof Anthropic.APIConnectionTimeoutError || (e instanceof Error && (e.name === "TimeoutError" || e.name === "AbortError")))
+      throw new AiError("ШІ відповідав надто довго, і запит зупинено. Спробуйте ще раз або попросіть менше за раз.");
     if (e instanceof Anthropic.AuthenticationError) throw new AiError("API-ключ Claude не підходить. Перевірте його в Налаштуваннях.");
     if (e instanceof Anthropic.PermissionDeniedError) throw new AiError("Цей ключ не має доступу до вибраної моделі.");
     if (e instanceof Anthropic.NotFoundError) throw new AiError(`Модель «${cfg.model}» не знайдено. Перевірте назву в Налаштуваннях.`);
@@ -146,7 +159,7 @@ async function askCompatible(cfg: AiConfig, ask: Ask, json: boolean): Promise<st
         ],
         ...(json ? { response_format: { type: "json_object" } } : {}),
       }),
-      signal: AbortSignal.timeout(180_000),
+      signal: AbortSignal.timeout(AI_TIME_LIMIT_MS),
     });
   } catch {
     throw new AiError(`Не вдалося зʼєднатися з ${label}. Спробуйте ще раз.`);
@@ -159,8 +172,9 @@ async function askCompatible(cfg: AiConfig, ask: Ask, json: boolean): Promise<st
     if (res.status === 402) throw new AiError(`${label}: недостатньо коштів на балансі.`);
     throw new AiError(`${label} відповів помилкою ${res.status}. ${detail}`);
   }
-  const data = (await res.json().catch(() => null)) as { choices?: { message?: { content?: string | null } }[] } | null;
+  const data = (await res.json().catch(() => null)) as { choices?: { finish_reason?: string | null; message?: { content?: string | null } }[] } | null;
   const text = data?.choices?.[0]?.message?.content?.trim();
+  if (json && data?.choices?.[0]?.finish_reason === "length") throw new AiError(TOO_LONG);
   if (!text) throw new AiError("Модель повернула порожню відповідь.");
   return text;
 }
@@ -174,6 +188,8 @@ async function askJson(cfg: AiConfig, ask: Ask, schema: z.ZodType): Promise<unkn
   try {
     return extractJson(text);
   } catch {
+    // Kept for diagnosis: which model, how long the reply was and how it ended.
+    await logError({ source: "server", message: `AI reply is not JSON (${cfg.provider}/${cfg.model})`, detail: `length ${text.length}; ends with: ${text.slice(-300)}` });
     throw new AiError("Модель відповіла не у форматі плану. Спробуйте ще раз.");
   }
 }
@@ -419,7 +435,7 @@ ${lib.text}
 
 ${task}
 ${wish ? `The athlete's request, in their own words: ${wish}` : "The athlete gave no further wishes."}`;
-  const program = resolveProgram(await askJson(cfg, { system: PROGRAM_SYSTEM, prompt }, programSchema), lib.library, allowed);
+  const program = resolveProgram(await askJson(cfg, { system: PROGRAM_SYSTEM, prompt, maxTokens: PROGRAM_TOKENS }, programSchema), lib.library, allowed);
   if (program.workouts.length === 0) throw new AiError("Модель не запропонувала жодного тренування з вправами з бібліотеки. Спробуйте ще раз.");
   // Several workouts are a programme: a stage with a purpose and an expected result that can be followed and revised.
   const programme = frame
@@ -468,7 +484,7 @@ ${current}
 ${what ? `What should change, in the athlete's words: ${what}` : "Nothing specific was asked — compare what has been done with the expected result and adjust the remainder so the programme stays realistic."}
 
 Lay out the rest of the programme again: every workout from ${today} on (dates between ${today} and ${allowed.at(-1)}; it normally ends on ${end}, extend or shorten it only if the request calls for it). What is already done cannot be changed. Keep the planned workouts that still make sense as they are, and change, move, add or drop the others. Return the programme's name, purpose ("notes") and expected result ("forecast") — updated if the change affects them, unchanged otherwise — and start "forecast" with one sentence saying what you changed and why.`;
-  const program = resolveProgram(await askJson(cfg, { system: PROGRAM_SYSTEM, prompt }, programSchema), lib.library, allowed);
+  const program = resolveProgram(await askJson(cfg, { system: PROGRAM_SYSTEM, prompt, maxTokens: PROGRAM_TOKENS }, programSchema), lib.library, allowed);
   if (program.workouts.length === 0) throw new AiError("Модель не запропонувала жодного тренування з вправами з бібліотеки. Спробуйте ще раз.");
   await clearUpcoming(userId, programId, today);
   for (const w of program.workouts) {

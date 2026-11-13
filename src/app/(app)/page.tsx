@@ -10,7 +10,7 @@ import { Leaderboard } from "@/components/team";
 import { GoalsCard } from "@/components/goals-card";
 import { MuscleWeekCard } from "@/components/muscles/muscle-balance";
 import { Card, Empty, PageSkeleton, SectionTitle, Stat } from "@/components/ui";
-import { WeekStrip, type StripDay } from "@/components/week-strip";
+import { WeekStrip } from "@/components/week-strip";
 import { WeightQuick } from "@/components/weight-quick";
 import { GoalBar, SickMode } from "@/components/profile";
 import { ReadinessNote } from "@/components/readiness";
@@ -69,8 +69,6 @@ async function Content() {
     .filter((w) => !w.scheduledFor || w.scheduledFor >= today)
     .sort((a, b) => (a.scheduledFor ?? "9999").localeCompare(b.scheduledFor ?? "9999"));
   const todays = upcoming.find((w) => w.scheduledFor === today);
-  const doneDays = new Set(recent.filter((w) => w.startedAt).map((w) => dayOf(w.startedAt!)));
-  const plannedDays = new Set(planned.map((w) => w.scheduledFor).filter(Boolean));
   const weekCardio = cardio.filter((c) => dayOf(c.startAt) >= monday);
   const cardioByDay = new Map<string, string>();
   for (const c of weekCardio) if (!cardioByDay.has(dayOf(c.startAt))) cardioByDay.set(dayOf(c.startAt), CARDIO_COLOR[c.kind]);
@@ -97,13 +95,8 @@ async function Content() {
   const marks: Record<string, DayMark> = {};
   for (const w of recent) if (w.startedAt) mark(marks, dayOf(w.startedAt), "done");
   for (const w of planned) if (w.scheduledFor) mark(marks, w.scheduledFor, "planned");
-  for (const c of cardio) if (!c.workoutId) mark(marks, dayOf(c.startAt), "cardio");
-  const stripWeeks: StripDay[][] = Array.from({ length: WEEKS_BACK + 3 }, (_, w) =>
-    Array.from({ length: 7 }, (_, d) => {
-      const day = addDays(monday, (w - WEEKS_BACK) * 7 + d);
-      return { day, done: doneDays.has(day), planned: plannedDays.has(day), sessions: (marks[day]?.done ?? 0) + (marks[day]?.cardio ?? 0) };
-    }),
-  );
+  for (const c of cardio) if (!c.workoutId) mark(marks, dayOf(c.startAt), "cardio", c.kind);
+  const stripWeeks: string[][] = Array.from({ length: WEEKS_BACK + 3 }, (_, w) => Array.from({ length: 7 }, (_, d) => addDays(monday, (w - WEEKS_BACK) * 7 + d)));
   const openGoals = profile.goals.filter((g) => !g.done);
   const overdue = planned.filter((w) => w.scheduledFor && w.scheduledFor < today).sort((a, b) => b.scheduledFor!.localeCompare(a.scheduledFor!));
 

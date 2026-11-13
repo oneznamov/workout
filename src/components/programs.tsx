@@ -6,8 +6,9 @@ import { History, Pencil, Plus, Route, Sparkles, Trash2, X } from "lucide-react"
 import { addProgramWorkoutAction, createProgramAction, deleteProgramAction, saveProgramVersionAction, updateProgramAction } from "@/lib/actions";
 import { planProgramAction, reviseProgramAction } from "@/lib/ai-actions";
 import { useLockScroll } from "@/lib/client/lock-scroll";
-import { addDays, dayOf } from "@/lib/format";
+import { addDays, cx, dayOf } from "@/lib/format";
 import { AiPromptDialog } from "./ai";
+import { AI_STEPS, AiWorking } from "./ai-working";
 
 type Fields = { name: string; description: string; forecast: string; startsOn: string; endsOn: string };
 const SHEET = "w-full max-w-md space-y-4 rounded-t-[28px] bg-surface p-5 pb-[calc(1.25rem+env(safe-area-inset-bottom))] md:rounded-[28px] md:pb-5";
@@ -98,6 +99,8 @@ export function NewProgramButton({ ai = false, startOpen = false, onClosed }: { 
               start(() => createProgramAction(fields));
             }}
           >
+            {filling && <AiWorking title="ШІ складає програму" steps={AI_STEPS.plan} expect={150} />}
+            <div className={cx("space-y-4", filling && "hidden")}>
             <div className="flex items-center justify-between gap-2">
               <h2 className="text-xl font-bold">Нова програма</h2>
               <button type="button" onClick={close} disabled={pending} aria-label="Закрити" className="icon-btn bg-surface-2">
@@ -119,6 +122,7 @@ export function NewProgramButton({ ai = false, startOpen = false, onClosed }: { 
               <Route size={17} /> {pending && !filling ? "Створюю…" : ai ? "Створити порожню" : "Створити програму"}
             </button>
             {ai && <p className="text-xs text-muted">ШІ розкладе тренування на весь період з огляду на ваші цілі, показники й минулі тренування. Порожню програму наповнюєте самі.</p>}
+            </div>
           </form>
         </div>
       )}
@@ -227,6 +231,8 @@ export function ProgramActions({ id, initial, ai }: { id: string; initial: Field
           placeholder="Напр.: наступні два тижні у відʼїзді — лише власна вага; або: стало легко, додай навантаження"
           submitLabel="Оновити програму"
           busyLabel="Перебудовую програму…"
+          steps={AI_STEPS.plan}
+          expect={150}
           onSubmit={async (text) => {
             const r = await reviseProgramAction(id, text);
             if (!r.ok) return r.error;

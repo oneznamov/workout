@@ -16,6 +16,7 @@ import {
 } from "@/lib/ai-actions";
 import { AI_PROVIDER_IDS, AI_PROVIDERS, type AiNote, type AiProvider, type AiResult, type AiState } from "@/lib/ai-providers";
 import { useLockScroll } from "@/lib/client/lock-scroll";
+import { AI_STEPS, AiWorking } from "./ai-working";
 import { addDays, cx, dayOf, fmtDate, fmtTime, weekStart } from "@/lib/format";
 
 // ───────────────────────── Settings ─────────────────────────
@@ -234,9 +235,7 @@ function NoteCard({
           </div>
         </>
       ) : busy ? (
-        <p className="flex items-center gap-2 text-sm text-muted">
-          <Loader2 size={15} className="animate-spin" /> ШІ аналізує…
-        </p>
+        <AiWorking compact title="ШІ аналізує" steps={AI_STEPS.analyse} expect={30} />
       ) : (
         <div className="space-y-3">
           <p className="text-sm text-muted">{idle}</p>
@@ -418,6 +417,8 @@ export function PlanWithAi({ startOpen = false, onClosed }: { /** opened by some
                 });
               }}
             >
+              {pending && <AiWorking title="ШІ складає план" steps={AI_STEPS.plan} expect={days.length > 1 || /тиж|місяц|програм/i.test(wish) ? 150 : 60} />}
+              <div className={cx("space-y-4", pending && "hidden")}>
               <div className="flex items-center justify-between gap-2">
                 <h2 className="text-xl font-bold">Скласти з ШІ</h2>
                 <button type="button" onClick={close} disabled={pending} aria-label="Закрити" className="icon-btn bg-surface-2">
@@ -495,6 +496,7 @@ export function PlanWithAi({ startOpen = false, onClosed }: { /** opened by some
                   </>
                 )}
               </button>
+              </div>
             </form>
           )}
         </div>
@@ -510,6 +512,8 @@ export function AiPromptDialog({
   placeholder,
   submitLabel,
   busyLabel,
+  steps = AI_STEPS.revise,
+  expect = 60,
   onSubmit,
   onClose,
 }: {
@@ -518,6 +522,9 @@ export function AiPromptDialog({
   placeholder: string;
   submitLabel: string;
   busyLabel: string;
+  /** what the wait shows: the steps the AI goes through and how long it usually takes, seconds */
+  steps?: readonly string[];
+  expect?: number;
   /** Resolves to an error text to show, or null when it worked (the dialog then closes). */
   onSubmit: (text: string) => Promise<string | null>;
   onClose: () => void;
@@ -544,6 +551,8 @@ export function AiPromptDialog({
           });
         }}
       >
+        {pending && <AiWorking title={busyLabel.replace(/…$/, "")} steps={steps} expect={expect} />}
+        <div className={cx("space-y-4", pending && "hidden")}>
         <div className="flex items-center justify-between gap-2">
           <h2 className="text-xl font-bold">{title}</h2>
           <button type="button" onClick={onClose} disabled={pending} aria-label="Закрити" className="icon-btn bg-surface-2">
@@ -568,6 +577,7 @@ export function AiPromptDialog({
             </>
           )}
         </button>
+        </div>
       </form>
     </div>
   );

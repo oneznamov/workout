@@ -2,8 +2,9 @@
 
 import Link from "next/link";
 import { useState } from "react";
-import { Loader2, Moon, Pencil, Sparkles } from "lucide-react";
+import { Moon, Pencil, Sparkles } from "lucide-react";
 import { SpokenText } from "@/components/ai";
+import { AI_STEPS, AiWorking } from "@/components/ai-working";
 import { cx } from "@/lib/format";
 
 const QUICK: { label: string; request: string }[] = [
@@ -49,6 +50,14 @@ export function ChangeWorkout({
     setPicked([]);
     setText("");
   };
+  // The wait takes the block over: nothing else here can be used until the answer is in.
+  if (busy) {
+    return (
+      <section className="card p-3.5" aria-label="Змінити тренування">
+        <AiWorking compact title="ШІ оновлює тренування" steps={AI_STEPS.revise} expect={45} />
+      </section>
+    );
+  }
   return (
     <section className="card space-y-3 p-3.5" aria-label="Змінити тренування">
       {/* The app's own proposal after last night: explained in a line, applied in one tap. */}
@@ -59,7 +68,7 @@ export function ChangeWorkout({
           </p>
           {ai && (
             <button disabled={busy} onClick={() => void submit(suggestion.request)} className="btn btn-primary btn-sm">
-              {busy && !open ? <Loader2 size={15} className="animate-spin" /> : <Sparkles size={15} />} {busy && !open ? "ШІ оновлює…" : "Оновити під сьогоднішній стан"}
+              <Sparkles size={15} /> Оновити під сьогоднішній стан
             </button>
           )}
           {error && !open && (
@@ -119,15 +128,7 @@ export function ChangeWorkout({
             </p>
           )}
           <button type="submit" disabled={busy} className="btn btn-primary w-full">
-            {busy ? (
-              <>
-                <Loader2 size={17} className="animate-spin" /> ШІ перезбирає…
-              </>
-            ) : (
-              <>
-                <Sparkles size={17} /> {request ? "Перезібрати тренування" : "Перевірити й покращити"}
-              </>
-            )}
+            <Sparkles size={17} /> {request ? "Перезібрати тренування" : "Перевірити й покращити"}
           </button>
         </form>
       )}

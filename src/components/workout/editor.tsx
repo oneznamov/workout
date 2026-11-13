@@ -34,6 +34,7 @@ import { deleteWorkoutAction, linkHealthWorkoutAction } from "@/lib/actions";
 import { reviseWorkoutAction, supplementWorkoutAction } from "@/lib/ai-actions";
 import type { AiNote } from "@/lib/ai-providers";
 import { useLockScroll } from "@/lib/client/lock-scroll";
+import { useWakeLock } from "@/lib/client/wake-lock";
 import { armRestPush, cancelRestPush } from "@/lib/client/push";
 import { cloneWorkout, hardNavigate, pushWorkout, readLocal, removeLocal, writeLocal } from "@/lib/client/offline";
 import { addDays, cx, dayOf, EXERCISES_FORMS, fmtClock, fmtDate, fmtDateLong, fmtDuration, fmtNum, fmtTime, plural } from "@/lib/format";
@@ -531,28 +532,7 @@ export function WorkoutEditor({
   }, [focused]);
 
   // Keep the screen on while training, so the phone on the floor still shows the set or the rest.
-  useEffect(() => {
-    if (!live || paused || !("wakeLock" in navigator)) return;
-    let lock: WakeLockSentinel | null = null;
-    let stopped = false;
-    const acquire = () => {
-      if (stopped || document.visibilityState !== "visible") return;
-      navigator.wakeLock
-        .request("screen")
-        .then((l) => {
-          if (stopped) void l.release().catch(() => undefined);
-          else lock = l;
-        })
-        .catch(() => undefined);
-    };
-    acquire();
-    document.addEventListener("visibilitychange", acquire);
-    return () => {
-      stopped = true;
-      document.removeEventListener("visibilitychange", acquire);
-      void lock?.release().catch(() => undefined);
-    };
-  }, [live, paused]);
+  useWakeLock(live && !paused);
 
   // Desktop: summary on the left, exercises on the right. One-set-at-a-time mode stays a single centred column.
   const split = !focused;

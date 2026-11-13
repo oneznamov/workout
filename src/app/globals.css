@@ -102,6 +102,67 @@ input[type="date"]::-webkit-date-and-time-value {
   text-align: left;
 }
 
+/*
+ * The mark shown while the AI is writing: a ring of light turning slowly around a breathing
+ * spark. Slow on purpose — it has to be pleasant to look at for a couple of minutes.
+ */
+@keyframes ai-turn {
+  to {
+    transform: rotate(360deg);
+  }
+}
+@keyframes ai-breathe {
+  0%,
+  100% {
+    transform: scale(0.86);
+    opacity: 0.7;
+  }
+  50% {
+    transform: scale(1.08);
+    opacity: 1;
+  }
+}
+@keyframes ai-glow {
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 color-mix(in oklab, var(--c-body) 0%, transparent);
+  }
+  50% {
+    box-shadow: 0 0 28px 2px color-mix(in oklab, var(--c-body) 38%, transparent);
+  }
+}
+@keyframes ai-step-in {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+.ai-orb {
+  animation: ai-glow 3.2s ease-in-out infinite;
+}
+.ai-orb-ring {
+  background: conic-gradient(from 0deg, transparent 0 18%, var(--c-body) 55%, var(--accent) 78%, transparent 100%);
+  animation: ai-turn 2.4s linear infinite;
+}
+.ai-orb-spark {
+  animation: ai-breathe 3.2s ease-in-out infinite;
+}
+.ai-step {
+  animation: ai-step-in 0.35s ease-out both;
+}
+@media (prefers-reduced-motion: reduce) {
+  .ai-orb,
+  .ai-orb-ring,
+  .ai-orb-spark,
+  .ai-step {
+    animation: none;
+  }
+}
+
 .skeleton-body {
   animation: skeleton-in 0.3s ease-out 0.45s both;
 }

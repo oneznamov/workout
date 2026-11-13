@@ -385,16 +385,45 @@ describe("calendar", () => {
     expect(isMonth("2026-13")).toBe(false);
   });
 
-  it("counts what is on a day", async () => {
+  it("counts what is on a day and remembers each session's kind", async () => {
     const { mark, sessionsOn } = await import("@/lib/calendar-logic");
-    const marks = {};
+    const marks: Record<string, import("@/lib/calendar-logic").DayMark> = {};
     mark(marks, "2026-11-12", "done");
-    mark(marks, "2026-11-12", "cardio");
+    mark(marks, "2026-11-12", "cardio", "run");
     mark(marks, "2026-11-12", "cardio");
     mark(marks, "2026-11-13", "planned");
-    expect(sessionsOn((marks as Record<string, never>)["2026-11-12"])).toBe(3);
-    expect(sessionsOn((marks as Record<string, never>)["2026-11-13"])).toBe(0);
+    expect(sessionsOn(marks["2026-11-12"])).toBe(3);
+    expect(marks["2026-11-12"].kinds).toEqual(["strength", "run", "other"]);
+    expect(sessionsOn(marks["2026-11-13"])).toBe(0);
+    expect(marks["2026-11-13"].kinds).toEqual([]);
     expect(sessionsOn(undefined)).toBe(0);
+  });
+
+  it("tells done, planned and missed days apart", async () => {
+    const { dayState } = await import("@/lib/calendar-logic");
+    const m = (done: number, planned: number) => ({ done, planned, cardio: 0, kinds: [] });
+    expect(dayState(m(1, 1), "2026-11-10", "2026-11-13")).toBe("done");
+    expect(dayState(m(0, 1), "2026-11-13", "2026-11-13")).toBe("planned");
+    expect(dayState(m(0, 1), "2026-11-14", "2026-11-13")).toBe("planned");
+    expect(dayState(m(0, 1), "2026-11-12", "2026-11-13")).toBe("missed");
+    expect(dayState(m(0, 0), "2026-11-12", "2026-11-13")).toBe("none");
+    expect(dayState(undefined, "2026-11-12", "2026-11-13")).toBe("none");
+  });
+
+  it("orders a day's sessions the same way every time and caps their number", async () => {
+    const { sessionSegments } = await import("@/lib/calendar-logic");
+    expect(sessionSegments([])).toEqual([]);
+    expect(sessionSegments(["cycle", "strength", "run", "strength"])).toEqual(["strength", "strength", "run", "cycle"]);
+    expect(sessionSegments(Array(9).fill("run"))).toHaveLength(6);
+  });
+
+  it("draws only the weeks a month touches", async () => {
+    const { monthWeeks } = await import("@/lib/calendar-logic");
+    expect(monthWeeks("2026-11")).toHaveLength(42); // 1 Nov 2026 is a Sunday, the 30th a Monday
+    expect(monthWeeks("2026-12")).toHaveLength(35);
+    expect(monthWeeks("2027-02")).toHaveLength(28); // starts on a Monday, 28 days
+    expect(monthWeeks("2026-12")[0]).toBe("2026-11-30");
+    expect(monthWeeks("2026-12").at(-1)).toBe("2027-01-03");
   });
 });
 
@@ -473,6 +502,17 @@ describe("expected effort and names", () => {
     expect(resolvePlan({ name: "A", notes: "", effort: 7.4, exercises: [item] }, library).effort).toBe(7);
     expect(resolvePlan({ name: "A", notes: "", effort: 14, exercises: [item] }, library).effort).toBe(10);
     expect(resolvePlan({ name: "A", notes: "", exercises: [item] }, library).effort).toBeNull();
+  });
+
+  it("unfolds a set's count into that many sets, at most eight per exercise", async () => {
+    const { resolvePlan } = await import("@/lib/ai-plan");
+    const library = [{ id: "sq", name: "Back Squat", nameUk: null, tracking: "weight_reps" }];
+    const plan = (sets: object[]) => resolvePlan({ name: "A", notes: "", effort: 6, exercises: [{ exercise: "Back Squat", rest_seconds: 90, notes: null, sets }] }, library).exercises[0].sets;
+    expect(plan([{ weight: 60, reps: 8, duration_sec: null, count: 4 }])).toHaveLength(4);
+    expect(plan([{ weight: 40, reps: 10, duration_sec: null, count: 1 }, { weight: 60, reps: 8, duration_sec: null, count: 3 }]).map((s) => s.weight)).toEqual([40, 60, 60, 60]);
+    // No count (older answers, other providers) is one set; a wild count is capped.
+    expect(plan([{ weight: 60, reps: 8, duration_sec: null }])).toHaveLength(1);
+    expect(plan([{ weight: 60, reps: 8, duration_sec: null, count: 40 }])).toHaveLength(8);
   });
 
   it("shows the chosen name, else the login, and addresses a photo by the time it was saved", async () => {
