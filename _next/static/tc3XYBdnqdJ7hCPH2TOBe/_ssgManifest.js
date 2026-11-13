@@ -1,0 +1,1 @@
+self.__SSG_MANIFEST=new Set(["\u002Fcardio\u002F[id]","\u002Fexercises\u002F[id]","\u002Finvite\u002F[token]","\u002Fprograms\u002F[id]","\u002Fpwa-icon\u002F[size]","\u002Freset\u002F[token]","\u002Fteam\u002Fjoin\u002F[token]","\u002Fworkouts\u002F[id]"]);self.__SSG_MANIFEST_CB&&self.__SSG_MANIFEST_CB()
